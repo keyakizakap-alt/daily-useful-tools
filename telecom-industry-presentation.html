@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>通信業界の現状と未来 — キャリア戦略プレゼン</title>
+<style>
+  :root{
+    --primary:#1A237E;
+    --accent:#00BCD4;
+    --gold:#FFC107;
+    --bg:#F4F6FB;
+    --text:#1F2937;
+    --muted:#6B7280;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:"Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;
+    background:var(--bg);color:var(--text);
+    padding:40px 20px;
+  }
+  .slide{
+    width:1100px;max-width:100%;margin:0 auto 40px;
+    background:#fff;border-radius:24px;
+    box-shadow:0 20px 60px rgba(26,35,126,.12);
+    overflow:hidden;position:relative;min-height:620px;
+    page-break-after:always;
+  }
+  .slide-num{
+    position:absolute;top:24px;right:32px;
+    font-size:13px;color:var(--muted);letter-spacing:.1em;
+  }
+  .slide-tag{
+    position:absolute;top:24px;left:32px;
+    background:var(--accent);color:#fff;
+    padding:6px 16px;border-radius:999px;
+    font-size:12px;font-weight:700;letter-spacing:.15em;
+  }
+  .pad{padding:80px 72px}
+  h1{
+    font-size:54px;font-weight:800;color:var(--primary);
+    line-height:1.25;margin-bottom:24px;letter-spacing:.02em;
+  }
+  h2{
+    font-size:38px;font-weight:800;color:var(--primary);
+    margin-bottom:32px;line-height:1.3;
+    border-left:8px solid var(--accent);padding-left:20px;
+  }
+  h3{font-size:22px;color:var(--primary);margin-bottom:12px;font-weight:700}
+  p{font-size:18px;line-height:1.8;color:var(--text)}
+  .lead{font-size:22px;color:var(--muted);margin-top:20px;line-height:1.7}
+
+  /* Cover */
+  .cover{
+    background:linear-gradient(135deg,#1A237E 0%,#3949AB 50%,#00BCD4 100%);
+    color:#fff;display:flex;flex-direction:column;justify-content:center;
+    padding:90px 80px;min-height:620px;
+  }
+  .cover h1{color:#fff;font-size:64px}
+  .cover .sub{font-size:24px;opacity:.92;margin-top:24px;line-height:1.7}
+  .cover .meta{margin-top:60px;font-size:15px;opacity:.85;letter-spacing:.15em}
+  .deco{
+    position:absolute;width:380px;height:380px;border-radius:50%;
+    background:rgba(255,255,255,.08);right:-100px;bottom:-100px;
+  }
+  .deco2{
+    position:absolute;width:200px;height:200px;border-radius:50%;
+    background:rgba(255,193,7,.15);right:200px;top:80px;
+  }
+
+  /* Grid layouts */
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:8px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+  .grid-4{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+  .card{
+    background:#F8FAFF;border-radius:16px;padding:28px;
+    border-left:5px solid var(--accent);
+  }
+  .card.gold{border-left-color:var(--gold)}
+  .card.primary{border-left-color:var(--primary)}
+  .card h3{margin-bottom:10px}
+  .card p{font-size:16px;color:#374151;line-height:1.7}
+
+  ul.bullets{list-style:none;margin-top:8px}
+  ul.bullets li{
+    padding:14px 0 14px 36px;position:relative;font-size:18px;
+    border-bottom:1px dashed #E5E7EB;line-height:1.7;
+  }
+  ul.bullets li::before{
+    content:"";position:absolute;left:0;top:22px;width:20px;height:4px;
+    background:var(--accent);border-radius:2px;
+  }
+  ul.bullets li strong{color:var(--primary)}
+
+  .stat{
+    background:linear-gradient(135deg,#fff 0%,#F1F4FF 100%);
+    border-radius:16px;padding:24px;text-align:center;
+    border:2px solid #E0E7FF;
+  }
+  .stat .num{font-size:44px;font-weight:800;color:var(--primary);line-height:1}
+  .stat .label{font-size:14px;color:var(--muted);margin-top:8px}
+
+  table{width:100%;border-collapse:collapse;margin-top:16px;font-size:16px}
+  th{
+    background:var(--primary);color:#fff;padding:14px;text-align:left;
+    font-weight:700;font-size:15px;
+  }
+  td{padding:14px;border-bottom:1px solid #E5E7EB;line-height:1.6}
+  tr:nth-child(even) td{background:#F8FAFF}
+
+  .timeline{display:flex;gap:0;margin-top:30px;position:relative}
+  .timeline::before{
+    content:"";position:absolute;top:30px;left:5%;right:5%;height:4px;
+    background:linear-gradient(90deg,var(--primary),var(--accent),var(--gold));
+    border-radius:2px;
+  }
+  .step{flex:1;text-align:center;position:relative;z-index:1}
+  .step .dot{
+    width:60px;height:60px;border-radius:50%;background:#fff;
+    border:4px solid var(--accent);margin:0 auto 16px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;color:var(--primary);font-size:20px;
+  }
+  .step h4{font-size:16px;color:var(--primary);margin-bottom:6px}
+  .step p{font-size:13px;color:var(--muted);line-height:1.5;padding:0 8px}
+
+  .closing{
+    background:linear-gradient(135deg,#1A237E,#00BCD4);color:#fff;
+    text-align:center;display:flex;flex-direction:column;
+    justify-content:center;align-items:center;min-height:620px;
+  }
+  .closing h1{color:#fff;font-size:60px}
+  .closing p{color:#fff;opacity:.9;font-size:22px;margin-top:24px;line-height:1.7}
+
+  @media print{
+    body{background:#fff;padding:0}
+    .slide{box-shadow:none;margin:0;border-radius:0;width:100%;min-height:100vh}
+  }
+</style>
+</head>
+<body>
+
+<!-- Slide 1: Cover -->
+<section class="slide cover">
+  <div class="deco"></div>
+  <div class="deco2"></div>
+  <h1>通信業界の現状と<br>今後のキャリア戦略</h1>
+  <p class="sub">5G/6G・DX・クラウド時代における<br>業界の課題、希少価値、そして次のキャリアへ</p>
+  <p class="meta">TELECOM CAREER STRATEGY ・ 2026</p>
+</section>
+
+<!-- Slide 2: Agenda -->
+<section class="slide">
+  <span class="slide-tag">AGENDA</span>
+  <span class="slide-num">02</span>
+  <div class="pad">
+    <h2>本日お話しすること</h2>
+    <div class="grid-2">
+      <div class="card primary"><h3>01. 通信業界の現状</h3><p>市場規模・主要プレイヤー・収益構造の変化</p></div>
+      <div class="card"><h3>02. 今後の方向性</h3><p>5G/6G・Beyond 5G・Open RAN・NTNなどの潮流</p></div>
+      <div class="card gold"><h3>03. 業界全体の課題</h3><p>収益の頭打ち・人材不足・レガシー資産・セキュリティ</p></div>
+      <div class="card primary"><h3>04. キャリアの希少性</h3><p>通信×クラウド/AI/セキュリティ人材の市場価値</p></div>
+      <div class="card"><h3>05. 案件の多さ</h3><p>SI・キャリア・ベンダー・コンサルでの需要動向</p></div>
+      <div class="card gold"><h3>06. 転職に必要な経験</h3><p>市場で通用するスキルセットと実績の作り方</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 3: Industry Status -->
+<section class="slide">
+  <span class="slide-tag">SECTION 01</span>
+  <span class="slide-num">03</span>
+  <div class="pad">
+    <h2>通信業界の現状</h2>
+    <p class="lead">国内市場は約15兆円規模で成熟。MNO 4社体制が確立し、料金値下げ圧力と新規収益源の模索が続く。</p>
+    <div class="grid-3" style="margin-top:36px">
+      <div class="stat"><div class="num">≈15兆円</div><div class="label">国内通信市場規模</div></div>
+      <div class="stat"><div class="num">4社</div><div class="label">主要MNO（NTTドコモ/KDDI/SB/楽天）</div></div>
+      <div class="stat"><div class="num">90%+</div><div class="label">スマホ普及率（個人）</div></div>
+    </div>
+    <ul class="bullets" style="margin-top:32px">
+      <li><strong>料金競争の激化：</strong>政府主導の値下げにより ARPU が低下、モバイル単独事業の収益性が悪化</li>
+      <li><strong>非通信事業へのシフト：</strong>金融・ヘルスケア・コンテンツ・法人DXなどへ収益軸を多角化</li>
+      <li><strong>5Gの本格商用化：</strong>カバレッジ拡大段階を経て、法人ユースケース（プライベート5G・ローカル5G）へ展開</li>
+    </ul>
+  </div>
+</section>
+
+<!-- Slide 4: Future direction -->
+<section class="slide">
+  <span class="slide-tag">SECTION 02</span>
+  <span class="slide-num">04</span>
+  <div class="pad">
+    <h2>今後の方向性</h2>
+    <div class="grid-2">
+      <div class="card primary">
+        <h3>Beyond 5G / 6G</h3>
+        <p>2030年商用化を見据えた標準化議論。超低遅延・超大容量・全空間カバレッジ（地上＋NTN）が中心テーマ。</p>
+      </div>
+      <div class="card">
+        <h3>Open RAN / vRAN</h3>
+        <p>ベンダーロックイン解消とソフトウェア化。クラウドネイティブな基地局運用が主流に。</p>
+      </div>
+      <div class="card gold">
+        <h3>AI×ネットワーク運用</h3>
+        <p>故障予兆検知・自動最適化・カスタマーサポートでの生成AI活用が加速。</p>
+      </div>
+      <div class="card primary">
+        <h3>NTN / 衛星通信</h3>
+        <p>Starlink・AST等との連携で空・海・山間部の不感地帯を解消。</p>
+      </div>
+      <div class="card">
+        <h3>法人DX・MEC</h3>
+        <p>製造・物流・医療向けのプライベート5G + エッジコンピューティング案件が増加。</p>
+      </div>
+      <div class="card gold">
+        <h3>サステナビリティ</h3>
+        <p>ネットワークの省電力化・カーボンニュートラル対応がKPI化。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 5: Challenges -->
+<section class="slide">
+  <span class="slide-tag">SECTION 03</span>
+  <span class="slide-num">05</span>
+  <div class="pad">
+    <h2>業界全体の課題</h2>
+    <table>
+      <tr><th style="width:28%">課題領域</th><th>内容</th><th style="width:22%">影響</th></tr>
+      <tr><td><strong>収益モデル</strong></td><td>モバイル料金値下げ・MVNO競争でARPUが低下、5G投資回収が困難</td><td>利益率の低下</td></tr>
+      <tr><td><strong>レガシー資産</strong></td><td>3G停波後も残るCOBOL／メインフレーム系BSS/OSS、ベンダー依存</td><td>運用コスト高止まり</td></tr>
+      <tr><td><strong>人材不足</strong></td><td>ネットワーク × クラウド × セキュリティを横断できる人材の枯渇</td><td>DX・移行案件の遅延</td></tr>
+      <tr><td><strong>セキュリティ</strong></td><td>SIM swap・SS7・5Gコア攻撃面拡大、サプライチェーンリスク</td><td>規制対応コスト増</td></tr>
+      <tr><td><strong>規制・公共性</strong></td><td>通信障害への社会的関心、電波・インフラの公益性とのバランス</td><td>説明責任の増大</td></tr>
+      <tr><td><strong>地政学リスク</strong></td><td>特定ベンダー排除・経済安保関連の調達制約</td><td>ベンダー戦略再構築</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- Slide 6: Career rarity -->
+<section class="slide">
+  <span class="slide-tag">SECTION 04</span>
+  <span class="slide-num">06</span>
+  <div class="pad">
+    <h2>キャリアとしての希少性</h2>
+    <p class="lead">「通信ドメイン知識」は再現性が低く、独学では獲得しづらい。クラウド／AIスキルと掛け合わせると市場価値が跳ね上がる。</p>
+    <div class="grid-3" style="margin-top:32px">
+      <div class="stat"><div class="num">×3〜5</div><div class="label">通信×クラウド人材の年収レンジ拡大</div></div>
+      <div class="stat"><div class="num">10年+</div><div class="label">3GPP/ITU-T規格の習熟に要する年数</div></div>
+      <div class="stat"><div class="num">少数</div><div class="label">5Gコア/IMSの実装経験者数</div></div>
+    </div>
+    <ul class="bullets" style="margin-top:24px">
+      <li><strong>独自性：</strong>3GPP・TTC・ITU-T等の標準化や、SS7/Diameter/SIP/GTP等のプロトコル知識は希少</li>
+      <li><strong>掛け算で爆発：</strong>「通信 × AWS/Azure」「通信 × Kubernetes」「通信 × セキュリティ」が高単価ゾーン</li>
+      <li><strong>属人化が強い：</strong>大規模キャリア網の運用経験は、外部から再現できない実務知の塊</li>
+    </ul>
+  </div>
+</section>
+
+<!-- Slide 7: Demand / market -->
+<section class="slide">
+  <span class="slide-tag">SECTION 05</span>
+  <span class="slide-num">07</span>
+  <div class="pad">
+    <h2>案件の多さ — 需要マップ</h2>
+    <div class="grid-2">
+      <div class="card primary">
+        <h3>キャリア（MNO/MVNO）</h3>
+        <p>5Gコア更改・OSS/BSSモダナイゼーション・クラウドリフト・障害対応高度化。常時数百〜数千人規模で募集。</p>
+      </div>
+      <div class="card">
+        <h3>ベンダー（NW機器/SIer）</h3>
+        <p>Open RAN・vRAN・SD-WAN・SASEなどの導入案件。大手SIerは通信業界専属チームを拡大中。</p>
+      </div>
+      <div class="card gold">
+        <h3>クラウド事業者</h3>
+        <p>AWS/Azure/GCPのテレコム特化ソリューション営業・SA・PSO人材を強化。Telco BUは増員フェーズ。</p>
+      </div>
+      <div class="card primary">
+        <h3>コンサル / Big4</h3>
+        <p>DX戦略・規制対応・M&A支援・PMOで通信業界出身者を高単価で採用。</p>
+      </div>
+      <div class="card">
+        <h3>事業会社（製造・物流など）</h3>
+        <p>ローカル5G・プライベートLTE導入のため通信知見を持つ社内人材を獲得競争。</p>
+      </div>
+      <div class="card gold">
+        <h3>スタートアップ</h3>
+        <p>NTN・eSIM・IoT・セキュリティ領域で通信OB／OGの参画案件が増加。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 8: What you need to transition -->
+<section class="slide">
+  <span class="slide-tag">SECTION 06</span>
+  <span class="slide-num">08</span>
+  <div class="pad">
+    <h2>他社へ転職するために必要な経験</h2>
+    <table>
+      <tr><th style="width:25%">レイヤー</th><th>具体的に積むべき経験</th></tr>
+      <tr><td><strong>ドメイン</strong></td><td>3GPP規格理解 / 5Gコア（AMF・SMF・UPF）/ IMS / OSS・BSS / 課金 / 番号ポータビリティ</td></tr>
+      <tr><td><strong>テクノロジー</strong></td><td>AWS or Azure（最低Associate以上）/ Kubernetes / Terraform / Linux / Python or Go</td></tr>
+      <tr><td><strong>方法論</strong></td><td>アジャイル / SRE / DevSecOps / ITIL / TOGAF など、説明可能なフレームワーク</td></tr>
+      <tr><td><strong>実績</strong></td><td>大規模移行PJ / 障害復旧リード / 新サービス立ち上げ / コスト削減（数値で示せる成果）</td></tr>
+      <tr><td><strong>ソフトスキル</strong></td><td>英語（規格書・ベンダー折衝）/ 提案・PM経験 / クロスファンクショナルな調整力</td></tr>
+      <tr><td><strong>外部発信</strong></td><td>登壇・記事執筆・OSS貢献・資格取得（CCNP/CCIE, AWS, CISSP 等）</td></tr>
+    </table>
+    <p class="lead" style="margin-top:24px">★ ポイント：「通信が分かる」だけではなく、<strong>クラウド／コードが書ける通信人材</strong>が今後10年の主役。</p>
+  </div>
+</section>
+
+<!-- Slide 9: Roadmap -->
+<section class="slide">
+  <span class="slide-tag">ACTION PLAN</span>
+  <span class="slide-num">09</span>
+  <div class="pad">
+    <h2>キャリア構築ロードマップ</h2>
+    <div class="timeline">
+      <div class="step"><div class="dot">1</div><h4>0-6ヶ月</h4><p>現職ドメインの棚卸し／クラウド資格取得（AWS SAA等）</p></div>
+      <div class="step"><div class="dot">2</div><h4>6-12ヶ月</h4><p>社内で5G/クラウド系PJに手を挙げる／英語学習</p></div>
+      <div class="step"><div class="dot">3</div><h4>1-2年</h4><p>大規模移行・新規構築でリードロール獲得／登壇・発信</p></div>
+      <div class="step"><div class="dot">4</div><h4>2-3年</h4><p>市場価値を測る面談／コンサル・クラウドベンダーへの転職実行</p></div>
+    </div>
+    <ul class="bullets" style="margin-top:48px">
+      <li><strong>NOW：</strong>職務経歴書を「数値・規模・役割」で書き直し、自分の希少性を可視化</li>
+      <li><strong>NEXT：</strong>通信×クラウドのハイブリッドポジションを狙い、3年後にキャリアの選択肢を最大化</li>
+    </ul>
+  </div>
+</section>
+
+<!-- Slide 10: Closing -->
+<section class="slide closing">
+  <h1>通信は「終わった産業」ではなく<br>「再構築される産業」</h1>
+  <p>変革の中心にいる経験そのものが、<br>あなたの最大のキャリア資産になる。</p>
+  <p style="margin-top:60px;font-size:14px;letter-spacing:.3em;opacity:.7">THANK YOU</p>
+</section>
+
+</body>
+</html>
