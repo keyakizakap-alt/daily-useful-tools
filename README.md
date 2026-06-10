@@ -14,6 +14,24 @@ AWS認定資格取得者向けに、AWSサービス・用語・アーキテク�
 | クイズ (F006) | 基本四択・用途選択・使い分け・資格別の4形式、計41問 |
 | ダッシュボード (F007) | 総サービス数・学習済数・苦手数・正答率・資格別進捗 |
 
+## 画面プレビュー
+
+| ダッシュボード（ライト） | ダッシュボード（ダーク） |
+|---|---|
+| ![ダッシュボード](docs/screenshots/01-dashboard-light.png) | ![ダッシュボード ダーク](docs/screenshots/02-dashboard-dark.png) |
+
+| サービス検索 | サービス詳細（ダーク） |
+|---|---|
+| ![サービス検索](docs/screenshots/03-services.png) | ![サービス詳細](docs/screenshots/04-service-detail-lambda.png) |
+
+| サービス比較 | 資格別学習（ダーク） |
+|---|---|
+| ![比較](docs/screenshots/05-compare-ecs-eks.png) | ![資格別](docs/screenshots/07-certification-saa.png) |
+
+| 資格一覧 | クイズ |
+|---|---|
+| ![資格一覧](docs/screenshots/06-certifications.png) | ![クイズ](docs/screenshots/08-quiz.png) |
+
 ## 技術スタック
 
 - **TypeScript** / **Next.js 15** (App Router) / **React 19**
