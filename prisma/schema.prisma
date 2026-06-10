@@ -1,0 +1,95 @@
+// AWS Learning Navigator - データベーススキーマ
+// MVP: SQLite / 将来的に PostgreSQL へ移行可能なよう、SQLite固有機能には依存しない
+// 配列項目は JSON 文字列として保存する（src/lib/json.ts でパース）
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Service {
+  id               String  @id
+  name             String
+  abbreviation     String
+  category         String
+  shortDescription String
+  description      String
+  keywords         String // JSON: 日本語検索キーワード配列
+  useCases         String // JSON: 主な用途
+  scenarios        String // JSON: 利用シーン
+  examPoints       String // JSON: 試験ポイント
+  cautions         String // JSON: 注意点
+  mnemonic         String // 覚え方
+  relatedServices  String // JSON: 関連サービスID配列
+  similarServices  String // JSON: 類似サービスID配列
+
+  certEntries CertificationService[]
+  quizzes     Quiz[]
+  progress    ServiceProgress?
+}
+
+model Certification {
+  id          String @id // 例: "saa"
+  code        String // 例: "SAA"
+  name        String
+  level       String // 基礎 / アソシエイト / プロフェッショナル / 専門知識
+  description String
+  examScope   String // JSON: 出題範囲（ドメイン配列）
+  studyOrder  Int // AWS全冠を見据えた推奨受験順
+
+  services CertificationService[]
+  quizzes  Quiz[]
+}
+
+// 資格ごとの重要サービス（学習優先順位・頻出度）
+model CertificationService {
+  certificationId String
+  serviceId       String
+  importance      Int // 1-3（3=最重要）
+  frequency       Int // 1-3（3=頻出）
+  order           Int // 推奨学習順
+
+  certification Certification @relation(fields: [certificationId], references: [id])
+  service       Service       @relation(fields: [serviceId], references: [id])
+
+  @@id([certificationId, serviceId])
+}
+
+model Quiz {
+  id              String  @id
+  type            String // BASIC / USECASE / COMPARISON / CERT
+  question        String
+  choices         String // JSON: 選択肢配列
+  answerIndex     Int
+  explanation     String
+  serviceId       String?
+  certificationId String?
+
+  service       Service?       @relation(fields: [serviceId], references: [id])
+  certification Certification? @relation(fields: [certificationId], references: [id])
+  attempts      QuizAttempt[]
+}
+
+model QuizAttempt {
+  id        Int      @id @default(autoincrement())
+  quizId    String
+  correct   Boolean
+  createdAt DateTime @default(now())
+
+  quiz Quiz @relation(fields: [quizId], references: [id])
+}
+
+// 学習進捗（ローカル単一ユーザー前提）
+model ServiceProgress {
+  serviceId  String   @id
+  status     String   @default("UNLEARNED") // UNLEARNED / LEARNED / WEAK
+  favorite   Boolean  @default(false)
+  reviewFlag Boolean  @default(false)
+  updatedAt  DateTime @updatedAt
+
+  service Service @relation(fields: [serviceId], references: [id])
+}
