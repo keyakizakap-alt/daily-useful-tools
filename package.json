@@ -1,0 +1,40 @@
+{
+  "name": "aws-learning-navigator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AWS認定資格学習支援プラットフォーム",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:push": "prisma db push",
+    "db:seed": "prisma db seed",
+    "setup": "prisma db push && prisma db seed"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.8.0",
+    "next": "^15.3.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^15.5.19",
+    "prisma": "^6.8.0",
+    "tailwindcss": "^4.1.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vitest": "^2.1.9"
+  }
+}
