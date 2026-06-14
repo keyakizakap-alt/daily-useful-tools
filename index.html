@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily Useful Tools — 仕事を楽にする道具箱</title>
+  <meta name="description" content="ToDo・ポモドーロ・メモ・テキスト整形・JSON整形など、毎日の仕事を楽にする小さなツール集。インストール不要、ブラウザだけで動作します。" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark">🧰</span>
+      <div>
+        <h1>Daily Useful Tools</h1>
+        <p class="tagline">仕事を楽にする小さな道具箱</p>
+      </div>
+    </div>
+    <button id="theme-toggle" class="theme-toggle" title="テーマ切り替え" aria-label="テーマ切り替え">🌙</button>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab is-active" data-tab="todo" role="tab">✅ ToDo</button>
+    <button class="tab" data-tab="pomodoro" role="tab">⏱ ポモドーロ</button>
+    <button class="tab" data-tab="memo" role="tab">📝 メモ</button>
+    <button class="tab" data-tab="text" role="tab">🔤 テキスト</button>
+    <button class="tab" data-tab="json" role="tab">🧬 JSON</button>
+  </nav>
+
+  <main class="content">
+    <!-- ToDo -->
+    <section id="todo" class="panel is-active" role="tabpanel">
+      <h2 class="panel-title">今日のタスク</h2>
+      <form id="todo-form" class="todo-form">
+        <input id="todo-input" type="text" placeholder="やることを入力して Enter" autocomplete="off" maxlength="200" />
+        <select id="todo-priority" title="優先度">
+          <option value="normal">通常</option>
+          <option value="high">重要</option>
+          <option value="low">あとで</option>
+        </select>
+        <button type="submit">追加</button>
+      </form>
+      <div class="todo-filters">
+        <button class="chip is-active" data-filter="all">すべて</button>
+        <button class="chip" data-filter="active">未完了</button>
+        <button class="chip" data-filter="done">完了</button>
+        <span class="spacer"></span>
+        <button id="todo-clear" class="link-btn">完了を削除</button>
+      </div>
+      <ul id="todo-list" class="todo-list"></ul>
+      <p id="todo-empty" class="empty-state">タスクはありません。最初の1件を追加しましょう。</p>
+      <p class="todo-count"><span id="todo-remaining">0</span> 件 未完了</p>
+    </section>
+
+    <!-- Pomodoro -->
+    <section id="pomodoro" class="panel" role="tabpanel">
+      <h2 class="panel-title">ポモドーロ・タイマー</h2>
+      <div class="pomo-card">
+        <div id="pomo-mode" class="pomo-mode">作業</div>
+        <div id="pomo-display" class="pomo-display">25:00</div>
+        <div class="pomo-controls">
+          <button id="pomo-start" class="primary">開始</button>
+          <button id="pomo-pause">一時停止</button>
+          <button id="pomo-reset">リセット</button>
+        </div>
+        <div class="pomo-settings">
+          <label>作業 <input id="pomo-work" type="number" min="1" max="120" value="25" /> 分</label>
+          <label>休憩 <input id="pomo-break" type="number" min="1" max="60" value="5" /> 分</label>
+        </div>
+        <p class="pomo-stats">本日の完了ポモドーロ: <strong id="pomo-count">0</strong></p>
+      </div>
+    </section>
+
+    <!-- Memo -->
+    <section id="memo" class="panel" role="tabpanel">
+      <h2 class="panel-title">スクラッチメモ</h2>
+      <p class="hint">入力内容は自動でこのブラウザに保存されます。</p>
+      <textarea id="memo-area" class="memo-area" placeholder="思いついたことをここに…"></textarea>
+      <div class="memo-bar">
+        <span id="memo-status" class="memo-status">保存済み</span>
+        <span class="spacer"></span>
+        <button id="memo-copy" class="link-btn">コピー</button>
+        <button id="memo-clear" class="link-btn">クリア</button>
+      </div>
+    </section>
+
+    <!-- Text tools -->
+    <section id="text" class="panel" role="tabpanel">
+      <h2 class="panel-title">テキストツール</h2>
+      <textarea id="text-area" class="text-area" placeholder="ここにテキストを貼り付け…"></textarea>
+      <div class="text-stats">
+        <span>文字数: <strong id="t-chars">0</strong></span>
+        <span>空白除く: <strong id="t-chars-ns">0</strong></span>
+        <span>単語: <strong id="t-words">0</strong></span>
+        <span>行: <strong id="t-lines">0</strong></span>
+      </div>
+      <div class="btn-row">
+        <button data-text-op="upper">大文字</button>
+        <button data-text-op="lower">小文字</button>
+        <button data-text-op="capitalize">先頭大文字</button>
+        <button data-text-op="trim">前後空白除去</button>
+        <button data-text-op="collapse">連続空白を1つに</button>
+        <button data-text-op="dedup">重複行削除</button>
+        <button data-text-op="sort">行をソート</button>
+        <button data-text-op="reverse">行を逆順</button>
+        <button data-text-op="copy" class="primary">コピー</button>
+      </div>
+    </section>
+
+    <!-- JSON -->
+    <section id="json" class="panel" role="tabpanel">
+      <h2 class="panel-title">JSON 整形 / 検証</h2>
+      <textarea id="json-area" class="text-area" placeholder='{"hello": "world"}'></textarea>
+      <div class="btn-row">
+        <button data-json-op="format" class="primary">整形（2スペース）</button>
+        <button data-json-op="minify">圧縮</button>
+        <button data-json-op="copy">コピー</button>
+      </div>
+      <p id="json-msg" class="json-msg"></p>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span>すべてのデータはお使いのブラウザ内にのみ保存されます。</span>
+  </footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
