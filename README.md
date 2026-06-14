@@ -44,14 +44,40 @@ AWS認定資格取得者向けに、AWSサービス・用語・アーキテク�
 # 1. 依存関係のインストール
 npm install
 
-# 2. データベース作成 & シードデータ投入
+# 2. 環境変数ファイルを用意（DATABASE_URL を定義）
+cp .env.example .env
+
+# 3. データベース作成 & シードデータ投入
 npm run setup
 
-# 3. 開発サーバー起動
+# 4. 開発サーバー起動
 npm run dev
 ```
 
 http://localhost:3000 を開いてください。
+
+## Docker で本番起動
+
+本番デプロイ用の Docker 構成（マルチステージ / `node:20-alpine` / Next.js standalone）を同梱しています。
+
+```bash
+# ビルドして起動（ホスト 80 番 -> コンテナ 3000 番）
+docker compose up --build -d
+```
+
+http://localhost を開いてください。
+
+- **永続化**: SQLite DB は名前付きボリューム `aws-nav-data`（コンテナ内 `/data/prod.db`）に保存され、再起動・再ビルド後も学習進捗・解答履歴を保持します。
+- **初回起動**: ビルド時に焼き込んだシード済み DB を初回のみ展開します（既存 DB は上書きしません）。
+- **自動再起動**: `restart: always` により異常停止時も自動復帰します。
+- **軽量化**: 本番イメージには devDependencies を含めません（standalone が追跡した実行時依存のみ）。
+
+停止・削除は次の通りです。
+
+```bash
+docker compose down            # 停止（DB は保持）
+docker compose down -v         # 停止 + DB ボリュームも削除（初期化）
+```
 
 ### その他のコマンド
 

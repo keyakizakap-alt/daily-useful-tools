@@ -7,6 +7,9 @@ set -euo pipefail
 
 cd "$CLAUDE_PROJECT_DIR"
 
+# 0. DATABASE_URL を定義する .env を用意（schema.prisma が env("DATABASE_URL") を参照する）
+[ -f .env ] || cp .env.example .env
+
 # 1. 依存関係のインストール（コンテナのキャッシュを活かすため ci ではなく install）
 npm install
 

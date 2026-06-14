@@ -8,7 +8,8 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  // DATABASE_URL で接続先を切り替える（ローカル: prisma/dev.db / Docker: /data/prod.db）
+  url      = env("DATABASE_URL")
 }
 
 model Service {

@@ -1,0 +1,28 @@
+# AWS Learning Navigator - Docker Compose（本番デプロイ）
+# 使い方:
+#   docker compose build      # 本番用 runner ステージをビルド
+#   docker compose up -d      # 起動（ホスト 80 番 -> コンテナ 3000 番）
+#   → http://localhost
+services:
+  node-app:
+    build:
+      context: .
+      target: runner          # Dockerfile の本番ステージ
+    container_name: my_node_app
+    image: aws-learning-navigator
+    # 同一階層の .env を自動読み込み（未配置でもエラーにしない）
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # DB は永続ボリューム上に固定（.env のローカル開発用 DATABASE_URL を上書き）
+      DATABASE_URL: "file:/data/prod.db"
+    ports:
+      - "80:3000"             # 外部 80 番 -> コンテナ内部 3000 番
+    volumes:
+      # 学習進捗・解答履歴を再起動・再ビルド後も保持する
+      - aws-nav-data:/data
+    restart: always           # 異常停止時に自動再起動
+
+volumes:
+  aws-nav-data:

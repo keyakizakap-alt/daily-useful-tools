@@ -25,10 +25,13 @@ Prisma + SQLite。
 # 1. 依存関係のインストール
 npm install
 
-# 2. DB（SQLite）作成 + シードデータ投入（41サービス / 10資格 / 41問）
+# 2. 環境変数ファイルを用意（schema.prisma が env("DATABASE_URL") を参照）
+cp .env.example .env
+
+# 3. DB（SQLite）作成 + シードデータ投入（41サービス / 10資格 / 41問）
 npm run setup
 
-# 3. 開発サーバー起動
+# 4. 開発サーバー起動
 npm run dev
 ```
 
@@ -40,8 +43,8 @@ npm run dev
 `prisma/dev.db` は残りません。これを自動で用意するために **SessionStart フック**
 を用意しています（`.claude/hooks/session-start.sh`）。
 
-- セッション開始時に自動で `npm install` → `prisma generate` → `prisma db push`
-  → `prisma db seed` が実行されます。
+- セッション開始時に自動で `.env` 生成 → `npm install` → `prisma generate`
+  → `prisma db push` → `prisma db seed` が実行されます。
 - フックは**同期実行**のため、準備完了後にセッションが使用可能になります。
 - このフックは**デフォルトブランチにマージされて以降の全セッションで有効**になります。
 
@@ -49,6 +52,33 @@ npm run dev
 > ```bash
 > CLAUDE_PROJECT_DIR="$PWD" ./.claude/hooks/session-start.sh
 > ```
+
+### 2-3. Docker で本番デプロイする場合
+
+本番運用向けのコンテナ構成を同梱しています（`Dockerfile` / `docker-compose.yml`
+/ `.dockerignore` / `docker-entrypoint.sh`）。
+
+```bash
+docker compose up --build -d   # ビルドして起動（ホスト 80 -> コンテナ 3000）
+docker compose logs -f         # ログ確認
+docker compose down            # 停止（DB ボリュームは保持）
+```
+
+構成の要点:
+
+| 項目 | 内容 |
+|---|---|
+| ベースイメージ | `node:20-alpine`（マルチステージ: deps / builder / runner） |
+| 本番最小化 | Next.js standalone 出力。runner に devDependencies を含めない |
+| 公開ポート | ホスト `80` -> コンテナ `3000` |
+| 自動再起動 | `restart: always` |
+| DB 永続化 | 名前付きボリューム `aws-nav-data` を `/data` にマウント（`/data/prod.db`） |
+| シード | ビルド時にシード済み DB を `prisma/template.db` として焼き込み、初回起動時に展開（既存は保持） |
+| 実行ユーザー | 非 root（`nextjs`） |
+| 接続先切替 | `DATABASE_URL` 環境変数（ローカル: `prisma/dev.db` / コンテナ: `/data/prod.db`） |
+
+> `docker-compose.yml` は `.env` を `env_file` として読み込みますが、`DATABASE_URL`
+> はボリューム上の本番 DB を指すよう `environment` で固定上書きしています。
 
 ---
 
