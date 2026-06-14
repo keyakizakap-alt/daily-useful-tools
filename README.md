@@ -58,9 +58,14 @@ http://localhost:3000 を開いてください。
 ```bash
 npm run build      # 本番ビルド
 npm run start      # 本番サーバー起動
+npm run lint       # ESLint（コードの静的解析）
+npm run typecheck  # TypeScript型チェック（tsc --noEmit）
+npm test           # ユニットテスト（Vitest）
 npm run db:push    # スキーマをDBへ反映
 npm run db:seed    # シードデータ再投入（進捗・解答履歴は保持）
 ```
+
+開発手順・品質チェック・ブランチ運用の詳細は [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) を参照してください。
 
 ## ディレクトリ構成
 
