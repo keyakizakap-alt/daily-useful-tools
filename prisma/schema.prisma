@@ -1,0 +1,193 @@
+// ポチパス Prisma schema
+// スキーマ定義の真実の источник。RLSポリシーは supabase/migrations の SQL で適用する。
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UsersProfile {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @unique @map("user_id") @db.Uuid
+  displayName      String?  @map("display_name")
+  stripeCustomerId String?  @unique @map("stripe_customer_id")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("users_profile")
+}
+
+model Subscription {
+  id                   String   @id @default(uuid()) @db.Uuid
+  userId               String   @map("user_id") @db.Uuid
+  stripeCustomerId     String?  @map("stripe_customer_id")
+  stripeSubscriptionId String?  @unique @map("stripe_subscription_id")
+  stripePriceId        String?  @map("stripe_price_id")
+  plan                 String   @default("free") // free | pro_monthly | pro_yearly
+  status               String   @default("active") // trialing|active|past_due|canceled|incomplete|unpaid
+  currentPeriodStart   DateTime? @map("current_period_start") @db.Timestamptz
+  currentPeriodEnd     DateTime? @map("current_period_end") @db.Timestamptz
+  cancelAtPeriodEnd    Boolean  @default(false) @map("cancel_at_period_end")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+model Certification {
+  id          String  @id @default(uuid()) @db.Uuid
+  vendor      String  // AWS | Azure | GoogleCloud | IPA | Other
+  code        String  @unique
+  name        String
+  level       String? // foundational | associate | professional | specialty | basic | advanced
+  category    String  // AWS | Azure | GoogleCloud | IPA | Other
+  description String?
+  officialUrl String? @map("official_url")
+  isActive    Boolean @default(true) @map("is_active")
+
+  goals UserCertificationGoal[]
+
+  @@map("certifications")
+}
+
+model UserCertificationGoal {
+  id                   String   @id @default(uuid()) @db.Uuid
+  userId               String   @map("user_id") @db.Uuid
+  certificationId      String   @map("certification_id") @db.Uuid
+  examDate             DateTime? @map("exam_date") @db.Date
+  targetScore          Int?     @map("target_score")
+  currentLevel         Int      @default(0) @map("current_level") // 0-100 自己申告の理解度
+  dailyAvailableMinutes Int     @default(30) @map("daily_available_minutes")
+  status               String   @default("active") // active | paused | done | archived
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  certification Certification  @relation(fields: [certificationId], references: [id])
+  plans         StudyPlan[]
+  tasks         StudyTask[]
+  logs          StudyLog[]
+  mockResults   MockExamResult[]
+  reviews       AiReview[]
+
+  @@index([userId])
+  @@map("user_certification_goals")
+}
+
+model StudyPlan {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  goalId        String   @map("goal_id") @db.Uuid
+  title         String
+  startDate     DateTime @map("start_date") @db.Date
+  endDate       DateTime @map("end_date") @db.Date
+  generatedByAi Boolean  @default(true) @map("generated_by_ai")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  goal  UserCertificationGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  tasks StudyTask[]
+
+  @@index([userId])
+  @@map("study_plans")
+}
+
+model StudyTask {
+  id               String   @id @default(uuid()) @db.Uuid
+  studyPlanId      String   @map("study_plan_id") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  goalId           String   @map("goal_id") @db.Uuid
+  taskDate         DateTime @map("task_date") @db.Date
+  title            String
+  description      String?
+  estimatedMinutes Int      @default(30) @map("estimated_minutes")
+  domain           String?
+  status           String   @default("todo") // todo | done | skipped
+  completedAt      DateTime? @map("completed_at") @db.Timestamptz
+
+  plan StudyPlan             @relation(fields: [studyPlanId], references: [id], onDelete: Cascade)
+  goal UserCertificationGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([taskDate])
+  @@map("study_tasks")
+}
+
+model StudyLog {
+  id                 String   @id @default(uuid()) @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  goalId             String   @map("goal_id") @db.Uuid
+  studiedAt          DateTime @map("studied_at") @db.Date
+  minutes            Int
+  content            String?
+  understandingLevel Int?     @map("understanding_level") // 1-5
+  memo               String?
+  domain             String?
+
+  goal UserCertificationGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("study_logs")
+}
+
+model MockExamResult {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  goalId          String   @map("goal_id") @db.Uuid
+  takenAt         DateTime @map("taken_at") @db.Date
+  score           Int
+  maxScore        Int      @map("max_score")
+  correctRate     Float    @map("correct_rate")
+  domainBreakdown Json?    @map("domain_breakdown_json")
+  weakDomains     Json?    @map("weak_domains_json")
+  memo            String?
+
+  goal UserCertificationGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("mock_exam_results")
+}
+
+model AiReview {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  goalId          String   @map("goal_id") @db.Uuid
+  reviewType      String   @default("weekly") @map("review_type")
+  content         String
+  passProbability Float?   @map("pass_probability")
+  weakDomains     Json?    @map("weak_domains_json")
+  nextActions     Json?    @map("next_actions_json")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  goal UserCertificationGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("ai_reviews")
+}
+
+model UsageLimit {
+  id                  String   @id @default(uuid()) @db.Uuid
+  userId              String   @map("user_id") @db.Uuid
+  periodStart         DateTime @map("period_start") @db.Date
+  periodEnd           DateTime @map("period_end") @db.Date
+  aiReviewCount       Int      @default(0) @map("ai_review_count")
+  planGenerationCount Int      @default(0) @map("plan_generation_count")
+  mockExamCount       Int      @default(0) @map("mock_exam_count")
+
+  @@unique([userId, periodStart])
+  @@index([userId])
+  @@map("usage_limits")
+}
+
+model WebhookEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  stripeEventId String   @unique @map("stripe_event_id")
+  type          String
+  processedAt   DateTime @default(now()) @map("processed_at") @db.Timestamptz
+  payload       Json?    @map("payload_json")
+
+  @@map("webhook_events")
+}
