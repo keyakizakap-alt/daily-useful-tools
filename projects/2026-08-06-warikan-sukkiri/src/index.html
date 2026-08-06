@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>わりかんスッキリ - 割り勘計算ツール</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💴</text></svg>"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="app__header">
+        <h1>わりかんスッキリ</h1>
+        <p class="app__subtitle">
+          立て替えた支出を登録するだけで、誰が誰にいくら払えばいいか自動計算します。
+          通信やアカウント登録は不要です。
+        </p>
+      </header>
+
+      <section class="card" aria-labelledby="members-heading">
+        <h2 id="members-heading">1. メンバーを登録</h2>
+        <form id="member-form" class="inline-form">
+          <label class="sr-only" for="member-name">メンバーの名前</label>
+          <input
+            id="member-name"
+            name="member-name"
+            type="text"
+            placeholder="例: あかね"
+            autocomplete="off"
+            required
+          />
+          <button type="submit">追加</button>
+        </form>
+        <ul id="member-list" class="chip-list" aria-label="登録済みメンバー一覧"></ul>
+        <p id="member-empty" class="empty-message">
+          まだメンバーが登録されていません。
+        </p>
+      </section>
+
+      <section class="card" aria-labelledby="expenses-heading">
+        <h2 id="expenses-heading">2. 支出を登録</h2>
+        <form id="expense-form" class="expense-form">
+          <div class="form-row">
+            <label for="expense-payer">支払った人</label>
+            <select id="expense-payer" name="expense-payer" required></select>
+          </div>
+          <div class="form-row">
+            <label for="expense-amount">金額（円）</label>
+            <input
+              id="expense-amount"
+              name="expense-amount"
+              type="number"
+              min="1"
+              step="1"
+              placeholder="例: 3000"
+              required
+            />
+          </div>
+          <div class="form-row">
+            <label for="expense-memo">内容（任意）</label>
+            <input
+              id="expense-memo"
+              name="expense-memo"
+              type="text"
+              placeholder="例: 居酒屋代"
+              autocomplete="off"
+            />
+          </div>
+          <fieldset class="form-row">
+            <legend>対象者（未選択の場合は全員で均等割り）</legend>
+            <div id="expense-participants" class="checkbox-list"></div>
+          </fieldset>
+          <button type="submit">支出を追加</button>
+        </form>
+
+        <h3>登録済みの支出</h3>
+        <ul id="expense-list" class="expense-list" aria-label="登録済み支出一覧"></ul>
+        <p id="expense-empty" class="empty-message">
+          まだ支出が登録されていません。
+        </p>
+      </section>
+
+      <section class="card" aria-labelledby="settle-heading">
+        <h2 id="settle-heading">3. 精算する</h2>
+        <button id="settle-button" type="button" class="primary-button">
+          精算結果を計算する
+        </button>
+        <p id="settle-error" class="error-message" role="alert"></p>
+
+        <div id="settle-result" class="settle-result" hidden>
+          <h3>各メンバーの収支</h3>
+          <ul id="balance-list" class="balance-list"></ul>
+
+          <h3>送金リスト（これで清算が完了します）</h3>
+          <ul id="transaction-list" class="transaction-list"></ul>
+          <p id="transaction-empty" class="empty-message" hidden>
+            送金の必要はありません。すでに収支が釣り合っています。
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
