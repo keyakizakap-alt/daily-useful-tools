@@ -1,0 +1,9 @@
+{
+  "name": "smart-warikan",
+  "private": true,
+  "type": "module",
+  "description": "スマート割り勘 (Smart Warikan) - 送金回数を最小化するグループ割り勘アプリ",
+  "scripts": {
+    "test": "node --test"
+  }
+}
