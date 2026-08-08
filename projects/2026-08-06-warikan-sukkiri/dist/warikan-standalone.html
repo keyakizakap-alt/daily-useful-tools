@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>わりかんスッキリ - 割り勘計算ツール</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💴</text></svg>"
+    />
+    <style>
+:root {
+  color-scheme: light dark;
+  --bg: #f6f5f2;
+  --card-bg: #ffffff;
+  --text: #262220;
+  --muted: #6b6460;
+  --accent: #c0553f;
+  --accent-dark: #9c3f2d;
+  --border: #e3ddd6;
+  --positive: #2f7d4f;
+  --negative: #b3392b;
+  font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui,
+    sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1c1a19;
+    --card-bg: #262322;
+    --text: #f1ece7;
+    --muted: #b3a99f;
+    --border: #3a3532;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #1c1a19;
+  --card-bg: #262322;
+  --text: #f1ece7;
+  --muted: #b3a99f;
+  --border: #3a3532;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+.app__header h1 {
+  font-size: 1.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.app__subtitle {
+  color: var(--muted);
+  margin-top: 0;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.card h2 {
+  margin-top: 0;
+  font-size: 1.15rem;
+}
+
+.inline-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.inline-form input {
+  flex: 1;
+}
+
+input,
+select,
+button {
+  font-size: 1rem;
+  font-family: inherit;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+button {
+  cursor: pointer;
+  background: var(--accent);
+  color: white;
+  border: none;
+  font-weight: 600;
+}
+
+button:hover {
+  background: var(--accent-dark);
+}
+
+.primary-button {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1.05rem;
+}
+
+.chip-list,
+.checkbox-list,
+.expense-list,
+.balance-list,
+.transaction-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem 0.3rem 0.9rem;
+}
+
+.chip button {
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  padding: 0 0.2rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.chip button:hover {
+  color: var(--negative);
+  background: transparent;
+}
+
+.expense-form .form-row {
+  margin-bottom: 0.9rem;
+}
+
+.form-row label,
+.form-row legend {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  font-size: 0.92rem;
+}
+
+.form-row select,
+.form-row input {
+  width: 100%;
+}
+
+.checkbox-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.checkbox-list label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 400;
+  white-space: nowrap;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+}
+
+.checkbox-list input[type="checkbox"] {
+  flex: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+
+.expense-list li,
+.balance-list li,
+.transaction-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.2rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.expense-list li:last-child,
+.balance-list li:last-child,
+.transaction-list li:last-child {
+  border-bottom: none;
+}
+
+.expense-list .expense-meta {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.expense-list button {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.6rem;
+  font-weight: 400;
+}
+
+.expense-list button:hover {
+  color: var(--negative);
+  background: transparent;
+}
+
+.balance-list .amount.positive {
+  color: var(--positive);
+  font-weight: 700;
+}
+
+.balance-list .amount.negative {
+  color: var(--negative);
+  font-weight: 700;
+}
+
+.transaction-list li {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 0.5rem;
+  border-bottom: none;
+}
+
+.empty-message {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.error-message {
+  color: var(--negative);
+  font-weight: 600;
+  min-height: 1.4em;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header class="app__header">
+        <h1>わりかんスッキリ</h1>
+        <p class="app__subtitle">
+          立て替えた支出を登録するだけで、誰が誰にいくら払えばいいか自動計算します。
+          通信やアカウント登録は不要です。
+        </p>
+      </header>
+
+      <section class="card" aria-labelledby="members-heading">
+        <h2 id="members-heading">1. メンバーを登録</h2>
+        <form id="member-form" class="inline-form">
+          <label class="sr-only" for="member-name">メンバーの名前</label>
+          <input
+            id="member-name"
+            name="member-name"
+            type="text"
+            placeholder="例: あかね"
+            autocomplete="off"
+            required
+          />
+          <button type="submit">追加</button>
+        </form>
+        <ul id="member-list" class="chip-list" aria-label="登録済みメンバー一覧"></ul>
+        <p id="member-empty" class="empty-message">
+          まだメンバーが登録されていません。
+        </p>
+      </section>
+
+      <section class="card" aria-labelledby="expenses-heading">
+        <h2 id="expenses-heading">2. 支出を登録</h2>
+        <form id="expense-form" class="expense-form">
+          <div class="form-row">
+            <label for="expense-payer">支払った人</label>
+            <select id="expense-payer" name="expense-payer" required></select>
+          </div>
+          <div class="form-row">
+            <label for="expense-amount">金額（円）</label>
+            <input
+              id="expense-amount"
+              name="expense-amount"
+              type="number"
+              min="1"
+              step="1"
+              placeholder="例: 3000"
+              required
+            />
+          </div>
+          <div class="form-row">
+            <label for="expense-memo">内容（任意）</label>
+            <input
+              id="expense-memo"
+              name="expense-memo"
+              type="text"
+              placeholder="例: 居酒屋代"
+              autocomplete="off"
+            />
+          </div>
+          <fieldset class="form-row">
+            <legend>対象者（未選択の場合は全員で均等割り）</legend>
+            <div id="expense-participants" class="checkbox-list"></div>
+          </fieldset>
+          <button type="submit">支出を追加</button>
+        </form>
+
+        <h3>登録済みの支出</h3>
+        <ul id="expense-list" class="expense-list" aria-label="登録済み支出一覧"></ul>
+        <p id="expense-empty" class="empty-message">
+          まだ支出が登録されていません。
+        </p>
+      </section>
+
+      <section class="card" aria-labelledby="settle-heading">
+        <h2 id="settle-heading">3. 精算する</h2>
+        <button id="settle-button" type="button" class="primary-button">
+          精算結果を計算する
+        </button>
+        <p id="settle-error" class="error-message" role="alert"></p>
+
+        <div id="settle-result" class="settle-result" hidden>
+          <h3>各メンバーの収支</h3>
+          <ul id="balance-list" class="balance-list"></ul>
+
+          <h3>送金リスト（これで清算が完了します）</h3>
+          <ul id="transaction-list" class="transaction-list"></ul>
+          <p id="transaction-empty" class="empty-message" hidden>
+            送金の必要はありません。すでに収支が釣り合っています。
+          </p>
+        </div>
+      </section>
+    </main>
+    <script type="module">
+// わりかんスッキリ - 計算エンジン（UIから独立した純粋関数群）
+// ブラウザ（<script type="module">）と Node.js（node:test）の両方から読み込める ESM 形式。
+
+/**
+ * 各メンバーの収支（balance）を計算する。
+ * 戻り値の balance[member] が正 = 払いすぎ（受け取る側）、負 = 不足（支払う側）。
+ * 端数は各支出ごとに参加者の先頭から1円ずつ多く負担させることで、
+ * 合計が必ず支出額と一致するようにする。
+ *
+ * @param {string[]} members
+ * @param {{payer: string, amount: number, participants?: string[]}[]} expenses
+ * @returns {Record<string, number>}
+ */
+function calculateBalances(members, expenses) {
+  const balance = Object.fromEntries(members.map((m) => [m, 0]));
+
+  for (const expense of expenses) {
+    const participants =
+      expense.participants && expense.participants.length > 0
+        ? expense.participants
+        : members;
+
+    if (!(expense.payer in balance)) {
+      throw new Error(`未登録のメンバーです: ${expense.payer}`);
+    }
+    for (const p of participants) {
+      if (!(p in balance)) {
+        throw new Error(`未登録のメンバーです: ${p}`);
+      }
+    }
+
+    balance[expense.payer] += expense.amount;
+
+    const share = Math.floor(expense.amount / participants.length);
+    const remainder = expense.amount - share * participants.length;
+
+    participants.forEach((p, index) => {
+      const extra = index < remainder ? 1 : 0;
+      balance[p] -= share + extra;
+    });
+  }
+
+  return balance;
+}
+
+/**
+ * 収支から最小送金回数に近い精算リストを貪欲法で生成する。
+ *
+ * @param {Record<string, number>} balances
+ * @returns {{from: string, to: string, amount: number}[]}
+ */
+function settleUp(balances) {
+  const creditors = [];
+  const debtors = [];
+
+  for (const [member, amount] of Object.entries(balances)) {
+    if (amount > 0) creditors.push({ member, amount });
+    else if (amount < 0) debtors.push({ member, amount: -amount });
+  }
+
+  creditors.sort((a, b) => b.amount - a.amount);
+  debtors.sort((a, b) => b.amount - a.amount);
+
+  const transactions = [];
+  let i = 0;
+  let j = 0;
+
+  while (i < creditors.length && j < debtors.length) {
+    const creditor = creditors[i];
+    const debtor = debtors[j];
+    const amount = Math.min(creditor.amount, debtor.amount);
+
+    if (amount > 0) {
+      transactions.push({ from: debtor.member, to: creditor.member, amount });
+    }
+
+    creditor.amount -= amount;
+    debtor.amount -= amount;
+
+    if (creditor.amount === 0) i += 1;
+    if (debtor.amount === 0) j += 1;
+  }
+
+  return transactions;
+}
+
+/**
+ * メンバーと支出から、収支と精算リストをまとめて計算するヘルパー。
+ *
+ * @param {string[]} members
+ * @param {{payer: string, amount: number, participants?: string[]}[]} expenses
+ */
+function calculateSettlement(members, expenses) {
+  const balances = calculateBalances(members, expenses);
+  const transactions = settleUp(balances);
+  return { balances, transactions };
+}
+
+
+/** @type {string[]} */
+const members = [];
+/** @type {{payer: string, amount: number, participants: string[], memo: string}[]} */
+const expenses = [];
+
+const memberForm = document.getElementById("member-form");
+const memberNameInput = document.getElementById("member-name");
+const memberList = document.getElementById("member-list");
+const memberEmpty = document.getElementById("member-empty");
+
+const expenseForm = document.getElementById("expense-form");
+const expensePayerSelect = document.getElementById("expense-payer");
+const expenseAmountInput = document.getElementById("expense-amount");
+const expenseMemoInput = document.getElementById("expense-memo");
+const expenseParticipants = document.getElementById("expense-participants");
+const expenseList = document.getElementById("expense-list");
+const expenseEmpty = document.getElementById("expense-empty");
+
+const settleButton = document.getElementById("settle-button");
+const settleError = document.getElementById("settle-error");
+const settleResult = document.getElementById("settle-result");
+const balanceList = document.getElementById("balance-list");
+const transactionList = document.getElementById("transaction-list");
+const transactionEmpty = document.getElementById("transaction-empty");
+
+const yen = new Intl.NumberFormat("ja-JP");
+
+function renderMembers() {
+  memberList.innerHTML = "";
+  memberEmpty.hidden = members.length > 0;
+
+  for (const name of members) {
+    const li = document.createElement("li");
+    li.className = "chip";
+    li.textContent = name;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.textContent = "×";
+    removeBtn.setAttribute("aria-label", `${name} を削除`);
+    removeBtn.addEventListener("click", () => removeMember(name));
+
+    li.appendChild(removeBtn);
+    memberList.appendChild(li);
+  }
+
+  renderPayerOptions();
+  renderParticipantCheckboxes();
+}
+
+function renderPayerOptions() {
+  const previous = expensePayerSelect.value;
+  expensePayerSelect.innerHTML = "";
+
+  for (const name of members) {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    expensePayerSelect.appendChild(option);
+  }
+
+  if (members.includes(previous)) {
+    expensePayerSelect.value = previous;
+  }
+}
+
+function renderParticipantCheckboxes() {
+  expenseParticipants.innerHTML = "";
+
+  for (const name of members) {
+    const label = document.createElement("label");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = name;
+    checkbox.name = "participant";
+    label.appendChild(checkbox);
+    label.append(` ${name}`);
+    expenseParticipants.appendChild(label);
+  }
+}
+
+function addMember(name) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  if (members.includes(trimmed)) return;
+  members.push(trimmed);
+  renderMembers();
+}
+
+function removeMember(name) {
+  const index = members.indexOf(name);
+  if (index === -1) return;
+  members.splice(index, 1);
+
+  for (let i = expenses.length - 1; i >= 0; i -= 1) {
+    const expense = expenses[i];
+    if (expense.payer === name) {
+      expenses.splice(i, 1);
+      continue;
+    }
+    expense.participants = expense.participants.filter((p) => p !== name);
+  }
+
+  renderMembers();
+  renderExpenses();
+  hideSettleResult();
+}
+
+function renderExpenses() {
+  expenseList.innerHTML = "";
+  expenseEmpty.hidden = expenses.length > 0;
+
+  expenses.forEach((expense, index) => {
+    const li = document.createElement("li");
+
+    const label = document.createElement("div");
+    const targetLabel =
+      expense.participants.length === 0 ||
+      expense.participants.length === members.length
+        ? "全員"
+        : expense.participants.join("・");
+
+    label.innerHTML = `<strong>${expense.payer}</strong> が ${yen.format(
+      expense.amount,
+    )}円 を立て替え${expense.memo ? `（${expense.memo}）` : ""}`;
+
+    const meta = document.createElement("div");
+    meta.className = "expense-meta";
+    meta.textContent = `対象: ${targetLabel}`;
+    label.appendChild(document.createElement("br"));
+    label.appendChild(meta);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.textContent = "削除";
+    removeBtn.addEventListener("click", () => {
+      expenses.splice(index, 1);
+      renderExpenses();
+      hideSettleResult();
+    });
+
+    li.appendChild(label);
+    li.appendChild(removeBtn);
+    expenseList.appendChild(li);
+  });
+}
+
+function hideSettleResult() {
+  settleResult.hidden = true;
+  settleError.textContent = "";
+}
+
+memberForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  addMember(memberNameInput.value);
+  memberNameInput.value = "";
+  memberNameInput.focus();
+});
+
+expenseForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  settleError.textContent = "";
+
+  if (members.length === 0) {
+    settleError.textContent = "先にメンバーを登録してください。";
+    return;
+  }
+
+  const payer = expensePayerSelect.value;
+  const amount = Number(expenseAmountInput.value);
+
+  if (!payer) {
+    settleError.textContent = "支払った人を選択してください。";
+    return;
+  }
+  if (!Number.isFinite(amount) || amount <= 0) {
+    settleError.textContent = "金額は1円以上の数値を入力してください。";
+    return;
+  }
+
+  const checkedBoxes = Array.from(
+    expenseParticipants.querySelectorAll("input[type=checkbox]:checked"),
+  ).map((box) => box.value);
+
+  expenses.push({
+    payer,
+    amount: Math.round(amount),
+    participants: checkedBoxes,
+    memo: expenseMemoInput.value.trim(),
+  });
+
+  expenseForm.reset();
+  renderParticipantCheckboxes();
+  renderExpenses();
+  hideSettleResult();
+});
+
+settleButton.addEventListener("click", () => {
+  settleError.textContent = "";
+
+  if (members.length < 2) {
+    settleError.textContent =
+      "精算には2人以上のメンバー登録が必要です。";
+    settleResult.hidden = true;
+    return;
+  }
+  if (expenses.length === 0) {
+    settleError.textContent = "支出が1件も登録されていません。";
+    settleResult.hidden = true;
+    return;
+  }
+
+  let result;
+  try {
+    result = calculateSettlement(
+      members,
+      expenses.map((e) => ({
+        payer: e.payer,
+        amount: e.amount,
+        participants: e.participants,
+      })),
+    );
+  } catch (error) {
+    settleError.textContent = error.message;
+    settleResult.hidden = true;
+    return;
+  }
+
+  renderBalances(result.balances);
+  renderTransactions(result.transactions);
+  settleResult.hidden = false;
+});
+
+function renderBalances(balances) {
+  balanceList.innerHTML = "";
+
+  for (const member of members) {
+    const amount = balances[member] ?? 0;
+    const li = document.createElement("li");
+
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = member;
+
+    const amountSpan = document.createElement("span");
+    amountSpan.className = `amount ${amount >= 0 ? "positive" : "negative"}`;
+    amountSpan.textContent =
+      amount > 0
+        ? `+${yen.format(amount)}円（受け取り）`
+        : amount < 0
+          ? `-${yen.format(Math.abs(amount))}円（支払い）`
+          : "±0円（精算済み）";
+
+    li.appendChild(nameSpan);
+    li.appendChild(amountSpan);
+    balanceList.appendChild(li);
+  }
+}
+
+function renderTransactions(transactions) {
+  transactionList.innerHTML = "";
+  transactionEmpty.hidden = transactions.length > 0;
+
+  for (const t of transactions) {
+    const li = document.createElement("li");
+    li.textContent = `${t.from} → ${t.to}：${yen.format(t.amount)}円`;
+    transactionList.appendChild(li);
+  }
+}
+
+renderMembers();
+renderExpenses();
+
+    </script>
+  </body>
+</html>
