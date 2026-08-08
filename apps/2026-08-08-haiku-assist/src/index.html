@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>俳句アシスト - 5・7・5と季語で作句をサポート</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>俳句アシスト</h1>
+    <p class="subtitle">音数（モーラ）と季語をその場でチェックしながら俳句を作れます</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>1. 俳句を入力する</h2>
+      <div class="line-row">
+        <label for="input-kami">上五（5音）</label>
+        <input id="input-kami" type="text" placeholder="例: ふるいけや" autocomplete="off">
+        <span id="count-kami" class="count-badge">0 / 5音</span>
+      </div>
+      <div class="line-row">
+        <label for="input-naka">中七（7音）</label>
+        <input id="input-naka" type="text" placeholder="例: かわずとびこむ" autocomplete="off">
+        <span id="count-naka" class="count-badge">0 / 7音</span>
+      </div>
+      <div class="line-row">
+        <label for="input-shimo">下五（5音）</label>
+        <input id="input-shimo" type="text" placeholder="例: みずのおと" autocomplete="off">
+        <span id="count-shimo" class="count-badge">0 / 5音</span>
+      </div>
+      <p class="hint-text">※ 音数は「ひらがな」で入力すると正しくカウントされます（漢字は音数の計算対象外です）。</p>
+
+      <div class="summary-row">
+        <span>合計: <strong id="total-count">0 / 17音</strong></span>
+        <span id="overall-judge" class="overall-judge">まだ調整中…</span>
+      </div>
+
+      <div class="kigo-detection-row">
+        <span id="kigo-detection"></span>
+      </div>
+
+      <div class="copy-row">
+        <button id="copy-button" type="button">俳句をコピー</button>
+        <span id="copy-status" class="copy-status"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. 季語のヒントを探す</h2>
+      <div class="season-row">
+        <label for="season-select">季節を選ぶ:</label>
+        <select id="season-select">
+          <option value="spring">春</option>
+          <option value="summer">夏</option>
+          <option value="autumn">秋</option>
+          <option value="winter">冬</option>
+          <option value="newyear">新年</option>
+        </select>
+        <button id="refresh-kigo" type="button">季語を更新</button>
+      </div>
+      <ul id="kigo-list" class="kigo-list"></ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>すべてブラウザ内で完結します。入力内容はどこにも送信されません。</p>
+  </footer>
+</div>
+
+<script src="mora.js"></script>
+<script src="kigo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
