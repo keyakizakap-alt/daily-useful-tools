@@ -170,10 +170,18 @@ button:hover {
   align-items: center;
   gap: 0.35rem;
   font-weight: 400;
+  white-space: nowrap;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.35rem 0.6rem;
+}
+
+.checkbox-list input[type="checkbox"] {
+  flex: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
 }
 
 .expense-list li,
