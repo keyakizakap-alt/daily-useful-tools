@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>じぶん物価 — 自分だけの体感インフレ率トラッカー</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="app-header">
+  <h1>じぶん物価</h1>
+  <p class="subtitle">よく買うものの値段を記録して、自分だけの体感インフレ率を見える化しよう</p>
+</header>
+
+<main>
+  <section class="card" aria-labelledby="form-heading">
+    <h2 id="form-heading">価格を記録する</h2>
+    <form id="record-form" class="record-form">
+      <div class="field">
+        <label for="item-input">品目名</label>
+        <input id="item-input" name="item" type="text" list="item-list" placeholder="例: たまご(10個)" required />
+        <datalist id="item-list"></datalist>
+      </div>
+      <div class="field">
+        <label for="price-input">価格（円）</label>
+        <input id="price-input" name="price" type="number" min="0.1" step="0.1" placeholder="例: 258" required />
+      </div>
+      <div class="field">
+        <label for="date-input">購入日</label>
+        <input id="date-input" name="date" type="date" required />
+      </div>
+      <button type="submit" class="btn btn-primary">記録する</button>
+    </form>
+    <p id="form-message" class="form-message" role="status"></p>
+  </section>
+
+  <section class="card" aria-labelledby="summary-heading">
+    <h2 id="summary-heading">じぶん物価指数</h2>
+    <div id="summary" class="summary">
+      <p class="empty-state">まだデータが足りません。同じ品目を2回以上記録すると指数が表示されます。</p>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="ranking-heading">
+    <h2 id="ranking-heading">値上がりランキング TOP5</h2>
+    <ol id="ranking-list" class="ranking-list">
+      <li class="empty-state">まだランキングを表示できるデータがありません。</li>
+    </ol>
+  </section>
+
+  <section class="card" aria-labelledby="graph-heading">
+    <h2 id="graph-heading">品目別の価格推移</h2>
+    <div class="field">
+      <label for="item-select">品目を選択</label>
+      <select id="item-select">
+        <option value="">品目を選んでください</option>
+      </select>
+    </div>
+    <div id="item-change" class="item-change"></div>
+    <div id="graph-container" class="graph-container">
+      <p class="empty-state">品目を選択するとグラフが表示されます。</p>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="list-heading">
+    <h2 id="list-heading">記録一覧</h2>
+    <div class="table-wrap">
+      <table id="records-table">
+        <thead>
+          <tr>
+            <th>購入日</th>
+            <th>品目名</th>
+            <th>価格</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="records-tbody">
+          <tr><td colspan="4" class="empty-state">記録がありません</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="data-heading">
+    <h2 id="data-heading">データ管理</h2>
+    <div class="data-actions">
+      <button id="export-btn" type="button" class="btn">CSVエクスポート</button>
+      <label id="import-label" class="btn btn-file" for="import-input" tabindex="0">
+        CSVインポート
+        <input id="import-input" type="file" accept=".csv,text/csv" class="visually-hidden" />
+      </label>
+    </div>
+    <p id="data-message" class="form-message" role="status"></p>
+  </section>
+</main>
+
+<footer class="app-footer">
+  <p>データはこの端末のブラウザ内（localStorage）にのみ保存されます。外部への送信は一切行いません。</p>
+</footer>
+
+<script src="js/priceIndex.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
