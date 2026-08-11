@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>感情の郵便局</title>
+<meta name="description" content="気まずいモヤモヤを手紙に書いて封をし、未来の自分に届ける一人内省アプリ。誰にも送られません。" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✉️</text></svg>" />
+<link rel="stylesheet" href="css/base.css" />
+<link rel="stylesheet" href="css/layout.css" />
+<link rel="stylesheet" href="css/components.css" />
+</head>
+<body>
+<div id="app">
+
+  <header class="app-header">
+    <button type="button" id="backBtn" class="app-header__back" aria-label="戻る" hidden>←</button>
+    <h1 class="app-header__title" id="headerTitle" tabindex="-1">感情の郵便局</h1>
+    <span class="app-header__spacer" aria-hidden="true"></span>
+  </header>
+
+  <!-- ============ ホーム(郵便受け) ============ -->
+  <section class="screen is-active" id="screen-home" data-screen="home">
+    <div class="screen__scroll">
+
+      <div class="no-send-badge">
+        <span class="no-send-badge__dot"></span>
+        この手紙は誰にも送られません
+      </div>
+
+      <div id="deliveryBanner" aria-live="polite"></div>
+
+      <div class="card">
+        <p class="hero-title">今日はどんな一日でしたか。</p>
+        <p class="hero-lead">気まずさやモヤモヤがあれば、手紙に書いて封をしておきましょう。読むのは、未来のあなただけです。</p>
+      </div>
+
+      <div class="stack">
+        <p class="section-title">郵便受けのようす</p>
+        <div class="nav-grid">
+          <button type="button" class="btn btn-secondary btn-tile" id="homeSealedTile">
+            <span class="btn-tile__icon" aria-hidden="true">✉️</span>
+            <span id="homeSealedCount">配達待ち 0通</span>
+          </button>
+          <button type="button" class="btn btn-secondary btn-tile" id="homeDeliveredTile">
+            <span class="btn-tile__icon" aria-hidden="true">📬</span>
+            <span id="homeDeliveredCount">届いた手紙 0通</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="stack">
+        <p class="section-title">メニュー</p>
+        <div class="nav-grid">
+          <button type="button" class="btn btn-secondary btn-tile" data-nav="mailbox">
+            <span class="btn-tile__icon" aria-hidden="true">📮</span>
+            <span>手紙一覧</span>
+          </button>
+          <button type="button" class="btn btn-secondary btn-tile" data-nav="dashboard">
+            <span class="btn-tile__icon" aria-hidden="true">📊</span>
+            <span>傾向ダッシュボード</span>
+          </button>
+        </div>
+      </div>
+
+      <button type="button" class="btn btn-ghost" data-nav="settings">設定・バックアップ</button>
+    </div>
+
+    <div class="bottom-actions">
+      <button type="button" class="btn btn-primary" data-nav="compose">
+        <span aria-hidden="true">✉️</span> 速達を出す
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ 速達フォーム ============ -->
+  <section class="screen" id="screen-compose" data-screen="compose">
+    <div class="screen__scroll">
+      <div class="step-indicator">
+        <span class="step-indicator__dot" data-step-dot="1"></span>
+        <span class="step-indicator__dot" data-step-dot="2"></span>
+        <span class="step-indicator__dot" data-step-dot="3"></span>
+      </div>
+
+      <!-- Step 1 -->
+      <div class="stack" data-compose-step="1">
+        <label class="field-label" for="eventText">何がありましたか。</label>
+        <p class="field-hint" id="eventTextHint">実名や連絡先は書かず、出来事だけを書いてください。誰かに見られても大丈夫なように。</p>
+        <div class="letter-paper">
+          <textarea id="eventText" maxlength="2000" aria-describedby="eventTextHint" placeholder="例: 会議で理不尽な指摘を受けた。&#10;準備していたのに聞いてもらえなかった。"></textarea>
+        </div>
+        <p class="char-count"><span id="eventTextCount">0</span> / 2000文字</p>
+
+        <p class="field-label" id="relationChipsLabel">相手との関係は。</p>
+        <div class="chip-grid" id="relationChips" role="group" aria-labelledby="relationChipsLabel"></div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="stack" data-compose-step="2" hidden>
+        <label class="field-label" for="trueFeelingText">本当は何を言いたかったですか。</label>
+        <p class="field-hint" id="trueFeelingTextHint">口には出せなかった本音を、ここにだけ書いておきましょう。</p>
+        <div class="letter-paper">
+          <textarea id="trueFeelingText" maxlength="2000" aria-describedby="trueFeelingTextHint" placeholder="例: 本当はちゃんと話を聞いてほしかった。&#10;自分なりに頑張ったことを認めてほしかった。"></textarea>
+        </div>
+        <p class="char-count"><span id="trueFeelingTextCount">0</span> / 2000文字</p>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="stack" data-compose-step="3" hidden>
+        <p class="field-label" id="emotionChipsLabel">今の感情はどれに近いですか。(複数選択可)</p>
+        <div class="chip-grid" id="emotionChips" role="group" aria-labelledby="emotionChipsLabel"></div>
+
+        <p class="field-label" id="deliveryChipsLabel">いつ届けますか。</p>
+        <div class="chip-grid" id="deliveryChips" role="group" aria-labelledby="deliveryChipsLabel"></div>
+        <label class="field-hint" for="customDateInput" id="customDateLabel" hidden>配達日を指定してください。(明日以降の日付を選べます)</label>
+        <input type="date" id="customDateInput" class="text-input" hidden />
+      </div>
+
+      <p class="field-hint" id="composeError" role="alert" hidden></p>
+    </div>
+
+    <div class="bottom-actions">
+      <button type="button" class="btn btn-primary" id="composeNextBtn">次へ</button>
+      <button type="button" class="btn btn-ghost" id="composeBackStepBtn" hidden>前のステップに戻る</button>
+    </div>
+  </section>
+
+  <!-- ============ 手紙一覧 ============ -->
+  <section class="screen" id="screen-mailbox" data-screen="mailbox">
+    <div class="screen__scroll">
+      <div class="filter-row" id="statusFilterRow" role="group" aria-label="配達状況で絞り込み"></div>
+      <div class="filter-row" id="relationFilterRow" role="group" aria-label="関係性で絞り込み"></div>
+      <div class="filter-row" id="emotionFilterRow" role="group" aria-label="感情タグで絞り込み"></div>
+      <div class="stack stack--tight" id="mailboxList"></div>
+    </div>
+  </section>
+
+  <!-- ============ 手紙詳細/振り返り ============ -->
+  <section class="screen" id="screen-detail" data-screen="detail">
+    <div class="screen__scroll" id="detailContent"></div>
+  </section>
+
+  <!-- ============ 傾向ダッシュボード ============ -->
+  <section class="screen" id="screen-dashboard" data-screen="dashboard">
+    <div class="screen__scroll">
+      <p class="hero-lead">評価やランキングではなく、気づきのための記録です。</p>
+
+      <div class="card">
+        <p class="section-title">感情タグの傾向</p>
+        <div class="bar-list" id="emotionBars"></div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">関係性タグの傾向</p>
+        <div class="bar-list" id="relationBars"></div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">期間ごとの手紙の数</p>
+        <div class="period-toggle" id="periodToggle">
+          <button type="button" class="btn btn-secondary" data-period="week">週ごと</button>
+          <button type="button" class="btn btn-secondary" data-period="month">月ごと</button>
+        </div>
+        <div class="bar-list" id="periodBars" style="margin-top:12px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 設定・バックアップ ============ -->
+  <section class="screen" id="screen-settings" data-screen="settings">
+    <div class="screen__scroll">
+
+      <div class="stack">
+        <p class="section-title" id="themeSegmentedLabel">テーマ</p>
+        <div class="segmented" id="themeSegmented" role="group" aria-labelledby="themeSegmentedLabel">
+          <button type="button" data-theme-value="system" aria-pressed="false">端末に合わせる</button>
+          <button type="button" data-theme-value="light" aria-pressed="false">ライト</button>
+          <button type="button" data-theme-value="dark" aria-pressed="false">ダーク</button>
+        </div>
+      </div>
+
+      <div class="toggle-row">
+        <div>
+          <p class="field-label" style="font-size:14px;" id="soundSwitchLabel">配達時の効果音</p>
+          <p class="field-hint">届いたときに、やさしい音でお知らせします。</p>
+        </div>
+        <button type="button" class="switch" id="soundSwitch" role="switch" aria-checked="false" aria-labelledby="soundSwitchLabel"></button>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="stack">
+        <p class="section-title">バックアップ</p>
+        <p class="field-hint">全てのデータはこの端末のブラウザ内にのみ保存されています。機種変更やブラウザのデータ削除に備えて、ときどきバックアップを取っておくと安心です。</p>
+        <button type="button" class="btn btn-secondary" id="exportBtn">JSONファイルを書き出す</button>
+        <label class="file-input-label">
+          <span class="btn btn-secondary" id="importBtnLabel">JSONファイルを読み込む</span>
+          <input type="file" id="importFileInput" accept="application/json,.json" />
+        </label>
+        <p class="field-hint">読み込むと、同じ手紙(同一ID)は上書きされ、それ以外は追加されます。</p>
+      </div>
+
+      <hr class="divider" />
+      <p class="field-hint">感情の郵便局は、サーバーにもどこにもデータを送りません。すべてはこの端末の中だけで完結しています。</p>
+    </div>
+  </section>
+
+</div>
+
+<div class="seal-overlay" id="sealOverlay" aria-hidden="true">
+  <div class="seal-envelope">✉️</div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<script src="js/storage.js"></script>
+<script src="js/letters.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/backup.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

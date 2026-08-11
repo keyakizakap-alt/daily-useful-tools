@@ -1,0 +1,144 @@
+/* ============================================================
+   感情の郵便局 - base.css
+   リセット・共通変数(カラーパレット・テーマ)
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* ---- カラーパレット(ライト = 昼間の郵便局) ---- */
+:root {
+  --color-bg: #f3ecdd;              /* クラフト紙色 */
+  --color-bg-elevated: #faf5e9;     /* 便箋の白に近いクリーム */
+  --color-bg-muted: #ece2cd;
+  --color-ink: #2c3038;             /* 墨色に近い濃紺 */
+  --color-ink-soft: #5c5f6b;
+  --color-ink-faint: #5f626b;       /* WCAG AA(4.5:1)を満たす濃さに調整 */
+  --color-line: #d8cbae;            /* 便箋の罫線 */
+  --color-accent: #7a2e2e;          /* 小豆色(切手の差し色) */
+  --color-accent-soft: #a85c52;
+  --color-accent-contrast: #fdf6ea;
+  --color-forest: #3d5c4c;          /* 深緑(切手の差し色) */
+  --color-stamp-bg: #e7d9b8;
+  --color-danger: #8a3b2b;
+  --color-shadow: rgba(60, 45, 20, 0.14);
+  --color-overlay: rgba(44, 48, 56, 0.5);
+
+  --font-body: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic",
+    "Meiryo", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+
+  --radius-s: 8px;
+  --radius-m: 14px;
+  --radius-l: 22px;
+
+  color-scheme: light;
+}
+
+/* ---- ダークテーマ(就寝前利用向け・低輝度) ---- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #21201d;
+    --color-bg-elevated: #2a2823;
+    --color-bg-muted: #302e28;
+    --color-ink: #e4ddcd;
+    --color-ink-soft: #b9b2a0;
+    --color-ink-faint: #958b7c;      /* WCAG AA(4.5:1)を満たす明るさに調整 */
+    --color-line: #423f36;
+    --color-accent: #c98f7f;
+    --color-accent-soft: #a06a5c;
+    --color-accent-contrast: #211b17;
+    --color-forest: #7fa08f;
+    --color-stamp-bg: #38352c;
+    --color-danger: #d38f7e;
+    --color-shadow: rgba(0, 0, 0, 0.4);
+    --color-overlay: rgba(10, 9, 8, 0.6);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #21201d;
+  --color-bg-elevated: #2a2823;
+  --color-bg-muted: #302e28;
+  --color-ink: #e4ddcd;
+  --color-ink-soft: #b9b2a0;
+  --color-ink-faint: #958b7c;
+  --color-line: #423f36;
+  --color-accent: #c98f7f;
+  --color-accent-soft: #a06a5c;
+  --color-accent-contrast: #211b17;
+  --color-forest: #7fa08f;
+  --color-stamp-bg: #38352c;
+  --color-danger: #d38f7e;
+  --color-shadow: rgba(0, 0, 0, 0.4);
+  --color-overlay: rgba(10, 9, 8, 0.6);
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p,
+ul,
+ol {
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-contrast);
+}
+
+/* ---- フォーカス可視性(WCAG 2.4.7) ---- */
+:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ---- 動きを抑えたい利用者への配慮(WCAG 2.3.3 / prefers-reduced-motion) ---- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
