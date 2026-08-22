@@ -1,0 +1,256 @@
+/* 段取りキッチン — 画面スタイル
+   ライトテーマ基準。OSがダークなら配色を差し替える。 */
+
+:root {
+  --bg: #f7f5f2;
+  --surface: #ffffff;
+  --surface-alt: #f0ece6;
+  --border: #ddd5cb;
+  --text: #2c2622;
+  --text-muted: #6d635b;
+  --accent: #c2571f;
+  --accent-soft: #fbeee5;
+  --attended: #c2571f;
+  --unattended: #4b8b76;
+  --unattended-soft: #e8f2ee;
+  --warn: #8a5a00;
+  --warn-bg: #fdf3dc;
+  --radius: 10px;
+  --font: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Noto Sans JP",
+    system-ui, -apple-system, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1917;
+    --surface: #262220;
+    --surface-alt: #302b28;
+    --border: #453e39;
+    --text: #f0ebe6;
+    --text-muted: #a99e95;
+    --accent: #e8814a;
+    --accent-soft: #3a2c22;
+    --attended: #e8814a;
+    --unattended: #6fbfa2;
+    --unattended-soft: #24352f;
+    --warn: #e8c07a;
+    --warn-bg: #3a3122;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 1rem 4rem;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  line-height: 1.7;
+  font-size: 15px;
+}
+
+.wrap { max-width: 960px; margin: 0 auto; }
+
+header {
+  padding: 1.75rem 0 1.25rem;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+header h1 { margin: 0; font-size: 1.5rem; letter-spacing: 0.02em; }
+header p { margin: 0.4rem 0 0; color: var(--text-muted); font-size: 0.9rem; }
+
+h2 {
+  font-size: 1.05rem;
+  margin: 2rem 0 0.75rem;
+  padding-left: 0.6rem;
+  border-left: 4px solid var(--accent);
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  align-items: flex-end;
+}
+.field { display: flex; flex-direction: column; gap: 0.3rem; }
+.field label { font-size: 0.82rem; color: var(--text-muted); font-weight: 600; }
+
+input[type="text"], input[type="time"], input[type="number"], select {
+  font: inherit;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  min-height: 2.4rem;
+}
+input[type="number"] { width: 5.5rem; }
+
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  cursor: pointer;
+  min-height: 2.4rem;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.ghost { background: transparent; border-color: transparent; color: var(--text-muted); padding: 0.3rem 0.5rem; }
+button.ghost:hover { color: var(--accent); }
+button.danger:hover { border-color: #b3261e; color: #b3261e; }
+
+/* ── 献立の一覧 ── */
+.dish {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.85rem;
+}
+.dish-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+.dish-head input.dish-name {
+  font-weight: 700;
+  font-size: 1rem;
+  flex: 1 1 12rem;
+  min-width: 8rem;
+}
+.hold-field {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+table.steps { width: 100%; border-collapse: collapse; }
+table.steps th {
+  text-align: left;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 0.25rem 0.4rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+table.steps td { padding: 0.25rem 0.4rem; vertical-align: middle; }
+table.steps input.step-name { width: 100%; min-width: 6rem; }
+table.steps tr:not(:last-child) td { border-bottom: 1px solid var(--surface-alt); }
+
+.kind-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.kind-toggle button {
+  border: none;
+  border-radius: 0;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.78rem;
+  min-height: 1.9rem;
+  background: transparent;
+  color: var(--text-muted);
+}
+.kind-toggle button[aria-pressed="true"] { background: var(--attended); color: #fff; }
+.kind-toggle button[data-kind="unattended"][aria-pressed="true"] { background: var(--unattended); }
+
+/* ── 結果サマリ ── */
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.stat {
+  flex: 1 1 8.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.9rem;
+}
+.stat .label { font-size: 0.75rem; color: var(--text-muted); }
+.stat .value { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat.highlight { background: var(--accent-soft); border-color: var(--accent); }
+.stat.highlight .value { color: var(--accent); }
+
+.warnings { margin: 0 0 1rem; padding: 0.75rem 1rem 0.75rem 2rem; background: var(--warn-bg); color: var(--warn); border-radius: var(--radius); }
+.warnings li { margin: 0.15rem 0; font-size: 0.88rem; }
+
+/* ── タイムライン ── */
+.timeline { list-style: none; margin: 0; padding: 0; }
+.slot {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: 0.9rem;
+  padding: 0.7rem 0;
+  border-top: 1px solid var(--border);
+}
+.slot .clock {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.slot .clock small { display: block; font-size: 0.68rem; color: var(--text-muted); font-weight: 500; }
+.task { margin-bottom: 0.35rem; }
+.task:last-child { margin-bottom: 0; }
+.task .dish-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  margin-right: 0.5rem;
+}
+.task.attended .action { font-weight: 700; }
+.task .duration { color: var(--text-muted); font-size: 0.8rem; margin-left: 0.4rem; }
+.running {
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--unattended);
+  background: var(--unattended-soft);
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
+  display: inline-block;
+}
+
+.empty { color: var(--text-muted); padding: 1.5rem 0; text-align: center; }
+.error { color: #b3261e; background: #fdecea; border-radius: var(--radius); padding: 0.75rem 1rem; margin-bottom: 1rem; }
+@media (prefers-color-scheme: dark) { .error { background: #3a2320; color: #f5a79b; } }
+
+.row-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+.hint { font-size: 0.8rem; color: var(--text-muted); margin: 0.4rem 0 0; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.8rem; }
+
+@media (max-width: 600px) {
+  .slot { grid-template-columns: 3.8rem 1fr; gap: 0.6rem; }
+  table.steps thead { display: none; }
+  table.steps, table.steps tbody, table.steps tr, table.steps td { display: block; width: 100%; }
+  table.steps tr { border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem; margin-bottom: 0.5rem; }
+  table.steps td { padding: 0.2rem; }
+}
+
+/* 裏で進行中の放置工程（品数が増えても読めるよう、料理ごとのチップに分ける） */
+.running-list { margin-top: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+.running-label { font-size: 0.78rem; color: var(--text-muted); }
+.running-list .running { margin-top: 0; }
