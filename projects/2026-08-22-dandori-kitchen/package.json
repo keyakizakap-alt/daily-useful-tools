@@ -1,0 +1,12 @@
+{
+  "name": "dandori-kitchen",
+  "version": "1.0.0",
+  "description": "できあがり時刻から逆算して、複数の料理の調理段取りを自動で組み立てるツール",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "start": "node --version >/dev/null && python3 -m http.server 8080 --directory src"
+  }
+}

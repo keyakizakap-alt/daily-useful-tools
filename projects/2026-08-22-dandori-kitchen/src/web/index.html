@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>段取りキッチン — できあがり時刻から逆算する調理タイムライン</title>
+<meta name="description" content="複数の料理を同時に作るとき、できあがり時刻から逆算して「何を何時に始めるか」を自動で組み立てます。データは端末内だけに保存されます。">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>段取りキッチン</h1>
+  <p>できあがり時刻から逆算して、複数の料理の段取りを1本のタイムラインに組み立てます。<br>
+     通信は一切行いません。入力内容はこの端末のブラウザにだけ保存されます。</p>
+</header>
+
+<section>
+  <h2>条件</h2>
+  <div class="panel controls">
+    <div class="field">
+      <label for="target-time">できあがり時刻</label>
+      <input type="time" id="target-time" value="18:30">
+    </div>
+    <div class="field">
+      <label for="cooks">作る人の数</label>
+      <select id="cooks">
+        <option value="1">1人</option>
+        <option value="2">2人</option>
+        <option value="3">3人</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="preset-select">よく作る料理から追加</label>
+      <select id="preset-select"></select>
+    </div>
+    <button type="button" id="add-preset" class="primary">＋ 追加</button>
+    <button type="button" id="add-custom">自分で入力して追加</button>
+    <button type="button" id="clear-all" class="danger">すべて削除</button>
+  </div>
+  <p class="hint">
+    <strong>つきっきり</strong>＝手が塞がる工程（切る・炒める）。同時にできるのは「作る人の数」まで。<br>
+    <strong>放置</strong>＝火にかけて離れられる工程（煮る・炊く・寝かせる）。何品でも並行できます。
+    この放置時間の裏に他の料理の作業を差し込むことで、全体の時間を短くします。<br>
+    <strong>できあがりの◯分前でOK</strong>＝その料理を何分前に作り終えてよいか。
+    <code>0</code> なら「できあがり時刻ちょうどに熱々で出したい」。サラダなど冷めてよい料理は
+    <code>45</code> のように大きくすると、熱い料理に手を集中させられます。
+  </p>
+</section>
+
+<section>
+  <h2>献立</h2>
+  <div id="dish-list"></div>
+</section>
+
+<section>
+  <h2>段取り</h2>
+  <div id="result"></div>
+</section>
+
+<footer>
+  段取りキッチン — daily-useful-tools / 2026-08-22<br>
+  外部サーバーへの送信なし・ログイン不要・オフラインで動作します。
+</footer>
+
+</div>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
