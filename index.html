@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PitchMirror — 発表しているあなた自身を、その場で採点する鏡</title>
+<link rel="stylesheet" href="./src/styles.css" />
+</head>
+<body>
+
+<!-- ============ ヘッダー ============ -->
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <div class="brand-text">
+      <h1>PitchMirror</h1>
+      <p>発表しているあなた自身を、その場で採点する鏡</p>
+    </div>
+  </div>
+  <div class="status" id="status" data-state="idle">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span class="status-label" id="statusLabel">待機中</span>
+    <span class="status-clock" id="clock">00:00</span>
+  </div>
+</header>
+
+<!-- ============ 通知バナー（マイク失敗など） ============ -->
+<div class="notice" id="notice" hidden role="status" aria-live="polite">
+  <span class="notice-icon" aria-hidden="true">!</span>
+  <div class="notice-body">
+    <strong id="noticeTitle"></strong>
+    <span id="noticeText"></span>
+  </div>
+  <div class="notice-actions" id="noticeActions"></div>
+  <button class="notice-close" id="noticeClose" type="button" aria-label="閉じる">×</button>
+</div>
+
+<!-- ============ メイン ============ -->
+<main class="stage">
+
+  <!-- 地形（主役） -->
+  <section class="panel panel-terrain">
+    <div class="panel-head">
+      <h2>声の地形</h2>
+      <span class="panel-sub">スペクトルが奥へ流れる。棒読みは平野、熱量は山脈。</span>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="terrainCanvas"></canvas>
+      <div class="canvas-fallback" id="terrainFallback" hidden></div>
+    </div>
+  </section>
+
+  <!-- ゲージ -->
+  <aside class="panel panel-gauges">
+    <div class="panel-head">
+      <h2>スコア</h2>
+      <span class="panel-sub">話速 / 熱量 / 抑揚 / 間</span>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="gaugesCanvas"></canvas>
+      <div class="canvas-fallback" id="gaugesFallback" hidden></div>
+    </div>
+    <dl class="readout" id="readout">
+      <div><dt>総合</dt><dd id="mOverall">--</dd></div>
+      <div><dt>音節/秒</dt><dd id="mRate">--</dd></div>
+      <div><dt>発話率</dt><dd id="mRatio">--</dd></div>
+      <div><dt>最長の沈黙</dt><dd id="mPause">--</dd></div>
+      <div><dt>間の回数</dt><dd id="mPauseCount">--</dd></div>
+      <div><dt>フィラー</dt><dd id="mFiller">--</dd></div>
+    </dl>
+  </aside>
+
+  <!-- コーチ -->
+  <section class="panel panel-coach">
+    <div class="panel-head">
+      <h2>今すぐ直せること</h2>
+      <span class="panel-sub">ライブコーチ</span>
+    </div>
+    <ul class="tips" id="tips">
+      <li class="tip tip-empty">計測を開始すると、ここに指摘が出ます。</li>
+    </ul>
+  </section>
+
+  <!-- タイムライン -->
+  <section class="panel panel-timeline">
+    <div class="panel-head">
+      <h2>発話タイムライン</h2>
+      <span class="panel-sub">帯 = 発話、隙間 = 沈黙、マーカー = フィラー</span>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="timelineCanvas"></canvas>
+      <div class="canvas-fallback" id="timelineFallback" hidden></div>
+    </div>
+  </section>
+</main>
+
+<!-- ============ コントロール ============ -->
+<footer class="controls">
+  <button id="btnStart" class="btn btn-primary" type="button">計測開始</button>
+  <button id="btnStop" class="btn" type="button" disabled>終了</button>
+  <span class="controls-divider" aria-hidden="true"></span>
+  <span class="controls-tag">デモ用</span>
+  <button id="btnMonotone" class="btn btn-warn" type="button">棒読みモード</button>
+  <button id="btnEnergetic" class="btn btn-accent" type="button">熱量モード</button>
+  <span class="controls-divider" aria-hidden="true"></span>
+  <label class="switch">
+    <input type="checkbox" id="speechToggle" />
+    <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+    <span class="switch-label">フィラー検出<small id="speechNote">（任意 / Web Speech API）</small></span>
+  </label>
+</footer>
+
+<!-- ============ サマリー ============ -->
+<div class="summary" id="summary" hidden role="dialog" aria-modal="true" aria-labelledby="verdict">
+  <div class="summary-card">
+    <p class="summary-eyebrow">計測結果</p>
+    <h2 class="verdict" id="verdict">—</h2>
+    <div class="summary-overall">
+      <span class="summary-overall-num" id="sOverall">--</span>
+      <span class="summary-overall-unit">/ 100</span>
+    </div>
+    <div class="summary-bars" id="summaryBars"></div>
+    <div class="summary-grid" id="summaryMetrics"></div>
+    <div class="summary-tips">
+      <h3>コーチからの指摘</h3>
+      <ul id="summaryTips"></ul>
+    </div>
+    <div class="summary-actions">
+      <button id="btnAgain" class="btn btn-primary" type="button">もう一度</button>
+      <button id="btnClose" class="btn" type="button">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 致命的エラー（モジュール欠落など） ============ -->
+<div class="bootfail" id="bootfail" hidden>
+  <div class="bootfail-card">
+    <h2>モジュールを読み込めませんでした</h2>
+    <p id="bootfailText"></p>
+    <p class="bootfail-hint">
+      <code>file://</code> で開いた場合、ブラウザによっては ES Modules がブロックされます。
+      その場合はプロジェクト直下で <code>python3 -m http.server</code> を実行し、
+      <code>http://localhost:8000/</code> を開いてください（ネットワーク通信は行いません）。
+    </p>
+  </div>
+</div>
+
+<script type="module" src="./src/app.js"></script>
+<script>
+// app.js 自体が読めなかった場合（モジュール解決失敗）に備えた最終防衛線。
+window.addEventListener('error', function (e) {
+  if (e && e.target && e.target.tagName === 'SCRIPT') {
+    var el = document.getElementById('bootfail');
+    var tx = document.getElementById('bootfailText');
+    if (el && tx) { tx.textContent = 'src/app.js の読み込みに失敗しました。'; el.hidden = false; }
+  }
+}, true);
+</script>
+</body>
+</html>
