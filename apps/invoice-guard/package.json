@@ -1,0 +1,16 @@
+{
+  "name": "invoice-guard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "受領した適格請求書（インボイス）の要件充足をAIで判定し、控除できない金額を可視化する",
+  "scripts": {
+    "start": "node src/server.ts",
+    "test": "node --test test/*.test.ts"
+  },
+  "engines": { "node": ">=22.18" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.122.0",
+    "zod": "^3.23.8"
+  }
+}

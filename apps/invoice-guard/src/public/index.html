@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>InvoiceGuard — 受け取った請求書、いくら控除できていますか</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <h1>InvoiceGuard</h1>
+          <p class="tagline">受け取った請求書が適格請求書の要件を満たしているかを確認し、控除できない金額を示します</p>
+        </div>
+      </div>
+      <div class="deadline" id="deadline" hidden>
+        <span class="deadline-label">控除割合 80% → 70%</span>
+        <span class="deadline-count" id="deadlineCount">—</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel intake">
+        <h2>請求書を確認する</h2>
+
+        <div class="tabs" role="tablist">
+          <button class="tab is-active" role="tab" data-tab="file" aria-selected="true">
+            ファイル
+          </button>
+          <button class="tab" role="tab" data-tab="text" aria-selected="false">テキスト</button>
+          <button class="tab" role="tab" data-tab="sample" aria-selected="false">
+            サンプルで試す
+          </button>
+        </div>
+
+        <!-- ファイル -->
+        <div class="tab-body is-active" data-body="file">
+          <label class="dropzone" id="dropzone">
+            <input type="file" id="fileInput" accept="image/png,image/jpeg,image/gif,image/webp,application/pdf" hidden />
+            <span class="dropzone-title">請求書の画像・PDF をドロップ</span>
+            <span class="dropzone-sub">またはクリックして選択（PNG / JPEG / GIF / WebP / PDF、12MBまで）</span>
+            <span class="dropzone-file" id="fileName"></span>
+          </label>
+          <p class="notice" id="aiNotice" hidden></p>
+        </div>
+
+        <!-- テキスト -->
+        <div class="tab-body" data-body="text">
+          <textarea
+            id="textInput"
+            rows="10"
+            placeholder="請求書の内容をテキストで貼り付けてください。&#10;例）&#10;請求書&#10;株式会社ミドリ電機　登録番号 T4010001012345&#10;2026年8月20日&#10;サーバー保守運用費　480,000円&#10;消費税(10%)　48,000円&#10;合計 528,000円"
+          ></textarea>
+        </div>
+
+        <!-- サンプル -->
+        <div class="tab-body" data-body="sample">
+          <p class="hint">
+            APIキーがなくても、監査ロジックの挙動をここで確認できます。
+          </p>
+          <div class="sample-list" id="sampleList"></div>
+        </div>
+
+        <div class="controls">
+          <label class="check">
+            <input type="checkbox" id="simplified" />
+            <span>適格簡易請求書（レシート等）として判定する</span>
+          </label>
+          <button class="primary" id="runBtn">確認する</button>
+        </div>
+
+        <p class="error" id="error" hidden></p>
+      </section>
+
+      <section class="panel result" id="result" hidden>
+        <div class="verdict" id="verdict">
+          <span class="verdict-badge" id="verdictBadge"></span>
+          <h2 class="verdict-title" id="verdictTitle"></h2>
+        </div>
+
+        <div class="money" id="money">
+          <div class="money-cell">
+            <span class="money-label">請求書上の消費税額</span>
+            <span class="money-value" id="mTotal">—</span>
+          </div>
+          <div class="money-cell is-good">
+            <span class="money-label">控除できる額</span>
+            <span class="money-value" id="mDeductible">—</span>
+          </div>
+          <div class="money-cell is-bad">
+            <span class="money-label">控除できない額</span>
+            <span class="money-value" id="mLost">—</span>
+          </div>
+        </div>
+
+        <p class="impact-detail" id="impactDetail"></p>
+
+        <h3>記載事項の確認</h3>
+        <ul class="requirements" id="requirements"></ul>
+
+        <h3>消費税額の検算</h3>
+        <ul class="tax-checks" id="taxChecks"></ul>
+
+        <div id="actionsWrap" hidden>
+          <h3>やるべきこと</h3>
+          <ol class="actions" id="actions"></ol>
+        </div>
+
+        <details class="raw">
+          <summary>読み取った内容（元データ）</summary>
+          <pre id="rawJson"></pre>
+        </details>
+
+        <p class="disclaimer">
+          本ツールは記載事項の形式的な確認を支援するものであり、税務上の判断を代替するものではありません。
+          登録番号が実際に登録されているかは国税庁の公表サイトでご確認ください。最終的な処理は税理士等にご相談ください。
+        </p>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
