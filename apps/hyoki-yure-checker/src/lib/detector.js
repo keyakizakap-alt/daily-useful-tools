@@ -1,7 +1,10 @@
 // 表記ゆれ検出・統一の純粋ロジック。DOM に依存しないため Node.js から直接テストできる。
 
-const ALNUM_TOKEN_RE = /[0-9A-Za-z０-９Ａ-Ｚａ-ｚ]+/g;
-const KATAKANA_TOKEN_RE = /[ァ-ヶー]{2,}/g;
+const ALNUM_CHARS = "0-9A-Za-z０-９Ａ-Ｚａ-ｚ";
+const KATAKANA_CHARS = "ァ-ヶー";
+const ALNUM_TOKEN_RE = new RegExp(`[${ALNUM_CHARS}]+`, "g");
+const KATAKANA_TOKEN_RE = new RegExp(`[${KATAKANA_CHARS}]{2,}`, "g");
+const KATAKANA_TOKEN_TEST_RE = new RegExp(`^[${KATAKANA_CHARS}]+$`);
 
 /**
  * 全角英数字1文字を半角に変換する。全角英数字(U+FF01-FF5E)は
@@ -79,30 +82,46 @@ function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// トークンを構成しうる文字クラス(英数字全角半角 + カタカナ + 長音符号)。
-// 置換対象がこのクラスの文字に前後で隣接している場合、それはより長い
-// トークンの一部であることを意味するため、置換対象から除外する
-// (例: 「サーバ」→「サーバー」の統一で、既存の「サーバー」内の
-// 「サーバ」部分まで誤って再置換されるのを防ぐ)。
-const TOKEN_CHAR_CLASS = "0-9A-Za-z0-9０-９Ａ-Ｚａ-ｚァ-ヶー";
+/**
+ * トークンが英数字トークンかカタカナトークンかによって、その表記が
+ * 「そこで途切れている」と判定すべき境界の文字クラスを返す。
+ * 英数字トークンとカタカナトークンは互いに隣接しても(例:「ユーザID」
+ * 「Aランク」)それぞれ独立した表記とみなすべきなので、境界判定は
+ * 種類ごとに別々の文字クラスで行う必要がある
+ * (両方をひとつのクラスにまとめると、英数字とカタカナが隣接する
+ * ごく一般的な文章で置換が機能しなくなる)。
+ */
+function boundaryCharsFor(token) {
+  return KATAKANA_TOKEN_TEST_RE.test(token) ? KATAKANA_CHARS : ALNUM_CHARS;
+}
+
+/**
+ * 表記の一覧(surfaces)から、各表記がより大きなトークンの一部として
+ * 誤マッチしないよう境界チェック付きの正規表現を組み立てる。
+ * 置換とプレビューのハイライトの両方で共通して使う。
+ * 長い表記を先に判定するよう並べ替え、短い表記が長い表記の一部として
+ * 先にマッチしてしまうのを防ぐ。
+ */
+function buildBoundaryAwarePattern(surfaces) {
+  const unique = [...new Set(surfaces)].sort((a, b) => b.length - a.length);
+  const branches = unique.map((s) => {
+    const cls = boundaryCharsFor(s);
+    return `(?<![${cls}])${escapeRegExp(s)}(?![${cls}])`;
+  });
+  return new RegExp(branches.join("|"), "g");
+}
 
 /**
  * replacements ({ from, to }[]) に基づいてテキスト中の表記を一括置換する。
- * from が長い順に処理することで、短い表記が長い表記の部分文字列として
- * 誤って置換されるのを防ぐ。さらに前後を境界チェックし、より大きな
- * トークンの一部分だけが誤って置換されないようにする。
+ * 境界チェック付きの正規表現を使い、より大きなトークンの一部分だけが
+ * 誤って置換されないようにする。
  */
 function applyUnification(text, replacements) {
   const effective = replacements.filter((r) => r.from !== r.to);
-  const sorted = [...effective].sort((a, b) => b.from.length - a.from.length);
-  if (sorted.length === 0) return text;
+  if (effective.length === 0) return text;
 
-  const alternation = sorted.map((r) => escapeRegExp(r.from)).join("|");
-  const pattern = new RegExp(
-    `(?<![${TOKEN_CHAR_CLASS}])(?:${alternation})(?![${TOKEN_CHAR_CLASS}])`,
-    "g",
-  );
-  const toMap = new Map(sorted.map((r) => [r.from, r.to]));
+  const pattern = buildBoundaryAwarePattern(effective.map((r) => r.from));
+  const toMap = new Map(effective.map((r) => [r.from, r.to]));
   return text.replace(pattern, (match) => toMap.get(match) ?? match);
 }
 
@@ -119,6 +138,7 @@ export {
   findAlnumWidthInconsistencies,
   findKatakanaChoonInconsistencies,
   analyzeText,
+  buildBoundaryAwarePattern,
   applyUnification,
   defaultReplacementsForFinding,
 };

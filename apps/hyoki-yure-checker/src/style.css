@@ -167,6 +167,21 @@ button.secondary {
   font-weight: 600;
 }
 
+.finding-card fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.finding-card legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .finding-card .unify-one {
   margin-top: 0.6rem;
 }
@@ -185,10 +200,16 @@ button.secondary {
   min-height: 4rem;
 }
 
+.preview mark {
+  border-bottom: 2px solid currentColor;
+}
+
 .preview mark.width {
   background: var(--mark-width);
+  border-bottom-style: solid;
 }
 
 .preview mark.choon {
   background: var(--mark-choon);
+  border-bottom-style: dashed;
 }

@@ -8,6 +8,7 @@ import {
   findKatakanaChoonInconsistencies,
   analyzeText,
   applyUnification,
+  buildBoundaryAwarePattern,
   defaultReplacementsForFinding,
 } from "../src/lib/detector.js";
 
@@ -111,6 +112,30 @@ test("defaultReplacementsForFinding: 出現回数最多の表記を統一先に�
   };
   const replacements = defaultReplacementsForFinding(finding);
   assert.deepEqual(replacements, [{ from: "サーバ", to: "サーバー" }]);
+});
+
+test("applyUnification: カタカナトークンの直後に英数字が隣接していても正しく置換する", () => {
+  // レビューで発見されたバグの再現テスト: 英数字とカタカナを1つの
+  // 境界文字クラスにまとめていたため「ユーザID」のようにカタカナの
+  // 直後に英数字が続くと置換が機能しなかった
+  const text = "ユーザIDを確認する。ユーザーIDは重要だ。";
+  const result = applyUnification(text, [{ from: "ユーザ", to: "ユーザー" }]);
+  assert.equal(result, "ユーザーIDを確認する。ユーザーIDは重要だ。");
+});
+
+test("applyUnification: 英数字トークンの直後にカタカナが隣接していても正しく置換する", () => {
+  const text = "Ａランクのサーバと、Aランクのサーバーがある。";
+  const result = applyUnification(text, [{ from: "Ａ", to: "A" }]);
+  assert.equal(result, "Aランクのサーバと、Aランクのサーバーがある。");
+});
+
+test("buildBoundaryAwarePattern: 無関係な長いトークンの内部にはマッチしない", () => {
+  // レビューで発見されたバグの再現テスト: 境界チェックなしのハイライトでは
+  // 「1」が「100」の内部にまで誤マッチしていた
+  const text = "価格は１円から100円まで幅がある。1円は安い。";
+  const pattern = buildBoundaryAwarePattern(["1", "１"]);
+  const matches = [...text.matchAll(pattern)].map((m) => m[0]);
+  assert.deepEqual(matches, ["１", "1"]);
 });
 
 test("統合シナリオ: 検出してから統一すると表記ゆれが解消される", () => {
