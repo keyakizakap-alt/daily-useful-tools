@@ -11,6 +11,7 @@ const state = {
   file: null,
   sampleId: null,
   aiAvailable: false,
+  maxUploadBytes: 4 * 1024 * 1024,
 };
 
 const yen = (n) => `${Number(n).toLocaleString('ja-JP')} 円`;
@@ -40,6 +41,7 @@ async function loadConfig() {
   try {
     const cfg = await (await fetch('/api/config')).json();
     state.aiAvailable = cfg.aiAvailable;
+    state.maxUploadBytes = cfg.maxUploadBytes;
 
     if (!cfg.aiAvailable) {
       const notice = $('aiNotice');
@@ -174,6 +176,12 @@ async function run() {
       payload = { text, simplified };
     } else {
       if (!state.file) throw new Error('請求書のファイルを選んでください。');
+      // base64 化すると約1.37倍になる。サーバー側の上限を超える前にここで止める。
+      if (state.file.size * 1.37 > (state.maxUploadBytes ?? 4 * 1024 * 1024)) {
+        throw new Error(
+          `ファイルが大きすぎます（${(state.file.size / 1024 / 1024).toFixed(1)}MB）。約3MBまでの画像・PDFをお使いください。`,
+        );
+      }
       endpoint = '/api/audit';
       payload = {
         base64: await toBase64(state.file),

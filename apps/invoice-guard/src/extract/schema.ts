@@ -7,7 +7,7 @@
  * 説明できること）と再現性が失われるため。
  */
 
-import { z } from 'zod';
+import * as z from 'zod/v4';
 
 export const TaxLineSchema = z.object({
   rate: z
