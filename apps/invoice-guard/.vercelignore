@@ -1,0 +1,5 @@
+# 実行時に不要なものはデプロイに含めない
+test/
+docs/
+tsconfig.json
+src/server.ts
