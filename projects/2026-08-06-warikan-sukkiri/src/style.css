@@ -1,0 +1,257 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f5f2;
+  --card-bg: #ffffff;
+  --text: #262220;
+  --muted: #6b6460;
+  --accent: #c0553f;
+  --accent-dark: #9c3f2d;
+  --border: #e3ddd6;
+  --positive: #2f7d4f;
+  --negative: #b3392b;
+  font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui,
+    sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1a19;
+    --card-bg: #262322;
+    --text: #f1ece7;
+    --muted: #b3a99f;
+    --border: #3a3532;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+.app__header h1 {
+  font-size: 1.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.app__subtitle {
+  color: var(--muted);
+  margin-top: 0;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.card h2 {
+  margin-top: 0;
+  font-size: 1.15rem;
+}
+
+.inline-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.inline-form input {
+  flex: 1;
+}
+
+input,
+select,
+button {
+  font-size: 1rem;
+  font-family: inherit;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+button {
+  cursor: pointer;
+  background: var(--accent);
+  color: white;
+  border: none;
+  font-weight: 600;
+}
+
+button:hover {
+  background: var(--accent-dark);
+}
+
+.primary-button {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1.05rem;
+}
+
+.chip-list,
+.checkbox-list,
+.expense-list,
+.balance-list,
+.transaction-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem 0.3rem 0.9rem;
+}
+
+.chip button {
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  padding: 0 0.2rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.chip button:hover {
+  color: var(--negative);
+  background: transparent;
+}
+
+.expense-form .form-row {
+  margin-bottom: 0.9rem;
+}
+
+.form-row label,
+.form-row legend {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  font-size: 0.92rem;
+}
+
+.form-row select,
+.form-row input {
+  width: 100%;
+}
+
+.checkbox-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.checkbox-list label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 400;
+  white-space: nowrap;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+}
+
+.checkbox-list input[type="checkbox"] {
+  flex: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+
+.expense-list li,
+.balance-list li,
+.transaction-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.2rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.expense-list li:last-child,
+.balance-list li:last-child,
+.transaction-list li:last-child {
+  border-bottom: none;
+}
+
+.expense-list .expense-meta {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.expense-list button {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.6rem;
+  font-weight: 400;
+}
+
+.expense-list button:hover {
+  color: var(--negative);
+  background: transparent;
+}
+
+.balance-list .amount.positive {
+  color: var(--positive);
+  font-weight: 700;
+}
+
+.balance-list .amount.negative {
+  color: var(--negative);
+  font-weight: 700;
+}
+
+.transaction-list li {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 0.5rem;
+  border-bottom: none;
+}
+
+.empty-message {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.error-message {
+  color: var(--negative);
+  font-weight: 600;
+  min-height: 1.4em;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
