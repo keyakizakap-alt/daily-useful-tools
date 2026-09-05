@@ -31,8 +31,18 @@
 - 相性は「良い/悪い」ではなく「進み方が近い相手」「前提が違う相手」として提示する。
 - 冒頭と結果に、心理検査ではなく娯楽・自己理解のためのものである旨を明示。
 
+## キャラクターイラスト
+
+`assets/characters/char-01.webp` 〜 `char-12.webp`（12枚）。`index.html` は相対パスで参照する。
+Artifact など外部ファイルを置けない配布先向けには、画像を data URI で埋め込んだ単一ファイル版を生成できる。
+
+```bash
+python3 tools/build_standalone.py out.html            # 通常のHTMLとして出力
+python3 tools/build_standalone.py out.html --fragment # Artifact用（doctype/head/body を除いた断片）
+```
+
 ## 技術構成
 
 - 依存ライブラリなしの単一 HTML（HTML / CSS / vanilla JS）。
-- タイプの紋章はコード生成の inline SVG（重なり＝距離感、円/角丸＝判断軸、模様＝育て方）。
+- 各タイプにキャラクターイラストを表示。結果画面ではコード生成の inline SVG 紋章（重なり＝距離感、円/角丸＝判断軸、模様＝育て方）をバッジとして重ねる。
 - ライト／ダークの両テーマ対応（OS設定に追従＋手動切り替え）、レスポンシブ、キーボード操作対応。

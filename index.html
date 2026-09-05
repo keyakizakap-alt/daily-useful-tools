@@ -102,10 +102,17 @@ button{font:inherit;color:inherit;cursor:pointer}
 .axis-cell .label{display:block;margin-bottom:4px}
 .axis-cell b{font-size:15px;display:block;font-weight:700}
 .axis-cell span.desc{font-size:13px;color:var(--ink-3);line-height:1.7}
-.crest-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:14px}
-.crest-cell{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
-.crest-cell .nm{font-size:11.5px;line-height:1.5;color:var(--ink-2)}
+.crest-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:18px}
 svg.crest{display:block;width:100%;height:auto}
+.portrait{display:block;width:100%;height:auto;aspect-ratio:262/231;object-fit:cover;border-radius:12px;background:var(--surface-2)}
+.char-cell{display:flex;flex-direction:column;gap:8px}
+.char-cell .nm{display:flex;align-items:center;gap:7px;font-size:12.5px;line-height:1.5;color:var(--ink-2)}
+.char-cell .dot{width:7px;height:7px;border-radius:2px;flex:none;transform:rotate(45deg)}
+.portrait-wrap{position:relative;width:200px;flex:none}
+.portrait-wrap .portrait{border-radius:16px}
+.crest-badge{position:absolute;right:-12px;bottom:-12px;width:62px;height:62px;padding:8px;border-radius:50%;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow)}
+.thumb{width:62px;height:62px;object-fit:cover;border-radius:10px;flex:none;background:var(--surface-2)}
+.all-item .thumb{width:52px;height:52px}
 .fair{border-left:3px solid var(--accent);padding:2px 0 2px 16px;background:transparent}
 
 /* quiz */
@@ -132,7 +139,7 @@ svg.crest{display:block;width:100%;height:auto}
 
 /* result */
 .result-head{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
-.result-head svg.crest{width:132px;flex:none}
+.crest-badge svg.crest{width:100%}
 .type-name{font-family:"Shippori Mincho B1",serif;font-size:clamp(26px,6vw,36px);line-height:1.35;margin:2px 0 6px}
 .type-tag{color:var(--ink-2);font-size:14.5px;margin:0}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
@@ -158,13 +165,11 @@ svg.crest{display:block;width:100%;height:auto}
 .sec p:last-child{margin-bottom:0}
 .pairs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .pair{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface)}
-.pair svg.crest{width:52px;flex:none}
 .pair .pt{font-size:13.5px;font-weight:700;line-height:1.5}
 .pair .pd{font-size:12px;color:var(--ink-3);line-height:1.6}
 .actions{display:flex;gap:10px;flex-wrap:wrap}
 .all-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
 .all-item{display:flex;gap:12px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
-.all-item svg.crest{width:44px;flex:none}
 .all-item .t{font-size:13px;font-weight:700;line-height:1.5}
 .all-item .d{font-size:11.5px;color:var(--ink-3);line-height:1.55}
 footer{margin-top:38px;padding-top:18px;border-top:1px solid var(--line)}
@@ -417,6 +422,16 @@ const STYLE_JA = {spark:"情熱", steady:"安定", explore:"探究"};
 const STYLE_ORDER = ["spark","steady","explore"];
 const KEYS = Object.keys(TYPES);
 
+/* キャラクターイラスト（12枚。KEYS と同じ並び順） */
+const ASSETS = null; /* build:assets — 単一ファイル配布時はここに画像のdata URIが差し込まれる */
+const imgSrc = (key) => {
+  const n = String(KEYS.indexOf(key) + 1).padStart(2, "0");
+  return (ASSETS && ASSETS[n]) || ("assets/characters/char-" + n + ".webp");
+};
+function portrait(key, cls, lazy){
+  return `<img class="${cls}" src="${imgSrc(key)}" alt="${TYPES[key].name}" width="524" height="462"${lazy ? ' loading="lazy"' : ''}>`;
+}
+
 /* ---------- 紋章（結果の絵）----------
    飾りではなく構造の表現。2つの図形＝二人。
    距離感 → 図形の重なり具合 / 判断軸 → 円か角丸か / 育て方 → 周囲の模様。 */
@@ -495,7 +510,7 @@ function bar(labelL, labelR, pct, tone){
 
 function miniCard(key, cls, note){
   const t = TYPES[key];
-  return `<div class="${cls}">${crest(key)}<div><div class="${cls==='pair'?'pt':'t'}">${t.name}</div><div class="${cls==='pair'?'pd':'d'}">${note || t.tag}</div></div></div>`;
+  return `<div class="${cls}">${portrait(key, "thumb", true)}<div><div class="${cls==='pair'?'pt':'t'}">${t.name}</div><div class="${cls==='pair'?'pd':'d'}">${note || t.tag}</div></div></div>`;
 }
 
 function showResult(){
@@ -514,7 +529,10 @@ function showResult(){
   $("result").innerHTML = `
     <div class="panel" style="--tone:${t.tone}">
       <div class="result-head">
-        ${crest(key, 132)}
+        <div class="portrait-wrap">
+          ${portrait(key, "portrait")}
+          <span class="crest-badge">${crest(key)}</span>
+        </div>
         <div style="flex:1;min-width:220px">
           <span class="label">Your type</span>
           <h2 class="type-name">${t.name}</h2>
@@ -593,7 +611,8 @@ function showResult(){
 
 /* ---------- 初期化 ---------- */
 $("introGrid").innerHTML = KEYS.map(k =>
-  `<div class="crest-cell">${crest(k)}<span class="nm">${TYPES[k].name}</span></div>`).join("");
+  `<div class="char-cell">${portrait(k, "portrait")}
+     <span class="nm"><i class="dot" style="background:${TYPES[k].tone}"></i>${TYPES[k].name}</span></div>`).join("");
 
 $("startBtn").addEventListener("click", () => {
   idx = 0; answers = [];
