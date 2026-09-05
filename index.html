@@ -104,11 +104,11 @@ button{font:inherit;color:inherit;cursor:pointer}
 .axis-cell span.desc{font-size:13px;color:var(--ink-3);line-height:1.7}
 .crest-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:18px}
 svg.crest{display:block;width:100%;height:auto}
-.portrait{display:block;width:100%;height:auto;aspect-ratio:262/231;object-fit:cover;border-radius:12px;background:var(--surface-2)}
+.portrait{display:block;width:100%;height:auto;aspect-ratio:168/186;object-fit:cover;border-radius:12px;background:var(--surface-2)}
 .char-cell{display:flex;flex-direction:column;gap:8px}
 .char-cell .nm{display:flex;align-items:center;gap:7px;font-size:12.5px;line-height:1.5;color:var(--ink-2)}
 .char-cell .dot{width:7px;height:7px;border-radius:2px;flex:none;transform:rotate(45deg)}
-.portrait-wrap{position:relative;width:200px;flex:none}
+.portrait-wrap{position:relative;width:172px;flex:none}
 .portrait-wrap .portrait{border-radius:16px}
 .crest-badge{position:absolute;right:-12px;bottom:-12px;width:62px;height:62px;padding:8px;border-radius:50%;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow)}
 .thumb{width:62px;height:62px;object-fit:cover;border-radius:10px;flex:none;background:var(--surface-2)}
@@ -143,6 +143,11 @@ svg.crest{display:block;width:100%;height:auto}
 .type-name{font-family:"Shippori Mincho B1",serif;font-size:clamp(26px,6vw,36px);line-height:1.35;margin:2px 0 6px}
 .type-tag{color:var(--ink-2);font-size:14.5px;margin:0}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.motto{
+  font-size:12.5px;letter-spacing:.02em;border-radius:999px;padding:4px 13px;
+  border:1px solid var(--tone);color:var(--ink);background:transparent;
+}
+.char-cell .mt{font-size:11.5px;color:var(--ink-3);line-height:1.5;padding-left:14px}
 .chip{
   font-size:12px;letter-spacing:.04em;border-radius:999px;padding:4px 12px;
   border:1px solid var(--line);color:var(--ink-2);background:var(--surface-2);
@@ -334,6 +339,7 @@ const QUESTIONS = [
    3軸の組み合わせで 2×2×3 = 12 通り。順位・優劣はなく、記述量も揃えている。 */
 const TYPES = {
 "W-H-spark":{name:"陽だまりのヒマワリ",tag:"好きになったら、まっすぐ向く",tone:"#E0A24C",
+ motto:"好きはストレートに",
  about:"好きだと感じた気持ちを、そのまま相手に向けられる人。恋愛は隠したり駆け引きしたりするものではなく、日々の中で分かち合うものだと感じている。",
  tendency:"気持ちが動いた瞬間に距離を縮めるのが早く、連絡や会う頻度も自然と多くなる。相手の反応をよく見ているぶん、関係の初速が出やすい一方で、温度差にも人より早く気づく。",
  personality:"表情が豊かで、感情を隠すのは得意ではない。人の輪の中でも自分の色を保ち、機嫌よくいることで周りを明るくする。",
@@ -341,6 +347,7 @@ const TYPES = {
  care:"熱が高いときほど、相手のペースを言葉で確かめる。「今はどのくらいの距離が心地いい？」の一言が、温度差を誤解に変えないコツ。"},
 
 "W-H-steady":{name:"湯気の立つマグ",tag:"毎日の温度で、愛情をはかる",tone:"#C97F86",
+ motto:"安心がいちばん",
  about:"恋愛は特別な出来事より、毎日の温度でできていると考える人。安心が続いていること自体が、愛情の確かな証だと感じている。",
  tendency:"ゆっくり距離を縮め、一度信頼するとぶれない。習慣や記念日を大切にし、相手の小さな変化によく気づく。急な展開よりも、続くことを選ぶ。",
  personality:"穏やかで面倒見がよく、自然と聞き役になる。感情の起伏は内側に持ち、外へ出しすぎない落ち着きがある。",
@@ -348,6 +355,7 @@ const TYPES = {
  care:"尽くしすぎる前に、自分がしてほしいことも同じ量だけ伝える。与える／受け取るの釣り合いが、続く関係の燃料になる。"},
 
 "W-H-explore":{name:"並んで飛ぶ渡り鳥",tag:"同じ方向へ、一緒に動きたい",tone:"#7FA98E",
+ motto:"一緒に、どこまでも",
  about:"恋愛を、二人で見る景色を増やしていくことだと捉える人。同じ方向を向いて動いている実感があるとき、いちばん満たされる。",
  tendency:"一緒に出かける・作る・挑戦することで愛情を確かめる。相手の新しい一面を見つけるのが好きで、変化を歓迎する。停滞よりも、動きのある関係を選ぶ。",
  personality:"好奇心が強く、人の話をよく聞いて素直に影響を受ける。順応が早く、環境が変わっても関係を保てる柔らかさがある。",
@@ -355,6 +363,7 @@ const TYPES = {
  care:"「何もしない日」を意識してつくる。予定のない時間に相手を心地よく感じられるかが、長く続くかの分かれ目になる。"},
 
 "W-M-spark":{name:"打ち上げの花火師",tag:"最高の瞬間は、設計してつくる",tone:"#D9636B",
+ motto:"恋は一瞬で燃える",
  about:"気持ちは大切、でも伝え方は設計するもの。相手が受け取りやすい形に整えて、いちばん良い瞬間を作りにいく人。",
  tendency:"好意をはっきり示すが、タイミングと状況は選ぶ。会う場面や節目を丁寧に組み立て、相手を喜ばせるのが得意。決断は速く、行動に無駄が少ない。",
  personality:"情熱と段取りが同居している。感情を持ちながら、その扱い方を考えられる。周囲からは頼れる人と見られやすい。",
@@ -362,6 +371,7 @@ const TYPES = {
  care:"演出のない、素の時間も見せる。整えていない自分を見せられる相手かどうかが、関係の深さを決める。"},
 
 "W-M-steady":{name:"二人の庭の園丁",tag:"仕組みを整えて、関係を育てる",tone:"#6E9C7A",
+ motto:"一緒に育てていく",
  about:"恋愛は育てるもの。約束や生活の仕組みを二人で整えていくこと自体が、その人にとっての愛情表現になっている。",
  tendency:"話し合いを重ね、合意したことを守る。生活の噛み合わせを重視し、無理のない距離で長く続けようとする。派手さより再現性を選ぶ。",
  personality:"責任感があり、約束に誠実。感情的な場面でも落ち着いて対応でき、周囲の信頼を集めやすい。",
@@ -369,6 +379,7 @@ const TYPES = {
  care:"「決めること」と同じくらい「ただ楽しむこと」に時間を割く。効率の外側に、関係の余白がある。"},
 
 "W-M-explore":{name:"二人乗りの気球",tag:"話しながら、関係の形を更新する",tone:"#C98BB0",
+ motto:"どこまでも一緒に",
  about:"対話を重ねながら、関係の形そのものを一緒に更新していく人。前例や一般論より、自分たちが納得できるかを大事にする。",
  tendency:"よく話し、よく確認する。相手の考えを知ることが愛情表現で、価値観の違いを問題ではなく素材として扱える。関係の形を柔軟に変えられる。",
  personality:"分析的で、同時に開かれている。決めつけが少なく、人の背景を想像できる。議論を好むが、勝ち負けにはこだわらない。",
@@ -376,6 +387,7 @@ const TYPES = {
  care:"言葉にならない気持ちも受け取る。理解できないまま隣にいられる時間を、失敗と思わないこと。"},
 
 "I-H-spark":{name:"夜を走る流れ星",tag:"心が動いた一瞬を、信じる",tone:"#E07A5F",
+ motto:"今、この瞬間を大切に",
  about:"恋愛は、自分の心が本当に動いた瞬間にこそ意味があると考える人。形式や条件より、その熱の真偽を大切にする。",
  tendency:"惹かれると一気に近づくが、自分の時間は手放さない。近づく／離れるの振れ幅が大きく、関係に独特のリズムが生まれる。束縛には敏感。",
  personality:"感受性が強く、独立心も強い。好き嫌いがはっきりしていて、自分の感覚に嘘をつけない。",
@@ -383,6 +395,7 @@ const TYPES = {
  care:"距離を取るときは、理由を一言だけ伝える。沈黙は自由だが、説明のない沈黙は相手には不在に見える。"},
 
 "I-H-steady":{name:"静かな月あかり",tag:"離れていても、変わらず想う",tone:"#7C8FC7",
+ motto:"静かに、ずっと",
  about:"近くにいなくても想いは変わらない、と感じている人。恋愛は静かに続く感情であって、頻繁に証明し合うものではないと捉えている。",
  tendency:"感情は深いが、表に出す量は少ない。相手の生活を尊重し、必要なときにそっと現れる。長期戦に強く、変わらなさが最大の愛情表現になる。",
  personality:"内省的で落ち着いている。一人の時間を大切にしつつ、人の感情の機微にはよく気づく。",
@@ -390,6 +403,7 @@ const TYPES = {
  care:"好意は、自分が思うより相手に届いていない。月に一度でも「大事に思っている」と口に出す習慣を持つ。"},
 
 "I-H-explore":{name:"旅する詩人",tag:"恋も、世界を知る旅のひとつ",tone:"#A88BC9",
+ motto:"恋は人生の旅",
  about:"恋愛を、自分の世界を広げる経験のひとつとして味わう人。相手を通して見えた景色や感情そのものに、確かな価値を感じる。",
  tendency:"心が動いた相手に強く惹かれるが、取り込まれることは望まない。会えない時間も関係の一部として楽しめる。感じたことを言葉や表現に変えるのが得意。",
  personality:"感受性と自立心が同居している。一人の時間が回復と創作の時間になり、他人との違いを面白がれる。",
@@ -397,6 +411,7 @@ const TYPES = {
  care:"感じたことを、相手に分かる言葉へ翻訳する。詩のままだと、伝わるまでに時間がかかる。"},
 
 "I-M-spark":{name:"一閃の稲妻",tag:"決めて動く、責任は自分で持つ",tone:"#CE5A4E",
+ motto:"この出会いは運命",
  about:"迷う時間より、決めて動く時間を大切にする人。恋愛でも判断は速く、その結果は自分で引き受けるものだと考えている。",
  tendency:"好意は直接的に伝え、曖昧な状態を長く続けない。関係の進み方も速いが、合わないと判断したときの切り替えも早い。自分の目標と恋愛を両立させる。",
  personality:"決断力があり、自分の基準がはっきりしている。感情に流されにくく、率直な物言いをする。",
@@ -404,6 +419,7 @@ const TYPES = {
  care:"結論を出す前に、相手の言い分を最後まで聞く。判断の速さは、聞く時間を削る理由にはならない。"},
 
 "I-M-steady":{name:"北極星の観測者",tag:"変わらずそこにある、という愛情",tone:"#4F7FA3",
+ motto:"ずっと同じ未来を",
  about:"恋愛は生活の一部であって、全部ではないと考える人。互いの人生が成り立つ距離で、変わらずそこにあることを何より重んじる。",
  tendency:"感情を急に高めず、時間をかけて信頼を測る。約束は少なく、その分きちんと守る。相手の自由を尊重し、自分の領域も守る。危機のときほど安定して見える。",
  personality:"冷静で一貫性がある。周囲の空気に流されず、自分の基準で判断する。多くを語らないが、行動に矛盾が少ない。",
@@ -411,6 +427,7 @@ const TYPES = {
  care:"変わらないことは、意外と伝わりにくい。行動で示していることを、ときどきは言葉でも重ねる。"},
 
 "I-M-explore":{name:"地図を描く探検家",tag:"同じ地図を、それぞれの足で",tone:"#5B9AA0",
+ motto:"ふたりだけの地図を",
  about:"恋愛も、自分の人生を広げる旅の一部。相手と同じ地図を見ながら、それぞれの足で歩ける関係を理想とする人。",
  tendency:"相手の自立を歓迎し、依存し合わない関係を好む。情報や考えを交換することが親密さの表現になる。生活や将来を、事実にもとづいて話せる相手と噛み合う。",
  personality:"独立心が強く、好奇心と現実感覚を併せ持つ。人と比べず、自分の基準で選択を積み上げる。",
@@ -538,6 +555,7 @@ function showResult(){
           <h2 class="type-name">${t.name}</h2>
           <p class="type-tag">${t.tag}</p>
           <div class="chips">
+            <span class="motto" style="--tone:${t.tone}">${t.motto}</span>
             <span class="chip">${c === "W" ? "寄り添い型" : "自立型"}</span>
             <span class="chip">${j === "H" ? "心で決める" : "頭で決める"}</span>
             <span class="chip">${STYLE_JA[s]}で育てる</span>
@@ -602,7 +620,7 @@ function showResult(){
     window.scrollTo({top:0});
   });
   $("copyBtn").addEventListener("click", async (e) => {
-    const text = `【こいのかたち】私のタイプ：${t.name}（${t.tag}）\n恋愛観：${t.about}\n恋愛傾向：${t.tendency}\n性格：${t.personality}\n恋愛運：${t.luck}`;
+    const text = `【こいのかたち】私のタイプ：${t.name} — ${t.motto}\n${t.tag}\n恋愛観：${t.about}\n恋愛傾向：${t.tendency}\n性格：${t.personality}\n恋愛運：${t.luck}`;
     try { await navigator.clipboard.writeText(text); e.target.textContent = "コピーしました"; }
     catch { e.target.textContent = "コピーできませんでした"; }
     setTimeout(() => { e.target.textContent = "結果をコピー"; }, 2000);
@@ -612,7 +630,8 @@ function showResult(){
 /* ---------- 初期化 ---------- */
 $("introGrid").innerHTML = KEYS.map(k =>
   `<div class="char-cell">${portrait(k, "portrait")}
-     <span class="nm"><i class="dot" style="background:${TYPES[k].tone}"></i>${TYPES[k].name}</span></div>`).join("");
+     <span class="nm"><i class="dot" style="background:${TYPES[k].tone}"></i>${TYPES[k].name}</span>
+     <span class="mt">${TYPES[k].motto}</span></div>`).join("");
 
 $("startBtn").addEventListener("click", () => {
   idx = 0; answers = [];

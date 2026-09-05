@@ -33,7 +33,8 @@
 
 ## キャラクターイラスト
 
-`assets/characters/char-01.webp` 〜 `char-12.webp`（12枚）。`index.html` は相対パスで参照する。
+`assets/characters/char-01.webp` 〜 `char-12.webp`（12枚、合計約210KB）。`index.html` は相対パスで参照する。
+各タイプのキャッチコピー（`motto`）はイラストと対になっており、トップの一覧と結果画面に表示される。
 Artifact など外部ファイルを置けない配布先向けには、画像を data URI で埋め込んだ単一ファイル版を生成できる。
 
 ```bash
