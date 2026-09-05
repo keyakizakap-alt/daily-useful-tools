@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>こいのかたち</title>
+<meta name="description" content="選ぶだけでわかる、12の恋愛観。優劣のない診断アプリ。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Jost:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#F3F1F7;
+  --surface:#FFFFFF;
+  --surface-2:#EAE7F1;
+  --line:#DAD5E4;
+  --line-strong:#BFB7CE;
+  --ink:#241F2E;
+  --ink-2:#544C63;
+  --ink-3:#7C7389;
+  --accent:#5C4B8C;
+  --accent-soft:#EDE7F6;
+  --shadow:0 1px 2px rgba(36,31,46,.06), 0 12px 32px -18px rgba(36,31,46,.35);
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#14121B;
+    --surface:#1D1A26;
+    --surface-2:#262231;
+    --line:#332E40;
+    --line-strong:#4A4359;
+    --ink:#EDE9F4;
+    --ink-2:#B7AFC6;
+    --ink-3:#8A8199;
+    --accent:#B9A6EC;
+    --accent-soft:#2A2439;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 16px 40px -20px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#14121B;
+  --surface:#1D1A26;
+  --surface-2:#262231;
+  --line:#332E40;
+  --line-strong:#4A4359;
+  --ink:#EDE9F4;
+  --ink-2:#B7AFC6;
+  --ink-3:#8A8199;
+  --accent:#B9A6EC;
+  --accent-soft:#2A2439;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 16px 40px -20px rgba(0,0,0,.8);
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  font-size:16px;
+  line-height:1.85;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:760px;margin:0 auto;padding:32px 20px 72px}
+.mincho{font-family:"Shippori Mincho B1","Hiragino Mincho ProN",serif}
+.label{
+  font-family:"Jost",system-ui,sans-serif;
+  font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink-3);
+}
+h1{font-family:"Shippori Mincho B1","Hiragino Mincho ProN",serif;font-weight:700;font-size:clamp(30px,7vw,44px);line-height:1.3;margin:6px 0 10px;text-wrap:balance;letter-spacing:.02em}
+h2{font-family:"Shippori Mincho B1","Hiragino Mincho ProN",serif;font-weight:700;font-size:20px;margin:0 0 10px;text-wrap:balance}
+p{margin:0 0 14px}
+.lede{color:var(--ink-2);max-width:34em}
+.note{font-size:13px;line-height:1.8;color:var(--ink-3)}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:26px}
+button{font:inherit;color:inherit;cursor:pointer}
+.ghost{
+  background:transparent;border:1px solid var(--line);border-radius:999px;
+  padding:6px 14px;font-size:12px;letter-spacing:.06em;color:var(--ink-2);
+  transition:border-color .2s, color .2s;
+}
+.ghost:hover{border-color:var(--line-strong);color:var(--ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+.cta{
+  background:var(--ink);color:var(--paper);border:none;border-radius:999px;
+  padding:14px 32px;font-weight:700;font-size:15px;letter-spacing:.04em;
+  box-shadow:var(--shadow);transition:transform .18s ease, opacity .2s;
+}
+.cta:hover{transform:translateY(-2px)}
+.cta:active{transform:translateY(0)}
+.panel{
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);padding:22px;box-shadow:var(--shadow);
+}
+.stack{display:flex;flex-direction:column;gap:26px}
+.hidden{display:none!important}
+
+/* intro */
+.axes{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.axis-cell{background:var(--surface);padding:16px 18px}
+.axis-cell .label{display:block;margin-bottom:4px}
+.axis-cell b{font-size:15px;display:block;font-weight:700}
+.axis-cell span.desc{font-size:13px;color:var(--ink-3);line-height:1.7}
+.crest-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:14px}
+.crest-cell{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+.crest-cell .nm{font-size:11.5px;line-height:1.5;color:var(--ink-2)}
+svg.crest{display:block;width:100%;height:auto}
+.fair{border-left:3px solid var(--accent);padding:2px 0 2px 16px;background:transparent}
+
+/* quiz */
+.progress{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.track{flex:1;height:3px;background:var(--surface-2);border-radius:2px;overflow:hidden}
+.fill{height:100%;background:var(--accent);border-radius:2px;transition:width .35s cubic-bezier(.4,0,.2,1)}
+.count{font-family:"Jost",sans-serif;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.qnum{font-family:"Jost",sans-serif;font-size:12px;letter-spacing:.16em;color:var(--accent);margin-bottom:6px}
+.qtext{font-family:"Shippori Mincho B1",serif;font-size:clamp(19px,4.6vw,24px);line-height:1.65;margin:0 0 20px;text-wrap:balance}
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{
+  display:flex;gap:14px;align-items:flex-start;text-align:left;width:100%;
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  padding:14px 16px;line-height:1.7;font-size:15px;
+  transition:border-color .18s, background .18s, transform .18s;
+}
+.opt:hover{border-color:var(--accent);background:var(--accent-soft);transform:translateX(3px)}
+.opt .key{
+  font-family:"Jost",sans-serif;font-size:12px;color:var(--ink-3);
+  border:1px solid var(--line);border-radius:6px;min-width:22px;height:22px;
+  display:grid;place-items:center;flex:none;margin-top:3px;
+}
+.qfoot{display:flex;justify-content:space-between;align-items:center;margin-top:18px;gap:12px}
+
+/* result */
+.result-head{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+.result-head svg.crest{width:132px;flex:none}
+.type-name{font-family:"Shippori Mincho B1",serif;font-size:clamp(26px,6vw,36px);line-height:1.35;margin:2px 0 6px}
+.type-tag{color:var(--ink-2);font-size:14.5px;margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chip{
+  font-size:12px;letter-spacing:.04em;border-radius:999px;padding:4px 12px;
+  border:1px solid var(--line);color:var(--ink-2);background:var(--surface-2);
+}
+.bars{display:flex;flex-direction:column;gap:18px}
+.bar-row .bar-top{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-2);margin-bottom:6px}
+.bar-row .bar-top b{font-weight:700;color:var(--ink)}
+.bar{height:8px;border-radius:4px;background:var(--surface-2);overflow:hidden;display:flex}
+.bar i{display:block;height:100%;background:var(--tone,var(--accent));transition:width .6s cubic-bezier(.4,0,.2,1)}
+.styles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:4px}
+.style-cell{text-align:center;padding:10px 6px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.style-cell .pct{font-family:"Jost",sans-serif;font-size:19px;font-variant-numeric:tabular-nums;display:block}
+.style-cell .nm{font-size:12px;color:var(--ink-2)}
+.sections{display:flex;flex-direction:column;gap:0}
+.sec{padding:22px 0;border-top:1px solid var(--line)}
+.sec:first-child{border-top:none;padding-top:0}
+.sec h3{font-family:"Shippori Mincho B1",serif;font-size:17px;margin:0 0 8px;display:flex;align-items:center;gap:10px}
+.sec h3::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--tone,var(--accent));flex:none;transform:rotate(45deg)}
+.sec p{margin:0 0 10px;color:var(--ink-2)}
+.sec p:last-child{margin-bottom:0}
+.pairs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.pair{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface)}
+.pair svg.crest{width:52px;flex:none}
+.pair .pt{font-size:13.5px;font-weight:700;line-height:1.5}
+.pair .pd{font-size:12px;color:var(--ink-3);line-height:1.6}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.all-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.all-item{display:flex;gap:12px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.all-item svg.crest{width:44px;flex:none}
+.all-item .t{font-size:13px;font-weight:700;line-height:1.5}
+.all-item .d{font-size:11.5px;color:var(--ink-3);line-height:1.55}
+footer{margin-top:38px;padding-top:18px;border-top:1px solid var(--line)}
+@media (prefers-reduced-motion: reduce){
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <span class="label">Koi no Katachi — 12 types</span>
+    <button class="ghost" id="themeBtn" type="button">表示を切り替え</button>
+  </div>
+
+  <!-- ============ INTRO ============ -->
+  <section id="intro" class="stack">
+    <header>
+      <span class="label">選ぶだけの15問</span>
+      <h1>こいのかたち</h1>
+      <p class="lede">状況・価値観・これまでの経験について、当てはまる選択肢を選ぶだけ。あなたの恋愛観に近い12のキャラクターのひとつと、その恋愛観・恋愛運・恋愛傾向・性格が表示されます。</p>
+      <p class="fair note">このアプリに「良い恋愛観」「正しい価値観」はありません。12タイプは3つの軸の組み合わせで機械的に決まり、順位も優劣もつきません。設問は性別・性的指向・交際の形・年齢・結婚観のいずれも前提にしていません。娯楽・自己理解のためのもので、心理検査や占いではありません。</p>
+    </header>
+
+    <div class="axes" aria-label="3つの軸">
+      <div class="axis-cell">
+        <span class="label">Axis 1 — 距離感</span>
+        <b>寄り添い ⇄ 自立</b>
+        <span class="desc">近くで分かち合うか、それぞれの時間を持つか。</span>
+      </div>
+      <div class="axis-cell">
+        <span class="label">Axis 2 — 判断軸</span>
+        <b>心 ⇄ 頭</b>
+        <span class="desc">気持ちの動きで決めるか、筋道で決めるか。</span>
+      </div>
+      <div class="axis-cell">
+        <span class="label">Axis 3 — 育て方</span>
+        <b>情熱 / 安定 / 探究</b>
+        <span class="desc">関係を燃やすか、積むか、広げるか。</span>
+      </div>
+    </div>
+
+    <div>
+      <h2>12のキャラクター</h2>
+      <div class="crest-grid" id="introGrid"></div>
+    </div>
+
+    <div><button class="cta" id="startBtn" type="button">はじめる</button></div>
+  </section>
+
+  <!-- ============ QUIZ ============ -->
+  <section id="quiz" class="hidden">
+    <div class="progress">
+      <span class="count" id="counter">1 / 15</span>
+      <div class="track"><i class="fill" id="fill" style="width:0%"></i></div>
+    </div>
+    <div class="panel">
+      <div class="qnum" id="qnum">QUESTION 01</div>
+      <p class="qtext" id="qtext"></p>
+      <div class="opts" id="opts"></div>
+      <div class="qfoot">
+        <button class="ghost" id="backBtn" type="button">ひとつ戻る</button>
+        <span class="note">数字キー 1〜3 でも選べます</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RESULT ============ -->
+  <section id="result" class="hidden stack" aria-live="polite"></section>
+
+  <footer>
+    <p class="note">結果はすべてブラウザの中だけで計算されます。回答は送信・保存されません。<br>
+    どのタイプにも強みと配慮点があり、相性の記述は「合う／合わない」ではなく、噛み合いやすさの傾向を示すものです。実際の関係は、対話と合意で作られます。</p>
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- 質問（15問） ----------
+   axis "c": 寄り添い(+) ⇄ 自立(-)   /   axis "j": 心(+) ⇄ 頭(-)
+   奇数の重み(±3, ±1)のみを使うため合計が0になることはなく、必ず一方に定まる。
+   axis "s": 情熱 / 安定 / 探究（加点式）
+   選択肢の並び順は「望ましさ」ではなく、単に軸の端から並べたもの。         */
+const QUESTIONS = [
+  { axis:"c", q:"一緒に過ごせる休日。あなたにとって心地よいのは？", o:[
+    ["ずっと同じ予定を共有して、一日を一緒に過ごす", 3],
+    ["途中まで一緒にいて、あとはそれぞれの用事にもどる", 1],
+    ["別々に過ごして、夜にその日の話をする", -3]]},
+
+  { axis:"j", q:"「この人がいい」と感じた決め手に近いのは？", o:[
+    ["理屈では説明できない惹かれ方があった", 3],
+    ["一緒にいるときの感情の動きが心地よかった", 1],
+    ["価値観や生活のリズムが噛み合っていた", -3]]},
+
+  { axis:"s", q:"関係が良い状態だと感じるのは、どんなときですか？", o:[
+    ["気持ちが高まって、心が動いているとき", {spark:2}],
+    ["何気ない日常が、穏やかに続いているとき", {steady:2}],
+    ["二人で新しい何かに出会っているとき", {explore:2}]]},
+
+  { axis:"c", q:"気持ちが落ち込んだとき、相手にしてほしいのは？", o:[
+    ["そばにいて、話を聞いてもらう", 3],
+    ["落ち着くまで待ってもらい、あとで声をかけてもらう", -1],
+    ["いつも通りに接してもらい、自分で立て直す", -3]]},
+
+  { axis:"j", q:"意見が食い違ったとき、まずすることは？", o:[
+    ["気持ちを伝え合って、わだかまりから解く", 3],
+    ["少し時間を置いて、落ち着いてから話す", -1],
+    ["何が争点かを整理して、すり合わせる", -3]]},
+
+  { axis:"s", q:"関係が少し停滞したと感じたら、どうしますか？", o:[
+    ["思い切った行動で流れを変えてみる", {spark:2}],
+    ["会う時間や生活のリズムを整え直す", {steady:2}],
+    ["まだ話したことのないテーマについて話してみる", {explore:2}]]},
+
+  { axis:"c", q:"相手の交友関係や趣味との距離感は？", o:[
+    ["できるだけ共有して、一緒に楽しめると嬉しい", 3],
+    ["主なところを知っていれば十分", 1],
+    ["それぞれの世界があるほうが落ち着く", -3]]},
+
+  { axis:"j", q:"相手の気持ちを受け取るとき、いちばん参考にするのは？", o:[
+    ["表情や声のトーンなど、その場の空気", 3],
+    ["言葉で伝えてくれた内容", 1],
+    ["行動や約束が実際に果たされているか", -3]]},
+
+  { axis:"s", q:"相手に何かを贈るなら、選びたいのは？", o:[
+    ["その瞬間の気持ちが伝わるもの", {spark:2}],
+    ["長く使えて、日常に残るもの", {steady:2}],
+    ["一緒に体験できるもの", {explore:2}]]},
+
+  { axis:"c", q:"連絡の頻度について、自分に近いのは？", o:[
+    ["毎日こまめにやりとりしたい", 3],
+    ["用があるときと、気が向いたときで十分", -1],
+    ["数日空いても気にならないほうが楽", -3]]},
+
+  { axis:"j", q:"これからの話をするとき、しっくりくるのは？", o:[
+    ["「こうだったらいいね」と気持ちを重ねる", 3],
+    ["大事にしたいことを言葉にして確かめる", -1],
+    ["時間・お金・住まいなど、条件を具体的に詰める", -3]]},
+
+  { axis:"s", q:"恋愛を通じて自分が伸びたと感じるのは？", o:[
+    ["強く感情を揺さぶられたとき", {spark:2}],
+    ["信頼を一つずつ積み重ねられたとき", {steady:2}],
+    ["知らなかった世界に触れたとき", {explore:2}]]},
+
+  { axis:"c", q:"関係が深まるほど、心地よいのは？", o:[
+    ["生活や時間が、少しずつ重なっていくこと", 3],
+    ["それぞれの輪郭が保たれたままでいること", -3]]},
+
+  { axis:"j", q:"迷ったとき、最後に信じるのは？", o:[
+    ["そのときの自分の気持ち", 3],
+    ["積み上げてきた事実と見通し", -3]]},
+
+  { axis:"s", q:"長く続く関係に欠かせないと思うのは？", o:[
+    ["熱量を絶やさないこと", {spark:2, steady:1}],
+    ["安心して帰れる場所であること", {steady:2, explore:1}],
+    ["変わり続けられること", {explore:2, spark:1}]]}
+];
+
+/* ---------- 12タイプ ----------
+   キーは 距離感(W=寄り添い / I=自立) - 判断軸(H=心 / M=頭) - 育て方(spark/steady/explore)。
+   3軸の組み合わせで 2×2×3 = 12 通り。順位・優劣はなく、記述量も揃えている。 */
+const TYPES = {
+"W-H-spark":{name:"陽だまりのヒマワリ",tag:"好きになったら、まっすぐ向く",tone:"#E0A24C",
+ about:"好きだと感じた気持ちを、そのまま相手に向けられる人。恋愛は隠したり駆け引きしたりするものではなく、日々の中で分かち合うものだと感じている。",
+ tendency:"気持ちが動いた瞬間に距離を縮めるのが早く、連絡や会う頻度も自然と多くなる。相手の反応をよく見ているぶん、関係の初速が出やすい一方で、温度差にも人より早く気づく。",
+ personality:"表情が豊かで、感情を隠すのは得意ではない。人の輪の中でも自分の色を保ち、機嫌よくいることで周りを明るくする。",
+ luck:"追い風＝新しい環境に入った直後や、季節の変わり目など気持ちが動く時期。自分から声をかけた回数だけ縁が広がりやすい。／整えどころ＝疲れているときほど、相手の反応を悪いほうに読みがち。睡眠と予定の余白が、そのまま関係の余裕になる。",
+ care:"熱が高いときほど、相手のペースを言葉で確かめる。「今はどのくらいの距離が心地いい？」の一言が、温度差を誤解に変えないコツ。"},
+
+"W-H-steady":{name:"湯気の立つマグ",tag:"毎日の温度で、愛情をはかる",tone:"#C97F86",
+ about:"恋愛は特別な出来事より、毎日の温度でできていると考える人。安心が続いていること自体が、愛情の確かな証だと感じている。",
+ tendency:"ゆっくり距離を縮め、一度信頼するとぶれない。習慣や記念日を大切にし、相手の小さな変化によく気づく。急な展開よりも、続くことを選ぶ。",
+ personality:"穏やかで面倒見がよく、自然と聞き役になる。感情の起伏は内側に持ち、外へ出しすぎない落ち着きがある。",
+ luck:"追い風＝同じ場所に通い続ける時間の中（職場・趣味・地域など）。回数を重ねるほど魅力が伝わる。／整えどころ＝我慢が積もると、ある日一気に冷める。小さな不満を早めに言葉にできている時期ほど、関係は長持ちする。",
+ care:"尽くしすぎる前に、自分がしてほしいことも同じ量だけ伝える。与える／受け取るの釣り合いが、続く関係の燃料になる。"},
+
+"W-H-explore":{name:"並んで飛ぶ渡り鳥",tag:"同じ方向へ、一緒に動きたい",tone:"#7FA98E",
+ about:"恋愛を、二人で見る景色を増やしていくことだと捉える人。同じ方向を向いて動いている実感があるとき、いちばん満たされる。",
+ tendency:"一緒に出かける・作る・挑戦することで愛情を確かめる。相手の新しい一面を見つけるのが好きで、変化を歓迎する。停滞よりも、動きのある関係を選ぶ。",
+ personality:"好奇心が強く、人の話をよく聞いて素直に影響を受ける。順応が早く、環境が変わっても関係を保てる柔らかさがある。",
+ luck:"追い風＝旅行・転居・学び直しなど、生活が動く時期。予定を共有できる相手ができると一気に進む。／整えどころ＝動き続けて疲れると、関係そのものに飽きたと錯覚しやすい。休息と刺激は別のものとして扱いたい。",
+ care:"「何もしない日」を意識してつくる。予定のない時間に相手を心地よく感じられるかが、長く続くかの分かれ目になる。"},
+
+"W-M-spark":{name:"打ち上げの花火師",tag:"最高の瞬間は、設計してつくる",tone:"#D9636B",
+ about:"気持ちは大切、でも伝え方は設計するもの。相手が受け取りやすい形に整えて、いちばん良い瞬間を作りにいく人。",
+ tendency:"好意をはっきり示すが、タイミングと状況は選ぶ。会う場面や節目を丁寧に組み立て、相手を喜ばせるのが得意。決断は速く、行動に無駄が少ない。",
+ personality:"情熱と段取りが同居している。感情を持ちながら、その扱い方を考えられる。周囲からは頼れる人と見られやすい。",
+ luck:"追い風＝準備した誘いや企画が動く時期。用意した分だけ結果が返ってきやすい。／整えどころ＝うまくいかないと自分の落ち度を探しがち。噛み合わなかった時期は「設計ミス」ではなく相性の問題として切り分けたい。",
+ care:"演出のない、素の時間も見せる。整えていない自分を見せられる相手かどうかが、関係の深さを決める。"},
+
+"W-M-steady":{name:"二人の庭の園丁",tag:"仕組みを整えて、関係を育てる",tone:"#6E9C7A",
+ about:"恋愛は育てるもの。約束や生活の仕組みを二人で整えていくこと自体が、その人にとっての愛情表現になっている。",
+ tendency:"話し合いを重ね、合意したことを守る。生活の噛み合わせを重視し、無理のない距離で長く続けようとする。派手さより再現性を選ぶ。",
+ personality:"責任感があり、約束に誠実。感情的な場面でも落ち着いて対応でき、周囲の信頼を集めやすい。",
+ luck:"追い風＝生活の基盤が安定している時期。これからの話を具体的にできる相手と縁がつながりやすい。／整えどころ＝正しさで固めると息苦しくなる。ルールより気分を優先する日をつくると、流れが戻ってくる。",
+ care:"「決めること」と同じくらい「ただ楽しむこと」に時間を割く。効率の外側に、関係の余白がある。"},
+
+"W-M-explore":{name:"二人乗りの気球",tag:"話しながら、関係の形を更新する",tone:"#C98BB0",
+ about:"対話を重ねながら、関係の形そのものを一緒に更新していく人。前例や一般論より、自分たちが納得できるかを大事にする。",
+ tendency:"よく話し、よく確認する。相手の考えを知ることが愛情表現で、価値観の違いを問題ではなく素材として扱える。関係の形を柔軟に変えられる。",
+ personality:"分析的で、同時に開かれている。決めつけが少なく、人の背景を想像できる。議論を好むが、勝ち負けにはこだわらない。",
+ luck:"追い風＝学びや対話の場が増える時期。考えを言葉にできる相手と噛み合いやすい。／整えどころ＝話し合いすぎて疲れることがある。結論を急がず保留する勇気が、関係を守る。",
+ care:"言葉にならない気持ちも受け取る。理解できないまま隣にいられる時間を、失敗と思わないこと。"},
+
+"I-H-spark":{name:"夜を走る流れ星",tag:"心が動いた一瞬を、信じる",tone:"#E07A5F",
+ about:"恋愛は、自分の心が本当に動いた瞬間にこそ意味があると考える人。形式や条件より、その熱の真偽を大切にする。",
+ tendency:"惹かれると一気に近づくが、自分の時間は手放さない。近づく／離れるの振れ幅が大きく、関係に独特のリズムが生まれる。束縛には敏感。",
+ personality:"感受性が強く、独立心も強い。好き嫌いがはっきりしていて、自分の感覚に嘘をつけない。",
+ luck:"追い風＝環境が変わり、予定が読めない時期ほど出会いが動く。直感で選んだ行動が当たりやすい。／整えどころ＝熱が冷めた瞬間を「終わり」と判断しがち。数日置いてから決めると、後悔が減る。",
+ care:"距離を取るときは、理由を一言だけ伝える。沈黙は自由だが、説明のない沈黙は相手には不在に見える。"},
+
+"I-H-steady":{name:"静かな月あかり",tag:"離れていても、変わらず想う",tone:"#7C8FC7",
+ about:"近くにいなくても想いは変わらない、と感じている人。恋愛は静かに続く感情であって、頻繁に証明し合うものではないと捉えている。",
+ tendency:"感情は深いが、表に出す量は少ない。相手の生活を尊重し、必要なときにそっと現れる。長期戦に強く、変わらなさが最大の愛情表現になる。",
+ personality:"内省的で落ち着いている。一人の時間を大切にしつつ、人の感情の機微にはよく気づく。",
+ luck:"追い風＝静かな環境で、価値観の近い人と時間を重ねる時期。急がないほど深く進む。／整えどころ＝伝えていないのに伝わったつもりになりやすい。言葉にした回数が、そのまま届き方になる。",
+ care:"好意は、自分が思うより相手に届いていない。月に一度でも「大事に思っている」と口に出す習慣を持つ。"},
+
+"I-H-explore":{name:"旅する詩人",tag:"恋も、世界を知る旅のひとつ",tone:"#A88BC9",
+ about:"恋愛を、自分の世界を広げる経験のひとつとして味わう人。相手を通して見えた景色や感情そのものに、確かな価値を感じる。",
+ tendency:"心が動いた相手に強く惹かれるが、取り込まれることは望まない。会えない時間も関係の一部として楽しめる。感じたことを言葉や表現に変えるのが得意。",
+ personality:"感受性と自立心が同居している。一人の時間が回復と創作の時間になり、他人との違いを面白がれる。",
+ luck:"追い風＝新しい土地・作品・人に触れる時期。自分の表現を外に出しているときに縁が来やすい。／整えどころ＝理想像を相手に重ねすぎることがある。目の前の相手の現実を見る時間を、意識して取りたい。",
+ care:"感じたことを、相手に分かる言葉へ翻訳する。詩のままだと、伝わるまでに時間がかかる。"},
+
+"I-M-spark":{name:"一閃の稲妻",tag:"決めて動く、責任は自分で持つ",tone:"#CE5A4E",
+ about:"迷う時間より、決めて動く時間を大切にする人。恋愛でも判断は速く、その結果は自分で引き受けるものだと考えている。",
+ tendency:"好意は直接的に伝え、曖昧な状態を長く続けない。関係の進み方も速いが、合わないと判断したときの切り替えも早い。自分の目標と恋愛を両立させる。",
+ personality:"決断力があり、自分の基準がはっきりしている。感情に流されにくく、率直な物言いをする。",
+ luck:"追い風＝仕事や目標に向かって動いている時期。エネルギーの高さがそのまま魅力になる。／整えどころ＝速さが相手の準備を追い越すことがある。返事を待つ時間を、あらかじめ予定に入れておきたい。",
+ care:"結論を出す前に、相手の言い分を最後まで聞く。判断の速さは、聞く時間を削る理由にはならない。"},
+
+"I-M-steady":{name:"北極星の観測者",tag:"変わらずそこにある、という愛情",tone:"#4F7FA3",
+ about:"恋愛は生活の一部であって、全部ではないと考える人。互いの人生が成り立つ距離で、変わらずそこにあることを何より重んじる。",
+ tendency:"感情を急に高めず、時間をかけて信頼を測る。約束は少なく、その分きちんと守る。相手の自由を尊重し、自分の領域も守る。危機のときほど安定して見える。",
+ personality:"冷静で一貫性がある。周囲の空気に流されず、自分の基準で判断する。多くを語らないが、行動に矛盾が少ない。",
+ luck:"追い風＝同じことを長く続けている時期。時間をかけて評価される場面で、縁が定まりやすい。／整えどころ＝慎重さが機会を逃すこともある。材料が7割そろったら動く、と決めておくと流れが変わる。",
+ care:"変わらないことは、意外と伝わりにくい。行動で示していることを、ときどきは言葉でも重ねる。"},
+
+"I-M-explore":{name:"地図を描く探検家",tag:"同じ地図を、それぞれの足で",tone:"#5B9AA0",
+ about:"恋愛も、自分の人生を広げる旅の一部。相手と同じ地図を見ながら、それぞれの足で歩ける関係を理想とする人。",
+ tendency:"相手の自立を歓迎し、依存し合わない関係を好む。情報や考えを交換することが親密さの表現になる。生活や将来を、事実にもとづいて話せる相手と噛み合う。",
+ personality:"独立心が強く、好奇心と現実感覚を併せ持つ。人と比べず、自分の基準で選択を積み上げる。",
+ luck:"追い風＝新しい挑戦や環境の変化に取り組んでいる時期。同じ方向を向いた人と自然につながる。／整えどころ＝関係より計画を優先しがち。相手の予定に自分から合わせる日をつくると、噛み合いが戻る。",
+ care:"効率のよさより、無駄に見える時間を一緒に過ごす。地図に載らない時間が、関係の実感をつくる。"}
+};
+
+const STYLE_JA = {spark:"情熱", steady:"安定", explore:"探究"};
+const STYLE_ORDER = ["spark","steady","explore"];
+const KEYS = Object.keys(TYPES);
+
+/* ---------- 紋章（結果の絵）----------
+   飾りではなく構造の表現。2つの図形＝二人。
+   距離感 → 図形の重なり具合 / 判断軸 → 円か角丸か / 育て方 → 周囲の模様。 */
+function crest(key, size){
+  const t = TYPES[key], [c,j,s] = key.split("-");
+  const tone = t.tone, gap = (c === "W") ? 13 : 27;
+  const shape = (a) => (j === "H")
+    ? `<circle cx="${60+a}" cy="60" r="24" fill="${tone}" fill-opacity="0.5" stroke="${tone}" stroke-width="1.5"/>`
+    : `<rect x="${36+a}" y="36" width="48" height="48" rx="11" fill="${tone}" fill-opacity="0.5" stroke="${tone}" stroke-width="1.5"/>`;
+  let deco = "";
+  if (s === "spark"){
+    for (let i=0;i<12;i++){
+      const r = i*30*Math.PI/180;
+      deco += `<line x1="${60+Math.cos(r)*46}" y1="${60+Math.sin(r)*46}" x2="${60+Math.cos(r)*54}" y2="${60+Math.sin(r)*54}" stroke="${tone}" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>`;
+    }
+  } else if (s === "steady"){
+    deco = `<circle cx="60" cy="60" r="50" fill="none" stroke="${tone}" stroke-width="1.5" stroke-opacity="0.8"/>
+            <circle cx="60" cy="60" r="55" fill="none" stroke="${tone}" stroke-width="1" stroke-opacity="0.4"/>`;
+  } else {
+    deco = `<ellipse cx="60" cy="60" rx="55" ry="30" fill="none" stroke="${tone}" stroke-width="1.6" stroke-opacity="0.8" stroke-dasharray="7 6" transform="rotate(-22 60 60)"/>`;
+  }
+  return `<svg class="crest" viewBox="0 0 120 120" role="img" aria-label="${t.name}の紋章"${size?` style="width:${size}px"`:""}>
+    <circle cx="60" cy="60" r="40" fill="${tone}" fill-opacity="0.10"/>
+    ${deco}${shape(-gap)}${shape(gap)}</svg>`;
+}
+
+/* ---------- 状態 ---------- */
+const $ = (id) => document.getElementById(id);
+let idx = 0, answers = [];
+
+/* ---------- 集計 ---------- */
+function score(){
+  let c = 0, j = 0;
+  const st = {spark:0, steady:0, explore:0}, last = {spark:-1, steady:-1, explore:-1};
+  answers.forEach((a, i) => {
+    const q = QUESTIONS[i], v = q.o[a][1];
+    if (q.axis === "c") c += v;
+    else if (q.axis === "j") j += v;
+    else {
+      for (const k in v){ st[k] += v[k]; }
+      const primary = Object.keys(v).reduce((x,y) => v[y] > v[x] ? y : x);
+      last[primary] = i;
+    }
+  });
+  const top = STYLE_ORDER.slice().sort((a,b) => (st[b] - st[a]) || (last[b] - last[a]))[0];
+  return { c, j, st, key: (c > 0 ? "W" : "I") + "-" + (j > 0 ? "H" : "M") + "-" + top };
+}
+
+/* ---------- 画面：質問 ---------- */
+function renderQuestion(){
+  const q = QUESTIONS[idx];
+  $("counter").textContent = (idx+1) + " / " + QUESTIONS.length;
+  $("fill").style.width = (idx / QUESTIONS.length * 100) + "%";
+  $("qnum").textContent = "QUESTION " + String(idx+1).padStart(2, "0");
+  $("qtext").textContent = q.q;
+  $("opts").innerHTML = q.o.map((o, i) =>
+    `<button class="opt" type="button" data-i="${i}"><span class="key">${i+1}</span><span>${o[0]}</span></button>`).join("");
+  $("backBtn").style.visibility = idx === 0 ? "hidden" : "visible";
+  const first = $("opts").querySelector(".opt");
+  if (first) first.focus({preventScroll:true});
+}
+
+function choose(i){
+  answers[idx] = i;
+  if (idx < QUESTIONS.length - 1){ idx++; renderQuestion(); }
+  else { showResult(); }
+}
+
+/* ---------- 画面：結果 ---------- */
+function bar(labelL, labelR, pct, tone){
+  return `<div class="bar-row">
+    <div class="bar-top"><span>${labelL}</span><span>${labelR}</span></div>
+    <div class="bar" style="--tone:${tone}"><i style="width:${pct}%"></i></div>
+  </div>`;
+}
+
+function miniCard(key, cls, note){
+  const t = TYPES[key];
+  return `<div class="${cls}">${crest(key)}<div><div class="${cls==='pair'?'pt':'t'}">${t.name}</div><div class="${cls==='pair'?'pd':'d'}">${note || t.tag}</div></div></div>`;
+}
+
+function showResult(){
+  const r = score(), key = r.key, t = TYPES[key], [c,j,s] = key.split("-");
+  const cPct = Math.round((r.c + 15) / 30 * 100);
+  const jPct = Math.round((r.j + 15) / 30 * 100);
+  const total = r.st.spark + r.st.steady + r.st.explore || 1;
+
+  const flip = (x) => ({W:"I", I:"W", H:"M", M:"H"})[x];
+  const nextStyle = STYLE_ORDER[(STYLE_ORDER.indexOf(s) + 1) % 3];
+  const resonate = `${c}-${flip(j)}-${s}`;               // 進み方が近く、決め方が違う相手
+  const learnFrom = `${flip(c)}-${flip(j)}-${nextStyle}`; // 前提がほとんど違う相手
+
+  const others = KEYS.filter(k => k !== key);
+
+  $("result").innerHTML = `
+    <div class="panel" style="--tone:${t.tone}">
+      <div class="result-head">
+        ${crest(key, 132)}
+        <div style="flex:1;min-width:220px">
+          <span class="label">Your type</span>
+          <h2 class="type-name">${t.name}</h2>
+          <p class="type-tag">${t.tag}</p>
+          <div class="chips">
+            <span class="chip">${c === "W" ? "寄り添い型" : "自立型"}</span>
+            <span class="chip">${j === "H" ? "心で決める" : "頭で決める"}</span>
+            <span class="chip">${STYLE_JA[s]}で育てる</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <span class="label">あなたの回答の分布</span>
+      <div class="bars" style="margin-top:14px">
+        ${bar(`寄り添い ${cPct}%`, `自立 ${100-cPct}%`, cPct, t.tone)}
+        ${bar(`心 ${jPct}%`, `頭 ${100-jPct}%`, jPct, t.tone)}
+      </div>
+      <div class="styles">
+        ${STYLE_ORDER.map(k => `<div class="style-cell"${k===s?` style="border-color:${t.tone}"`:""}>
+          <span class="pct">${Math.round(r.st[k]/total*100)}%</span>
+          <span class="nm">${STYLE_JA[k]}</span></div>`).join("")}
+      </div>
+      <p class="note" style="margin:14px 0 0">パーセントは「どちらが優れているか」ではなく、選んだ答えがどちら側に寄っていたかの割合です。近い数値のときは、状況によって振る舞いが変わるタイプだと考えてください。</p>
+    </div>
+
+    <div class="panel sections" style="--tone:${t.tone}">
+      <div class="sec"><h3>恋愛観</h3><p>${t.about}</p></div>
+      <div class="sec"><h3>恋愛傾向</h3><p>${t.tendency}</p></div>
+      <div class="sec"><h3>性格</h3><p>${t.personality}</p></div>
+      <div class="sec"><h3>恋愛運</h3><p>${t.luck}</p>
+        <p class="note">ここでの「恋愛運」は、占いではなく、このタイプの傾向が活きやすい状況／噛み合いにくくなる状況の整理です。</p></div>
+      <div class="sec"><h3>心地よさを保つコツ</h3><p>${t.care}</p></div>
+    </div>
+
+    <div class="panel">
+      <span class="label">他のタイプとの関わり</span>
+      <div class="pairs" style="margin-top:14px">
+        ${miniCard(resonate, "pair", "進み方が近く、決め方が違う。噛み合いやすい相手")}
+        ${miniCard(learnFrom, "pair", "前提がほとんど違う。学び合える相手")}
+      </div>
+      <p class="note" style="margin:14px 0 0">相性に良し悪しはありません。似ているほど楽で、違うほど発見があるというだけの話です。どの組み合わせも、話し合いで成り立ちます。</p>
+    </div>
+
+    <div class="actions">
+      <button class="cta" id="againBtn" type="button">もう一度やる</button>
+      <button class="ghost" id="copyBtn" type="button">結果をコピー</button>
+    </div>
+
+    <div class="panel">
+      <span class="label">12タイプすべて</span>
+      <div class="all-list" style="margin-top:14px">${others.map(k => miniCard(k, "all-item")).join("")}</div>
+    </div>
+
+    <p class="fair note">この結果は、あなたが選んだ15個の答えを機械的に分類したものです。人の恋愛観はもっと複雑で、時期や相手によっても変わります。当てはまらない部分は、そのまま「当てはまらない」で構いません。</p>`;
+
+  $("quiz").classList.add("hidden");
+  $("intro").classList.add("hidden");
+  $("result").classList.remove("hidden");
+  window.scrollTo({top:0, behavior:"smooth"});
+
+  $("againBtn").addEventListener("click", () => {
+    idx = 0; answers = [];
+    $("result").classList.add("hidden");
+    $("intro").classList.remove("hidden");
+    window.scrollTo({top:0});
+  });
+  $("copyBtn").addEventListener("click", async (e) => {
+    const text = `【こいのかたち】私のタイプ：${t.name}（${t.tag}）\n恋愛観：${t.about}\n恋愛傾向：${t.tendency}\n性格：${t.personality}\n恋愛運：${t.luck}`;
+    try { await navigator.clipboard.writeText(text); e.target.textContent = "コピーしました"; }
+    catch { e.target.textContent = "コピーできませんでした"; }
+    setTimeout(() => { e.target.textContent = "結果をコピー"; }, 2000);
+  });
+}
+
+/* ---------- 初期化 ---------- */
+$("introGrid").innerHTML = KEYS.map(k =>
+  `<div class="crest-cell">${crest(k)}<span class="nm">${TYPES[k].name}</span></div>`).join("");
+
+$("startBtn").addEventListener("click", () => {
+  idx = 0; answers = [];
+  $("intro").classList.add("hidden");
+  $("quiz").classList.remove("hidden");
+  renderQuestion();
+});
+$("opts").addEventListener("click", (e) => {
+  const b = e.target.closest(".opt");
+  if (b) choose(Number(b.dataset.i));
+});
+$("backBtn").addEventListener("click", () => { if (idx > 0){ idx--; renderQuestion(); } });
+document.addEventListener("keydown", (e) => {
+  if ($("quiz").classList.contains("hidden")) return;
+  const n = Number(e.key);
+  if (n >= 1 && n <= QUESTIONS[idx].o.length) choose(n - 1);
+});
+$("themeBtn").addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+});
+</script>
+</body>
+</html>
