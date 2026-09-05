@@ -1,0 +1,170 @@
+/* ============================================================
+   感情の郵便局 - layout.css
+   縦一列レイアウト・片手操作向けの骨組み
+   ============================================================ */
+
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  max-width: 480px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.app-header__title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.app-header__back {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--color-ink-soft);
+  border-radius: 50%;
+}
+
+.app-header__back:active {
+  background: var(--color-bg-muted);
+}
+
+.app-header__spacer {
+  width: 44px;
+}
+
+.screen {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  padding: 16px 16px 24px;
+  gap: 20px;
+}
+
+.screen.is-active {
+  display: flex;
+}
+
+.screen__scroll {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.bottom-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+  background: linear-gradient(
+    to top,
+    var(--color-bg) 65%,
+    rgba(0, 0, 0, 0)
+  );
+}
+
+.no-send-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  font-size: 12.5px;
+  color: var(--color-forest);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+.no-send-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-forest);
+  flex-shrink: 0;
+}
+
+.nav-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stack--tight {
+  gap: 6px;
+}
+
+.step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-indicator__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-line);
+}
+
+.step-indicator__dot.is-active {
+  background: var(--color-accent);
+  width: 20px;
+  border-radius: 4px;
+}
+
+.step-indicator__dot.is-done {
+  background: var(--color-accent-soft);
+}
+
+.filter-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.filter-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+@media (min-width: 481px) {
+  body {
+    background: var(--color-bg-muted);
+  }
+  #app {
+    box-shadow: 0 0 40px var(--color-shadow);
+    background: var(--color-bg);
+  }
+}
