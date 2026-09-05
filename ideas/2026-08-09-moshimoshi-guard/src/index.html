@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+<title>もしもしガード - 電話中の詐欺チェック</title>
+<meta name="description" content="電話中に相手が言った内容をチェックするだけで、特殊詐欺の危険度をその場で判定するツールです。" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body id="app-body" data-level="none">
+
+<header class="app-header">
+  <div class="app-header__inner">
+    <button type="button" class="icon-btn" id="btn-nav-home" aria-label="ホームに戻る" title="ホームに戻る">🏠</button>
+    <h1 class="app-title">もしもしガード</h1>
+    <div class="font-size-controls" role="group" aria-label="文字の大きさ">
+      <button type="button" id="btn-font-small" class="font-size-btn" aria-label="文字を小さくする">A-</button>
+      <button type="button" id="btn-font-large" class="font-size-btn" aria-label="文字を大きくする">A+</button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- =================== ホーム画面 =================== -->
+  <section id="view-home" class="view">
+    <p class="lead-text">
+      電話がかかってきたら、相手が言った内容に近いボタンを押すだけ。<br />
+      危険度をその場ですぐに確認できます。
+    </p>
+
+    <div id="home-primary-contact" class="primary-contact-card" hidden>
+      <p class="primary-contact-card__label">最優先の緊急連絡先</p>
+      <p class="primary-contact-card__name" id="home-primary-name"></p>
+      <a href="#" id="home-primary-tel" class="tel-link tel-link--big">📞 <span id="home-primary-tel-text"></span></a>
+    </div>
+
+    <div id="home-no-contact" class="notice-card" hidden>
+      <p id="home-no-contact-message">緊急連絡先がまだ登録されていません。</p>
+      <p id="home-no-contact-submessage">もしもの時にすぐ電話できるよう、家族の連絡先を登録しておきましょう。</p>
+      <button type="button" class="btn btn--secondary" data-nav="settings" id="home-no-contact-btn">緊急連絡先を登録する</button>
+    </div>
+
+    <button type="button" id="btn-start-check" class="btn btn--primary btn--huge">
+      📞 電話中チェックを始める
+    </button>
+
+    <div class="home-nav-buttons">
+      <button type="button" class="btn btn--secondary" data-nav="history">📋 チェック履歴を見る</button>
+      <button type="button" class="btn btn--secondary" data-nav="settings">⚙️ 緊急連絡先の設定</button>
+    </div>
+  </section>
+
+  <!-- =================== チェック画面 =================== -->
+  <section id="view-check" class="view">
+
+    <div id="check-banner" class="check-banner" data-level="low">
+      <p class="check-banner__level-label" id="check-level-label">低（安全）</p>
+      <p class="check-banner__score">危険度スコア: <span id="check-score-value">0</span></p>
+      <div class="check-banner__gauge">
+        <div class="check-banner__gauge-fill" id="check-gauge-fill"></div>
+      </div>
+    </div>
+
+    <div class="next-action" id="next-action">
+      次の行動: フレーズを選択すると、ここに表示されます。
+    </div>
+
+    <div id="check-emergency" class="emergency-box" hidden>
+      <p class="emergency-box__title">⚠️ 今すぐ電話を切って、下の連絡先へ連絡してください</p>
+      <div id="check-emergency-contacts"></div>
+    </div>
+
+    <section class="phrase-section">
+      <h2 class="section-heading">相手が言ったことに近いものを選んでください</h2>
+      <div id="phrase-categories"></div>
+    </section>
+
+    <section class="memo-section">
+      <h2 class="section-heading">通話メモ（自動で保存されます）</h2>
+
+      <label class="field-label" for="input-caller-name">相手が名乗った名前</label>
+      <input type="text" id="input-caller-name" class="field-input" autocomplete="off" />
+
+      <label class="field-label" for="input-caller-phone">相手の電話番号</label>
+      <input type="text" id="input-caller-phone" class="field-input" autocomplete="off" inputmode="tel" />
+
+      <label class="field-label" for="input-request-content">要求内容</label>
+      <textarea id="input-request-content" class="field-textarea" rows="3"></textarea>
+
+      <label class="field-label" for="input-memo">その他メモ</label>
+      <textarea id="input-memo" class="field-textarea" rows="3"></textarea>
+    </section>
+
+    <div class="check-footer-buttons">
+      <button type="button" id="btn-finish-save" class="btn btn--primary">✅ チェックを終了して保存</button>
+      <button type="button" id="btn-finish-discard" class="btn btn--ghost">保存せず終了する</button>
+      <button type="button" id="btn-reset-check" class="btn btn--ghost">最初からやり直す</button>
+    </div>
+  </section>
+
+  <!-- =================== 履歴画面 =================== -->
+  <section id="view-history" class="view">
+    <div class="history-header">
+      <h2 class="section-heading">チェック履歴</h2>
+      <button type="button" id="btn-print-history" class="btn btn--secondary">🖨 印刷する</button>
+    </div>
+
+    <div id="history-empty" class="notice-card" hidden>
+      <p>まだ保存された履歴はありません。</p>
+    </div>
+
+    <div id="history-list" class="history-list"></div>
+  </section>
+
+  <!-- =================== 設定画面 =================== -->
+  <section id="view-settings" class="view">
+    <h2 class="section-heading">緊急連絡先の設定</h2>
+    <p class="lead-text lead-text--small">
+      家族など、もしもの時にすぐ連絡できる相手を登録しておきましょう。「最優先」に指定した連絡先は、チェック画面・ホーム画面に大きく表示されます。
+    </p>
+
+    <form id="contact-form" class="contact-form">
+      <input type="hidden" id="contact-edit-id" value="" />
+
+      <label class="field-label" for="contact-name">名前<span class="required">必須</span></label>
+      <input type="text" id="contact-name" class="field-input" autocomplete="off" />
+
+      <label class="field-label" for="contact-relation">続柄（例: 長男、長女）</label>
+      <input type="text" id="contact-relation" class="field-input" autocomplete="off" />
+
+      <label class="field-label" for="contact-phone">電話番号<span class="required">必須</span></label>
+      <input type="text" id="contact-phone" class="field-input" autocomplete="off" inputmode="tel" placeholder="090-1234-5678" />
+
+      <label class="checkbox-label">
+        <input type="checkbox" id="contact-primary" />
+        最優先の連絡先にする
+      </label>
+
+      <div id="contact-form-errors" class="form-errors" hidden></div>
+
+      <div class="contact-form-buttons">
+        <button type="submit" id="btn-contact-submit" class="btn btn--primary">追加する</button>
+        <button type="button" id="btn-contact-cancel-edit" class="btn btn--ghost" hidden>編集をやめる</button>
+      </div>
+    </form>
+
+    <h3 class="section-heading section-heading--sub">登録済みの連絡先</h3>
+    <div id="settings-no-contact" class="notice-card" hidden>
+      <p>まだ連絡先が登録されていません。</p>
+    </div>
+    <div id="contact-list" class="contact-list"></div>
+  </section>
+
+</main>
+
+<footer class="app-footer">
+  <p>このツールはすべて端末内で完結し、入力内容が外部へ送信されることはありません。</p>
+</footer>
+
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
