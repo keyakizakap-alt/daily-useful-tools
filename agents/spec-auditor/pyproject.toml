@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spec-auditor"
+version = "1.0.0"
+description = "仕様書・会議メモから矛盾・実現不能箇所を抽出するエージェント（AIが整理、人が判断）"
+requires-python = ">=3.11"
+dependencies = []           # 標準ライブラリのみ。攻撃面を増やさないため依存は足さない。
+license = { text = "MIT" }
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+spec-auditor = "spec_auditor.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+spec_auditor = ["data/*.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

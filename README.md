@@ -47,3 +47,14 @@ python3 tools/build_standalone.py out.html --fragment # Artifact用（doctype/he
 - 依存ライブラリなしの単一 HTML（HTML / CSS / vanilla JS）。
 - 各タイプにキャラクターイラストを表示。結果画面ではコード生成の inline SVG 紋章（重なり＝距離感、円/角丸＝判断軸、模様＝育て方）をバッジとして重ねる。
 - ライト／ダークの両テーマ対応（OS設定に追従＋手動切り替え）、レスポンシブ、キーボード操作対応。
+
+## 同梱ツール
+
+### agents/spec-auditor — 仕様書の矛盾・実現不能箇所の抽出
+
+会議メモ・仕様書から、タスク・矛盾・実現不能箇所を洗い出し、返すべき質問まで作る
+ローカル CLI エージェント。AI が整理し（要件抽出・分類・判定基準表との照合・対応案の候補抽出・質問作成）、
+担当者と期限の確定、実現可能性と優先度の判断は人が行う。
+
+詳細は [`agents/spec-auditor/README.md`](agents/spec-auditor/README.md)、
+セキュリティ設計は [`agents/spec-auditor/SECURITY.md`](agents/spec-auditor/SECURITY.md)。
