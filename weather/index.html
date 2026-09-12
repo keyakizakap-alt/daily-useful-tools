@@ -457,7 +457,14 @@ table.compare .cond svg { width: 22px; height: 22px; flex: none; }
 .advice-card .detail { margin-top: 6px; font-size: 12.5px; color: var(--text-2); line-height: 1.7; }
 .advice-card ul { margin: 7px 0 0; padding-left: 17px; font-size: 12px; color: var(--text-2); line-height: 1.75; }
 
-.days-scroll { overflow-x: auto; padding-bottom: 4px; }
+.days-scroll { overflow-x: auto; padding-bottom: 4px; position: relative; scroll-snap-type: x proximity; }
+.days-scroll .day { scroll-snap-align: start; }
+.days-wrap { position: relative; }
+.days-wrap::after {
+  content: ""; position: absolute; top: 0; right: 0; bottom: 4px; width: 28px;
+  pointer-events: none; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: linear-gradient(90deg, transparent, var(--surface));
+}
 .days-scroll .days { grid-template-columns: repeat(16, minmax(86px, 1fr)); min-width: 100%; }
 .days .day.far { opacity: .82; }
 .week-split { display: flex; align-items: center; gap: 8px; margin: 14px 0 8px; font-size: 11px; color: var(--text-3); }
@@ -1445,13 +1452,17 @@ function cardHtml(city) {
     + '<path d="M12 3.4l2.6 5.3 5.9.9-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.6l5.9-.9z"/></svg></button>';
 
   if (!d) {
+    // データが無い間もカードは開ける。取得が終われば詳細パネルの中身は自動で差し替わる。
     const body = err
       ? '<div class="card-error">' + esc(err) + '</div>'
       : '<div class="card-main"><span class="card-temp skeleton">00</span></div><div class="card-range skeleton">読込中</div>';
     return '<div class="card' + (err ? " is-error" : " is-loading") + '">' + pinBtn
-      + '<div class="card-sky" ' + sky + '></div><div class="card-body">'
+      + '<div class="card-sky" ' + sky + '></div>'
+      + '<button type="button" class="card-open" data-open="' + city.id + '" '
+      + 'style="all:unset;display:block;cursor:pointer;width:100%" aria-label="' + esc(city.name) + 'の詳細を開く">'
+      + '<div class="card-body">'
       + '<div class="card-top"><div class="card-city"><div class="card-name">' + esc(city.name) + '</div>'
-      + '<div class="card-region">' + esc(city.sub) + '</div></div></div>' + body + '</div></div>';
+      + '<div class="card-region">' + esc(city.sub) + '</div></div></div>' + body + '</div></button></div>';
   }
 
   const t = d.today || {};
@@ -1720,11 +1731,22 @@ function render() {
   if (cards) renderGrids(); else renderTable();
   renderPicker();
 
+  syncOpenSheet();
+
   const u = $("#updated");
   if (state.loading) u.textContent = "更新中…";
   else if (state.fetchedAt) u.innerHTML = "最終更新 <strong>" + esc(nowText(state.fetchedAt)) + "</strong>";
   else u.textContent = "";
 }
+/** 詳細パネルを開いたまま取得が完了したら、中身を描き直す */
+function syncOpenSheet() {
+  if (!state.openCity || !$("#overlay").hasAttribute("open")) return;
+  const sheet = $("#sheet");
+  if (state.data.has(state.openCity) && sheet.dataset.hasData !== "1") {
+    openSheet(state.openCity, state.openDay);
+  }
+}
+
 function nowText(ts) {
   try {
     return new Intl.DateTimeFormat("ja-JP", { timeZone: JST, hour: "2-digit", minute: "2-digit" }).format(new Date(ts)) + " JST";
@@ -1936,11 +1958,11 @@ async function selectDay(cityId, index) {
  * ============================================================ */
 let lastFocused = null;
 
-function openSheet(cityId) {
+function openSheet(cityId, dayIndex) {
   const city = CITY_BY_ID.get(cityId);
   const d = state.data.get(cityId);
   if (!city) return;
-  lastFocused = document.activeElement;
+  if (!$("#overlay").hasAttribute("open")) lastFocused = document.activeElement;
 
   const w = d ? wmo(d.now.code) : WMO_UNKNOWN;
   let html =
@@ -1959,7 +1981,9 @@ function openSheet(cityId) {
     + '<path d="M5 5l14 14M19 5L5 19"/></svg></button></div><div class="sheet-body">';
 
   if (!d) {
-    html += '<p style="color:var(--text-3)">' + esc(state.errors.get(cityId) || "データを読み込んでいます…") + '</p>';
+    const err = state.errors.get(cityId);
+    html += '<p style="color:var(--text-3)">' + esc(err || "予報を読み込んでいます…") + '</p>'
+      + (err ? '<button type="button" class="btn" id="retryBtn">再取得する</button>' : "");
   } else {
     const t = d.today || {};
 
@@ -2029,7 +2053,7 @@ function openSheet(cityId) {
       + '</dl>';
 
     html += '<h3 class="sheet-h3">2週間予報（' + d.days.length + '日間）— 日を選ぶと詳細が出ます</h3>'
-      + '<div class="days-scroll"><div class="days" id="daysStrip">'
+      + '<div class="days-wrap"><div class="days-scroll"><div class="days" id="daysStrip">'
       + d.days.map((day, i) => {
           const dw = wmo(day.code);
           const dt = parseLocal(day.date);
@@ -2044,7 +2068,7 @@ function openSheet(cityId) {
             + ' <span style="color:var(--text-3)">/</span> <span class="lo">' + fmtTemp(day.lo) + '</span></div>'
             + '<div class="pop tnum">' + fmtNum(day.pop, "%") + '</div></button>';
         }).join("")
-      + '</div></div>'
+      + '</div></div></div>'
       + '<div id="dayDetail"></div>'
       + '<p class="alert-note">8日目以降は数値予報の不確実性が大きく、日々変わります。傾向をつかむ目安としてご覧ください。</p>';
 
@@ -2067,8 +2091,10 @@ function openSheet(cityId) {
   $("#overlay").setAttribute("open", "");
   document.body.style.overflow = "hidden";
   state.openCity = cityId;
-  state.openDay = 0;
-  if (d && d.days.length) selectDay(cityId, 0);
+  sheet.dataset.hasData = d ? "1" : "0";
+  const day = Math.min(Math.max(dayIndex || 0, 0), d && d.days.length ? d.days.length - 1 : 0);
+  state.openDay = day;
+  if (d && d.days.length) selectDay(cityId, day);
   const close = $("#sheetClose");
   if (close) close.focus();
 }
@@ -2200,6 +2226,7 @@ document.addEventListener("click", ev => {
     return;
   }
 
+  if (ev.target.closest("#retryBtn")) { refresh(true); return; }
   if (ev.target.closest("#sheetClose") || ev.target.id === "overlay") closeSheet();
 });
 
@@ -2221,7 +2248,12 @@ $("#refreshBtn").addEventListener("click", () => refresh(true));
 $("#viewCards").addEventListener("click", () => { state.view = "cards"; saveState(); render(); });
 $("#viewTable").addEventListener("click", () => { state.view = "table"; saveState(); render(); });
 $("#sortSel").addEventListener("change", e => { state.sort = e.target.value; saveState(); render(); });
-$("#unitSel").addEventListener("change", e => { state.unit = e.target.value; saveState(); render(); });
+$("#unitSel").addEventListener("change", e => {
+  state.unit = e.target.value;
+  saveState();
+  render();
+  if (state.openCity && $("#overlay").hasAttribute("open")) openSheet(state.openCity, state.openDay);
+});
 $("#themeBtn").addEventListener("click", () => {
   state.theme = state.theme === "auto" ? "light" : state.theme === "light" ? "dark" : "auto";
   saveState(); applyTheme();
