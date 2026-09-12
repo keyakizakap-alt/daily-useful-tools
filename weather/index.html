@@ -457,7 +457,14 @@ table.compare .cond svg { width: 22px; height: 22px; flex: none; }
 .advice-card .detail { margin-top: 6px; font-size: 12.5px; color: var(--text-2); line-height: 1.7; }
 .advice-card ul { margin: 7px 0 0; padding-left: 17px; font-size: 12px; color: var(--text-2); line-height: 1.75; }
 
-.days-scroll { overflow-x: auto; padding-bottom: 4px; }
+.days-scroll { overflow-x: auto; padding-bottom: 4px; position: relative; scroll-snap-type: x proximity; }
+.days-scroll .day { scroll-snap-align: start; }
+.days-wrap { position: relative; }
+.days-wrap::after {
+  content: ""; position: absolute; top: 0; right: 0; bottom: 4px; width: 28px;
+  pointer-events: none; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: linear-gradient(90deg, transparent, var(--surface));
+}
 .days-scroll .days { grid-template-columns: repeat(16, minmax(86px, 1fr)); min-width: 100%; }
 .days .day.far { opacity: .82; }
 .week-split { display: flex; align-items: center; gap: 8px; margin: 14px 0 8px; font-size: 11px; color: var(--text-3); }
@@ -480,6 +487,41 @@ table.compare .cond svg { width: 22px; height: 22px; flex: none; }
 .search-result .rm { color: var(--text-3); font-size: 12px; }
 .search-result .add { margin-left: auto; color: var(--accent-text); font-weight: 700; font-size: 12px; white-space: nowrap; }
 .search-msg { font-size: 12.5px; color: var(--text-3); padding: 4px 2px 12px; }
+
+/* ============================================================
+   day detail
+   ============================================================ */
+.days .day { font: inherit; color: inherit; cursor: pointer; transition: border-color .14s, background .14s, transform .12s; }
+.days .day:hover { border-color: var(--accent); transform: translateY(-1px); }
+.days .day.selected { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset; opacity: 1; }
+
+.day-detail {
+  margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); padding: 14px 15px;
+}
+.dd-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dd-icon { flex: none; }
+.dd-date { font-size: 15px; font-weight: 700; }
+.dd-badge {
+  display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 700; background: var(--accent); color: #fff; vertical-align: 2px;
+}
+.dd-text { font-size: 18px; font-weight: 700; color: var(--accent-text); letter-spacing: .02em; }
+.dd-temp { margin-left: auto; text-align: right; font-size: 24px; font-weight: 700; }
+.dd-temp .hi { color: var(--warm); }
+.dd-temp .lo { color: var(--cool); }
+.dd-temp .sl { color: var(--text-3); font-weight: 400; margin: 0 4px; }
+.dd-diff { font-size: 11.5px; font-weight: 600; color: var(--text-3); }
+.dd-cap { font-size: 10.5px; letter-spacing: .06em; color: var(--text-3); font-weight: 700; }
+.dd-periods { margin-top: 14px; }
+.pds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; }
+.pd { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 7px 4px; text-align: center; }
+.pd-label { font-size: 10.5px; color: var(--text-3); }
+.pd-val { font-size: 15px; font-weight: 700; color: var(--accent-text); }
+table.compare.hours { min-width: 620px; font-size: 12.5px; }
+table.compare.hours th, table.compare.hours td { padding: 7px 10px; }
+table.compare.hours tbody tr { cursor: default; }
+.day-detail .table-wrap { background: var(--surface); margin-top: 6px; }
 
 @media (max-width: 640px) {
   .wrap { padding: 0 14px; }
@@ -802,6 +844,8 @@ const state = {
   theme: "auto",
   tableSort: { key: null, dir: 1 },
   custom: [],           // ユーザーが検索して追加した地点
+  openCity: null,       // 詳細パネルで開いている地点
+  openDay: 0,           // 詳細パネルで選んでいる日
   data: new Map(),      // cityId -> normalized forecast
   errors: new Map(),    // cityId -> message
   alerts: new Map(),    // 府県予報区コード -> 気象庁の警報・注意報
@@ -856,6 +900,12 @@ function fmtNum(v, suffix) {
   if (v === null || v === undefined || Number.isNaN(v)) return "—";
   return Math.round(v) + (suffix || "");
 }
+/** 風向と風速をまとめて文字列にする（風向が無ければ風速だけ） */
+function windText(deg, speed) {
+  const dir = windDir(deg);
+  const sp = fmtNum(speed);
+  return dir ? dir + " " + sp : sp;
+}
 function windDir(deg) {
   if (deg === null || deg === undefined) return "";
   const dirs = ["北", "北北東", "北東", "東北東", "東", "東南東", "南東", "南南東",
@@ -896,11 +946,14 @@ function esc(s) {
 const API = "https://api.open-meteo.com/v1/forecast";
 const CURRENT_VARS = ["temperature_2m", "relative_humidity_2m", "apparent_temperature", "is_day",
                       "precipitation", "weather_code", "wind_speed_10m", "wind_direction_10m"];
-const HOURLY_VARS  = ["temperature_2m", "precipitation_probability", "weather_code"];
+const HOURLY_VARS  = ["temperature_2m", "apparent_temperature", "relative_humidity_2m",
+                      "precipitation_probability", "precipitation", "weather_code",
+                      "wind_speed_10m", "wind_direction_10m"];
 const DAILY_VARS   = ["weather_code", "temperature_2m_max", "temperature_2m_min",
                       "apparent_temperature_max", "apparent_temperature_min",
                       "precipitation_probability_max", "precipitation_sum",
-                      "sunrise", "sunset", "wind_speed_10m_max", "uv_index_max"];
+                      "sunrise", "sunset", "wind_speed_10m_max", "wind_direction_10m_dominant",
+                      "precipitation_hours", "uv_index_max"];
 const FORECAST_DAYS = 16;   // Open-Meteo の上限（= 約2週間先まで）
 const CACHE_KEY = "soranarabe.cache.v1";
 const CACHE_TTL_MS = 3 * 60 * 60 * 1000;   // 3時間より古いキャッシュは表示しない
@@ -957,6 +1010,8 @@ function normalize(city, raw) {
     sunrise: pick(daily.sunrise, i),
     sunset: pick(daily.sunset, i),
     wind: pick(daily.wind_speed_10m_max, i),
+    windDeg: pick(daily.wind_direction_10m_dominant, i),
+    precipHours: pick(daily.precipitation_hours, i),
     uv: pick(daily.uv_index_max, i)
   }));
 
@@ -966,12 +1021,7 @@ function normalize(city, raw) {
   if (start < 0) start = 0;
   const hours = [];
   for (let i = start; i < Math.min(hTime.length, start + 48); i++) {
-    hours.push({
-      time: hTime[i],
-      temp: pick(hourly.temperature_2m, i),
-      pop: pick(hourly.precipitation_probability, i),
-      code: pick(hourly.weather_code, i)
-    });
+    hours.push(normalizeHour(hourly, i));
   }
 
   return {
@@ -995,6 +1045,21 @@ function normalize(city, raw) {
   };
 }
 function pick(arr, i) { return Array.isArray(arr) && arr[i] !== undefined ? arr[i] : null; }
+
+/** hourly レスポンスの i 番目を 1 時間分のオブジェクトにする */
+function normalizeHour(hourly, i) {
+  return {
+    time: (hourly.time || [])[i],
+    temp: pick(hourly.temperature_2m, i),
+    feels: pick(hourly.apparent_temperature, i),
+    humidity: pick(hourly.relative_humidity_2m, i),
+    pop: pick(hourly.precipitation_probability, i),
+    precip: pick(hourly.precipitation, i),
+    code: pick(hourly.weather_code, i),
+    wind: pick(hourly.wind_speed_10m, i),
+    windDeg: pick(hourly.wind_direction_10m, i)
+  };
+}
 
 let useCompact = true;   // forecast_hours が使えないと判明したら false に落とす
 
@@ -1387,13 +1452,17 @@ function cardHtml(city) {
     + '<path d="M12 3.4l2.6 5.3 5.9.9-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.6l5.9-.9z"/></svg></button>';
 
   if (!d) {
+    // データが無い間もカードは開ける。取得が終われば詳細パネルの中身は自動で差し替わる。
     const body = err
       ? '<div class="card-error">' + esc(err) + '</div>'
       : '<div class="card-main"><span class="card-temp skeleton">00</span></div><div class="card-range skeleton">読込中</div>';
     return '<div class="card' + (err ? " is-error" : " is-loading") + '">' + pinBtn
-      + '<div class="card-sky" ' + sky + '></div><div class="card-body">'
+      + '<div class="card-sky" ' + sky + '></div>'
+      + '<button type="button" class="card-open" data-open="' + city.id + '" '
+      + 'style="all:unset;display:block;cursor:pointer;width:100%" aria-label="' + esc(city.name) + 'の詳細を開く">'
+      + '<div class="card-body">'
       + '<div class="card-top"><div class="card-city"><div class="card-name">' + esc(city.name) + '</div>'
-      + '<div class="card-region">' + esc(city.sub) + '</div></div></div>' + body + '</div></div>';
+      + '<div class="card-region">' + esc(city.sub) + '</div></div></div>' + body + '</div></button></div>';
   }
 
   const t = d.today || {};
@@ -1533,7 +1602,7 @@ function renderTable() {
       + '<td>' + umbrellaCell(d) + '</td>'
       + '<td>' + alertCell(c.id) + '</td>'
       + '<td class="tnum">' + fmtNum(d.now.humidity, "%") + '</td>'
-      + '<td class="tnum">' + esc(windDir(d.now.windDeg)) + " " + fmtNum(d.now.wind) + ' km/h</td>'
+      + '<td class="tnum">' + esc(windText(d.now.windDeg, d.now.wind)) + ' km/h</td>'
       + '<td class="tnum">' + fmtTemp(d.now.feels) + '°</td></tr>';
   }).join("");
 }
@@ -1662,11 +1731,22 @@ function render() {
   if (cards) renderGrids(); else renderTable();
   renderPicker();
 
+  syncOpenSheet();
+
   const u = $("#updated");
   if (state.loading) u.textContent = "更新中…";
   else if (state.fetchedAt) u.innerHTML = "最終更新 <strong>" + esc(nowText(state.fetchedAt)) + "</strong>";
   else u.textContent = "";
 }
+/** 詳細パネルを開いたまま取得が完了したら、中身を描き直す */
+function syncOpenSheet() {
+  if (!state.openCity || !$("#overlay").hasAttribute("open")) return;
+  const sheet = $("#sheet");
+  if (state.data.has(state.openCity) && sheet.dataset.hasData !== "1") {
+    openSheet(state.openCity, state.openDay);
+  }
+}
+
 function nowText(ts) {
   try {
     return new Intl.DateTimeFormat("ja-JP", { timeZone: JST, hour: "2-digit", minute: "2-digit" }).format(new Date(ts)) + " JST";
@@ -1674,15 +1754,215 @@ function nowText(ts) {
 }
 
 /* ============================================================
+ * 6b. 日ごとの詳細予報
+ *   一般的な「今日の天気予報」の掲載項目にあわせ、天気・最高/最低気温（前日差）・
+ *   時間帯別の降水確率・3時間ごとの推移・風・湿度・日の出/日の入・UV指数を出す。
+ *   48時間より先の日は hourly を持っていないため、その日だけ追加取得する。
+ * ============================================================ */
+const dayHours = new Map();       // "cityId|YYYY-MM-DD" -> 時間ごとの配列
+const dayHoursPending = new Set();
+
+function dayKey(cityId, date) { return cityId + "|" + date; }
+
+/** 手持ちの 48 時間データから、その日の分を切り出す */
+function hoursOfDay(d, date) {
+  return (d.hours || []).filter(h => String(h.time || "").slice(0, 10) === date);
+}
+
+/** その日の 1 時間ごとのデータを用意する（未取得なら API から取りにいく） */
+async function ensureDayHours(city, date, d) {
+  const key = dayKey(city.id, date);
+  if (dayHours.has(key) || dayHoursPending.has(key)) return;
+  const local = hoursOfDay(d, date);
+  if (local.length >= 20) { dayHours.set(key, local); return; }
+
+  dayHoursPending.add(key);
+  try {
+    const p = new URLSearchParams();
+    p.set("latitude", String(city.lat));
+    p.set("longitude", String(city.lon));
+    p.set("hourly", HOURLY_VARS.join(","));
+    p.set("timezone", JST);
+    p.set("start_date", date);
+    p.set("end_date", date);
+    const raw = await getJson(API + "?" + p.toString(), 15000);
+    const json = Array.isArray(raw) ? raw[0] : raw;
+    const hourly = (json && json.hourly) || {};
+    // start_date / end_date が効かなかった場合に備えて、その日の分だけに絞る
+    const out = (hourly.time || []).map((t, i) => normalizeHour(hourly, i))
+                  .filter(h => String(h.time || "").slice(0, 10) === date);
+    dayHours.set(key, out.length ? out : local);
+  } catch (e) {
+    dayHours.set(key, local);   // 取得できなければ手持ちの分だけで描画する
+  } finally {
+    dayHoursPending.delete(key);
+  }
+}
+
+/** WMO コードを大まかな天気の区分にまとめる */
+function coarseWeather(code) {
+  if (code === 0 || code === 1) return "晴れ";
+  if (code === 2) return "晴れ";
+  if (code === 3) return "くもり";
+  if (code === 45 || code === 48) return "霧";
+  if (code >= 95) return "雷雨";
+  if ([71, 73, 75, 77, 85, 86].indexOf(code) >= 0) return "雪";
+  if (code >= 51) return "雨";
+  return "くもり";
+}
+
+/**
+ * 「晴れのちくもり」「くもり時々雨」のような天気文をつくる。
+ * 前半・後半で区分が変われば「のち」、通しで一定時間だけ別の区分が混じれば「時々」。
+ */
+function dayWeatherText(hours, fallbackCode) {
+  const day = (hours || []).filter(h => {
+    const hh = parseLocal(h.time);
+    return hh && hh.getHours() >= 6 && hh.getHours() <= 21 && typeof h.code === "number";
+  });
+  if (day.length < 6) return wmo(fallbackCode).label;
+
+  const cats = day.map(h => coarseWeather(h.code));
+  const half = Math.floor(cats.length / 2);
+  const major = arr => {
+    const count = {};
+    arr.forEach(c => { count[c] = (count[c] || 0) + 1; });
+    return Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+  };
+  const first = major(cats.slice(0, half));
+  const second = major(cats.slice(half));
+
+  if (first !== second) return first + "のち" + second;
+
+  const others = cats.filter(c => c !== first);
+  if (others.length >= 3) {
+    const sub = major(others);
+    return first + (others.length >= cats.length * 0.35 ? "時々" : "一時") + sub;
+  }
+  return first;
+}
+
+/** 0-6 / 6-12 / 12-18 / 18-24 の時間帯ごとの降水確率 */
+const PERIODS = [
+  { label: "未明〜朝", from: 0, to: 6 },
+  { label: "朝〜昼",   from: 6, to: 12 },
+  { label: "昼〜夕",   from: 12, to: 18 },
+  { label: "夜",       from: 18, to: 24 }
+];
+function periodPops(hours) {
+  return PERIODS.map(pd => {
+    const vals = (hours || []).filter(h => {
+      const t = parseLocal(h.time);
+      return t && t.getHours() >= pd.from && t.getHours() < pd.to && typeof h.pop === "number";
+    }).map(h => h.pop);
+    return { label: pd.label, pop: vals.length ? Math.max.apply(null, vals) : null };
+  });
+}
+
+/** 前日との気温差（「前日より3℃高い」の表示用） */
+function diffText(today, prev) {
+  if (typeof today !== "number" || typeof prev !== "number") return "";
+  const diff = Math.round(toUnit(today)) - Math.round(toUnit(prev));
+  if (diff === 0) return "前日と同じ";
+  return "前日より" + Math.abs(diff) + "° " + (diff > 0 ? "高い" : "低い");
+}
+
+/** 選択した日の詳細を描画する */
+function renderDayDetail(city, d, index) {
+  const box = document.getElementById("dayDetail");
+  if (!box) return;
+  const day = d.days[index];
+  if (!day) { box.innerHTML = ""; return; }
+
+  const key = dayKey(city.id, day.date);
+  const hours = dayHours.get(key) || hoursOfDay(d, day.date);
+  const loading = dayHoursPending.has(key);
+  const dt = parseLocal(day.date);
+  const dow = dt ? DOW[dt.getDay()] : "";
+  const w = wmo(day.code);
+  const prev = index > 0 ? d.days[index - 1] : null;
+
+  const periodRow = periodPops(hours).map(pd =>
+    '<div class="pd"><div class="pd-label">' + esc(pd.label) + '</div>'
+    + '<div class="pd-val tnum">' + (pd.pop === null ? "—" : pd.pop + "%") + '</div></div>').join("");
+
+  // 3時間ごとの推移
+  const step = hours.filter(h => { const t = parseLocal(h.time); return t && t.getHours() % 3 === 0; });
+  const table = step.length
+    ? '<div class="table-wrap" style="box-shadow:none"><table class="compare hours"><thead><tr>'
+      + '<th>時刻</th><th>天気</th><th>気温</th><th>体感</th><th>降水確率</th><th>降水量</th><th>風 (km/h)</th><th>湿度</th>'
+      + '</tr></thead><tbody>'
+      + step.map(h => {
+          const hw = wmo(h.code);
+          return '<tr><td class="tnum">' + fmtClock(h.time) + '</td>'
+            + '<td><span class="cond">' + icon(hw.icon, 20) + esc(hw.label) + '</span></td>'
+            + '<td class="tnum">' + fmtTemp(h.temp, 1) + '°</td>'
+            + '<td class="tnum">' + fmtTemp(h.feels) + '°</td>'
+            + '<td class="tnum">' + fmtNum(h.pop, "%") + '</td>'
+            + '<td class="tnum">' + (h.precip == null ? "—" : h.precip + " mm") + '</td>'
+            + '<td class="tnum">' + esc(windText(h.windDeg, h.wind)) + '</td>'
+            + '<td class="tnum">' + fmtNum(h.humidity, "%") + '</td></tr>';
+        }).join("")
+      + '</tbody></table></div>'
+    : '<p class="alert-note">' + (loading ? "1時間ごとの予報を取得しています…"
+        : "この日の1時間ごとの予報は取得できませんでした。") + '</p>';
+
+  const um = umbrellaAdvice(day), cl = clothingAdvice(day, d.now);
+
+  box.innerHTML =
+    '<div class="day-detail">'
+    + '<div class="dd-head">'
+    +   '<span class="dd-icon">' + icon(w.icon, 44) + '</span>'
+    +   '<div><div class="dd-date tnum">' + (dt ? (dt.getMonth() + 1) + "月" + dt.getDate() + "日(" + dow + ")" : "")
+    +     (index === 0 ? ' <span class="dd-badge">今日</span>' : index === 1 ? ' <span class="dd-badge">明日</span>' : "") + '</div>'
+    +     '<div class="dd-text">' + esc(dayWeatherText(hours, day.code)) + '</div></div>'
+    +   '<div class="dd-temp tnum">'
+    +     '<span class="hi">' + fmtTemp(day.hi) + '°</span><span class="sl">/</span>'
+    +     '<span class="lo">' + fmtTemp(day.lo) + '°</span>'
+    +     (prev ? '<div class="dd-diff">' + esc(diffText(day.hi, prev.hi)) + '</div>' : "")
+    +   '</div>'
+    + '</div>'
+    + '<div class="dd-periods"><div class="dd-cap">時間帯ごとの降水確率</div><div class="pds">' + periodRow + '</div></div>'
+    + '<dl class="stats tnum" style="margin-top:10px">'
+    +   stat("降水量", (day.precip == null ? "—" : day.precip + " mm"))
+    +   stat("降水時間", (day.precipHours == null ? "—" : Math.round(day.precipHours) + " 時間"))
+    +   stat("最大風速", windText(day.windDeg, day.wind) + " km/h")
+    +   stat("UV指数", (day.uv == null ? "—" : Number(day.uv).toFixed(1)))
+    +   stat("日の出", fmtClock(day.sunrise))
+    +   stat("日の入", fmtClock(day.sunset))
+    +   stat("服装", cl ? cl.emoji + " " + cl.title : "—")
+    +   stat("傘", um ? um.label : "—")
+    + '</dl>'
+    + '<div class="dd-cap" style="margin-top:14px">3時間ごとの予報</div>'
+    + table
+    + '</div>';
+}
+
+/** 日のカードが押されたとき */
+async function selectDay(cityId, index) {
+  const city = CITY_BY_ID.get(cityId);
+  const d = state.data.get(cityId);
+  if (!city || !d || !d.days[index]) return;
+  state.openDay = index;
+  document.querySelectorAll("#daysStrip .day").forEach((el, i) => {
+    el.setAttribute("aria-pressed", String(i === index));
+    el.classList.toggle("selected", i === index);
+  });
+  renderDayDetail(city, d, index);
+  await ensureDayHours(city, d.days[index].date, d);
+  if (state.openCity === cityId && state.openDay === index) renderDayDetail(city, d, index);
+}
+
+/* ============================================================
  * 7. 詳細パネル（週間予報 + 48時間の推移）
  * ============================================================ */
 let lastFocused = null;
 
-function openSheet(cityId) {
+function openSheet(cityId, dayIndex) {
   const city = CITY_BY_ID.get(cityId);
   const d = state.data.get(cityId);
   if (!city) return;
-  lastFocused = document.activeElement;
+  if (!$("#overlay").hasAttribute("open")) lastFocused = document.activeElement;
 
   const w = d ? wmo(d.now.code) : WMO_UNKNOWN;
   let html =
@@ -1701,7 +1981,9 @@ function openSheet(cityId) {
     + '<path d="M5 5l14 14M19 5L5 19"/></svg></button></div><div class="sheet-body">';
 
   if (!d) {
-    html += '<p style="color:var(--text-3)">' + esc(state.errors.get(cityId) || "データを読み込んでいます…") + '</p>';
+    const err = state.errors.get(cityId);
+    html += '<p style="color:var(--text-3)">' + esc(err || "予報を読み込んでいます…") + '</p>'
+      + (err ? '<button type="button" class="btn" id="retryBtn">再取得する</button>' : "");
   } else {
     const t = d.today || {};
 
@@ -1762,7 +2044,7 @@ function openSheet(cityId) {
     html += '<h3 class="sheet-h3">現在の状況</h3><dl class="stats tnum">'
       + stat("体感温度", fmtTemp(d.now.feels, 1) + unitLabel())
       + stat("湿度", fmtNum(d.now.humidity, "%"))
-      + stat("風", windDir(d.now.windDeg) + " " + fmtNum(d.now.wind) + " km/h")
+      + stat("風", windText(d.now.windDeg, d.now.wind) + " km/h")
       + stat("降水量", (d.now.precip == null ? "—" : d.now.precip + " mm"))
       + stat("本日の降水確率", fmtNum(t.pop, "%"))
       + stat("UV指数", (t.uv == null ? "—" : Number(t.uv).toFixed(1)))
@@ -1770,22 +2052,24 @@ function openSheet(cityId) {
       + stat("日の入", fmtClock(t.sunset))
       + '</dl>';
 
-    html += '<h3 class="sheet-h3">2週間予報（' + d.days.length + '日間）</h3>'
-      + '<div class="days-scroll"><div class="days">'
+    html += '<h3 class="sheet-h3">2週間予報（' + d.days.length + '日間）— 日を選ぶと詳細が出ます</h3>'
+      + '<div class="days-wrap"><div class="days-scroll"><div class="days" id="daysStrip">'
       + d.days.map((day, i) => {
           const dw = wmo(day.code);
           const dt = parseLocal(day.date);
           const dow = dt ? DOW[dt.getDay()] : "";
           const cls = dt && dt.getDay() === 0 ? " sun" : (dt && dt.getDay() === 6 ? " sat" : "");
-          return '<div class="day' + (i === 0 ? " today" : "") + (i >= 7 ? " far" : "") + '">'
+          return '<button type="button" class="day' + (i === 0 ? " today" : "") + (i >= 7 ? " far" : "") + '"'
+            + ' data-day="' + i + '" aria-pressed="false">'
             + '<div class="dow' + cls + '">' + (i === 0 ? "今日" : dow) + '</div>'
             + '<div class="date tnum">' + (dt ? (dt.getMonth() + 1) + "/" + dt.getDate() : "") + '</div>'
             + icon(dw.icon, 34)
             + '<div class="tmp tnum"><span class="hi">' + fmtTemp(day.hi) + '</span>'
             + ' <span style="color:var(--text-3)">/</span> <span class="lo">' + fmtTemp(day.lo) + '</span></div>'
-            + '<div class="pop tnum">' + fmtNum(day.pop, "%") + '</div></div>';
+            + '<div class="pop tnum">' + fmtNum(day.pop, "%") + '</div></button>';
         }).join("")
-      + '</div></div>'
+      + '</div></div></div>'
+      + '<div id="dayDetail"></div>'
       + '<p class="alert-note">8日目以降は数値予報の不確実性が大きく、日々変わります。傾向をつかむ目安としてご覧ください。</p>';
 
     if (d.hours.length > 1) {
@@ -1806,6 +2090,11 @@ function openSheet(cityId) {
   sheet.innerHTML = html;
   $("#overlay").setAttribute("open", "");
   document.body.style.overflow = "hidden";
+  state.openCity = cityId;
+  sheet.dataset.hasData = d ? "1" : "0";
+  const day = Math.min(Math.max(dayIndex || 0, 0), d && d.days.length ? d.days.length - 1 : 0);
+  state.openDay = day;
+  if (d && d.days.length) selectDay(cityId, day);
   const close = $("#sheetClose");
   if (close) close.focus();
 }
@@ -1815,6 +2104,7 @@ function stat(label, value) {
 }
 
 function closeSheet() {
+  state.openCity = null;
   $("#overlay").removeAttribute("open");
   document.body.style.overflow = "";
   if (lastFocused && lastFocused.focus) lastFocused.focus();
@@ -1894,6 +2184,12 @@ document.addEventListener("click", ev => {
     saveState(); render();
     return;
   }
+  const dayBtn = ev.target.closest("[data-day]");
+  if (dayBtn && state.openCity) {
+    selectDay(state.openCity, parseInt(dayBtn.getAttribute("data-day"), 10));
+    return;
+  }
+
   const open = ev.target.closest("[data-open]");
   if (open) { openSheet(open.getAttribute("data-open")); return; }
 
@@ -1930,6 +2226,7 @@ document.addEventListener("click", ev => {
     return;
   }
 
+  if (ev.target.closest("#retryBtn")) { refresh(true); return; }
   if (ev.target.closest("#sheetClose") || ev.target.id === "overlay") closeSheet();
 });
 
@@ -1951,7 +2248,12 @@ $("#refreshBtn").addEventListener("click", () => refresh(true));
 $("#viewCards").addEventListener("click", () => { state.view = "cards"; saveState(); render(); });
 $("#viewTable").addEventListener("click", () => { state.view = "table"; saveState(); render(); });
 $("#sortSel").addEventListener("change", e => { state.sort = e.target.value; saveState(); render(); });
-$("#unitSel").addEventListener("change", e => { state.unit = e.target.value; saveState(); render(); });
+$("#unitSel").addEventListener("change", e => {
+  state.unit = e.target.value;
+  saveState();
+  render();
+  if (state.openCity && $("#overlay").hasAttribute("open")) openSheet(state.openCity, state.openDay);
+});
 $("#themeBtn").addEventListener("click", () => {
   state.theme = state.theme === "auto" ? "light" : state.theme === "light" ? "dark" : "auto";
   saveState(); applyTheme();
