@@ -1,0 +1,36 @@
+# 秘匿情報
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# 依存パッケージ
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+
+# ビルド成果物・生成物
+dist/
+build/
+out/
+*.tgz
+tmp/
+.cache/
+coverage/
+*.log
+npm-debug.log*
+
+# 動作確認の出力（npm run verify:browser）
+verify-output/
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.idea/
+.vscode/

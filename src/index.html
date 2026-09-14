@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      通信をしないアプリなので default-src 'none' を基点にする。
+      file:// で開いたとき 'self' は不透明オリジンになりスクリプトがブロックされるため
+      file: を併記している（HTTPS 配信時に file: から資源は読めないので緩和にはならない）。
+      frame-ancestors は meta では無視される仕様なので入れない（配信側の HTTP ヘッダで指定する）。
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' file:; style-src 'self' file:; img-src 'self' file: data:; connect-src 'none'; form-action 'none'; base-uri 'none'"
+    />
+    <meta name="color-scheme" content="light dark" />
+    <!-- 外部リクエストを1件も発生させないため、ファビコンも埋め込みにする -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f6f5c'/%3E%3Cpath d='M6 20h6v6H6zm14 0h6v6h-6z' fill='%23fff'/%3E%3Cpath d='M12 22h8v2h-8z' fill='%23f0a86b'/%3E%3C/svg%3E"
+    />
+    <meta
+      name="description"
+      content="有給休暇をどこに置けば連休が最長になるかを計算する、通信なし・依存なしのツール。祝日・振替休日・国民の休日を祝日法どおりに計算します。"
+    />
+    <title>やすみつなぎ — 有給で連休を設計する</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">本文へスキップ</a>
+
+    <header class="site-header">
+      <div class="site-header__inner">
+        <div class="site-header__title">
+          <h1>やすみつなぎ</h1>
+          <p class="tagline">その1日で、何日つながる？</p>
+        </div>
+        <button
+          type="button"
+          id="theme-toggle"
+          class="theme-toggle"
+          aria-live="polite"
+        >
+          テーマ切替
+        </button>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="panel settings" aria-labelledby="settings-heading">
+        <h2 id="settings-heading">条件</h2>
+
+        <div class="field-grid">
+          <div class="field">
+            <label for="start-date">いつから考える</label>
+            <input type="date" id="start-date" min="2007-01-01" max="2099-12-31" />
+          </div>
+
+          <div class="field">
+            <label for="period">期間</label>
+            <select id="period">
+              <option value="3">3か月</option>
+              <option value="6">6か月</option>
+              <option value="12" selected>1年</option>
+            </select>
+          </div>
+
+          <div class="field field--budget">
+            <label for="budget">使える有給休暇</label>
+            <div class="budget-row">
+              <input type="range" id="budget" min="0" max="20" step="1" value="3" />
+              <output id="budget-output" for="budget">3日</output>
+            </div>
+          </div>
+
+          <div class="field field--weekly">
+            <fieldset>
+              <legend>毎週の休み</legend>
+              <div class="weekday-checks" id="weekday-checks"></div>
+            </fieldset>
+          </div>
+        </div>
+
+        <details class="advanced">
+          <summary>詳細設定（会社の休業日・特別出勤日）</summary>
+          <div class="field-grid">
+            <div class="field">
+              <label for="company-holidays">会社の休業日</label>
+              <textarea
+                id="company-holidays"
+                rows="3"
+                placeholder="2026-08-13&#10;2026-08-14"
+                spellcheck="false"
+              ></textarea>
+              <p class="hint">
+                年末年始や夏季休業など。1行に1日、<code>YYYY-MM-DD</code> で入力します。
+              </p>
+            </div>
+
+            <div class="field">
+              <label for="work-overrides">特別出勤日</label>
+              <textarea
+                id="work-overrides"
+                rows="3"
+                placeholder="2026-09-21"
+                spellcheck="false"
+              ></textarea>
+              <p class="hint">祝日や週休でも出勤する日。ほかのどの設定よりも優先されます。</p>
+            </div>
+
+            <div class="field">
+              <label for="min-length">連休とみなす最短日数</label>
+              <select id="min-length">
+                <option value="2">2日以上</option>
+                <option value="3" selected>3日以上</option>
+                <option value="4">4日以上</option>
+                <option value="5">5日以上</option>
+              </select>
+            </div>
+          </div>
+        </details>
+
+        <p class="error-message" id="error-message" role="alert" hidden></p>
+      </section>
+
+      <section class="panel summary" aria-labelledby="summary-heading">
+        <h2 id="summary-heading">この条件のまとめ</h2>
+        <dl class="stat-list" id="summary-stats"></dl>
+      </section>
+
+      <div class="tabs">
+        <div class="tablist" role="tablist" aria-label="表示の切り替え">
+          <button type="button" role="tab" id="tab-plans" aria-controls="panel-plans">
+            おすすめプラン
+          </button>
+          <button type="button" role="tab" id="tab-year" aria-controls="panel-year">
+            年間プラン
+          </button>
+          <button type="button" role="tab" id="tab-calendar" aria-controls="panel-calendar">
+            カレンダー
+          </button>
+          <button type="button" role="tab" id="tab-holidays" aria-controls="panel-holidays">
+            祝日一覧
+          </button>
+        </div>
+
+        <section
+          class="panel tabpanel"
+          role="tabpanel"
+          id="panel-plans"
+          aria-labelledby="tab-plans"
+          tabindex="0"
+        >
+          <h2>おすすめプラン</h2>
+          <p class="lead">
+            「1日あたり」は、有給1日で何日休めるかです。数字が大きいほど得な置き方です。
+          </p>
+          <div id="plans-list" class="card-list"></div>
+        </section>
+
+        <section
+          class="panel tabpanel"
+          role="tabpanel"
+          id="panel-year"
+          aria-labelledby="tab-year"
+          tabindex="0"
+          hidden
+        >
+          <h2>年間プラン</h2>
+          <p class="lead">
+            使える有給をこの期間にどう配分すると、休みの合計がいちばん長くなるかの組み合わせです。
+          </p>
+          <div id="year-summary" class="year-summary"></div>
+          <div id="year-list" class="card-list"></div>
+        </section>
+
+        <section
+          class="panel tabpanel"
+          role="tabpanel"
+          id="panel-calendar"
+          aria-labelledby="tab-calendar"
+          tabindex="0"
+          hidden
+        >
+          <h2>カレンダー</h2>
+          <ul class="legend" id="calendar-legend"></ul>
+          <div id="calendar-months" class="months"></div>
+        </section>
+
+        <section
+          class="panel tabpanel"
+          role="tabpanel"
+          id="panel-holidays"
+          aria-labelledby="tab-holidays"
+          tabindex="0"
+          hidden
+        >
+          <h2>祝日一覧</h2>
+          <p class="lead">この期間に含まれる祝日・振替休日・国民の休日と、その根拠です。</p>
+          <div id="holiday-table" class="table-wrap"></div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <h2>このツールについて</h2>
+      <ul>
+        <li>
+          祝日は「国民の祝日に関する法律」に基づく<strong>計算値</strong>です。春分の日・秋分の日は
+          近似式で求めており、法的には前年2月の官報告示で確定します。将来の法改正も反映されません。
+          重要な予定は公式の暦で確認してください。
+        </li>
+        <li>対応している期間は2007年〜2099年です（振替休日の現行規定が2007年施行のため）。</li>
+        <li>
+          入力内容は外部に送信されません。通信を一切行わないため、オフラインでも動作します。
+        </li>
+        <li>
+          条件は、この端末のブラウザ内（localStorage）にのみ保存されます。共有の端末で使った場合は
+          下のボタンで消去してください。
+        </li>
+        <li>半休・時間単位年休、有給の付与日数や繰越の管理には対応していません。</li>
+      </ul>
+      <button type="button" id="clear-storage" class="button button--quiet">
+        保存した条件を消す
+      </button>
+      <p class="storage-status" id="storage-status" role="status"></p>
+    </footer>
+
+    <script src="lib/dateutil.js"></script>
+    <script src="lib/holidays.js"></script>
+    <script src="lib/calendar.js"></script>
+    <script src="lib/planner.js"></script>
+    <script src="lib/ics.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
