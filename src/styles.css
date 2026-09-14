@@ -1,0 +1,812 @@
+/* やすみつなぎ — テーマ変数とレイアウト */
+
+:root {
+  color-scheme: light;
+  --bg: #f6f5f1;
+  --bg-panel: #ffffff;
+  --bg-sunken: #f1efe9;
+  --text: #22201c;
+  --text-muted: #6b665d;
+  --border: #ddd8cd;
+  --border-strong: #c3bdaf;
+  --accent: #1f6f5c;
+  --accent-text: #ffffff;
+  --accent-soft: #e3f0eb;
+  --pto: #b4571a;
+  --pto-soft: #fbeade;
+  --holiday: #b32c3c;
+  --holiday-soft: #fae4e6;
+  --weekly: #3f6ba8;
+  --weekly-soft: #e5edf8;
+  --company: #6b5aa6;
+  --company-soft: #ece8f7;
+  --shadow: 0 1px 2px rgba(34, 32, 28, 0.06), 0 8px 24px rgba(34, 32, 28, 0.05);
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #16181a;
+  --bg-panel: #1f2225;
+  --bg-sunken: #272b2f;
+  --text: #eceae4;
+  --text-muted: #a3a096;
+  --border: #383d42;
+  --border-strong: #4d545b;
+  --accent: #64c0a5;
+  --accent-text: #10221c;
+  --accent-soft: #23352f;
+  --pto: #f0a86b;
+  --pto-soft: #3a2b1d;
+  --holiday: #f08e99;
+  --holiday-soft: #3a2328;
+  --weekly: #8fb4e8;
+  --weekly-soft: #212c3a;
+  --company: #b9a9ea;
+  --company-soft: #2a2539;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #16181a;
+    --bg-panel: #1f2225;
+    --bg-sunken: #272b2f;
+    --text: #eceae4;
+    --text-muted: #a3a096;
+    --border: #383d42;
+    --border-strong: #4d545b;
+    --accent: #64c0a5;
+    --accent-text: #10221c;
+    --accent-soft: #23352f;
+    --pto: #f0a86b;
+    --pto-soft: #3a2b1d;
+    --holiday: #f08e99;
+    --holiday-soft: #3a2328;
+    --weekly: #8fb4e8;
+    --weekly-soft: #212c3a;
+    --company: #b9a9ea;
+    --company-soft: #2a2539;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans',
+    'Noto Sans JP', 'Yu Gothic UI', Meiryo, sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  -webkit-text-size-adjust: 100%;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.35;
+  margin: 0;
+  font-weight: 700;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--accent);
+  color: var(--accent-text);
+  padding: 0.5rem 1rem;
+  z-index: 10;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- ヘッダー ---------- */
+
+.site-header {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.site-header__inner,
+main,
+.site-footer {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding-inline: clamp(1rem, 4vw, 2rem);
+}
+
+.site-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 1.25rem;
+}
+
+.site-header h1 {
+  font-size: clamp(1.4rem, 4vw, 1.9rem);
+  letter-spacing: 0.06em;
+}
+
+.tagline {
+  margin: 0.1rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.theme-toggle {
+  flex: none;
+}
+
+main {
+  padding-block: 1.5rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ---------- 共通部品 ---------- */
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: clamp(1rem, 3vw, 1.5rem);
+  box-shadow: var(--shadow);
+}
+
+.panel > h2 {
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
+}
+
+.lead {
+  margin: 0 0 1rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+button,
+.button {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+}
+
+button:hover,
+.button:hover {
+  border-color: var(--accent);
+}
+
+.button--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.button--quiet {
+  background: transparent;
+}
+
+/* ---------- 条件フォーム ---------- */
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem 1.25rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.field > label,
+.field legend {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 0;
+}
+
+input[type='date'],
+select,
+textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+textarea {
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.field--budget .budget-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+input[type='range'] {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+#budget-output {
+  flex: none;
+  min-width: 3.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.weekday-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.weekday-checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.5rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: var(--bg);
+}
+
+.weekday-checks input:checked + span {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.advanced {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.advanced summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.advanced .field-grid {
+  margin-top: 1rem;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--bg-sunken);
+  padding: 0.05em 0.3em;
+  border-radius: 4px;
+}
+
+.error-message {
+  margin: 1rem 0 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-sm);
+  background: var(--holiday-soft);
+  color: var(--holiday);
+  border: 1px solid currentColor;
+  font-size: 0.9rem;
+}
+
+/* ---------- まとめ ---------- */
+
+.stat-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.stat-list > div {
+  background: var(--bg-sunken);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+}
+
+.stat-list dt {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.stat-list dd {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-list dd .unit {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 0.15rem;
+}
+
+/* ---------- タブ ---------- */
+
+.tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.tablist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tablist [role='tab'] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.tablist [role='tab'][aria-selected='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.tabpanel:focus-visible {
+  outline-offset: 4px;
+}
+
+/* ---------- プランカード ---------- */
+
+.card-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.plan-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  background: var(--bg);
+  display: grid;
+  gap: 0.6rem;
+}
+
+.plan-card--top {
+  border-color: var(--accent);
+  border-width: 2px;
+  background: var(--accent-soft);
+}
+
+.plan-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.85rem;
+}
+
+.plan-card__length {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-card__range {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.plan-card__perday {
+  margin-left: auto;
+  flex: none;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 0.1rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-card__pto {
+  font-size: 0.95rem;
+}
+
+.plan-card__pto strong {
+  color: var(--pto);
+}
+
+.plan-card__bar {
+  display: flex;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  height: 1.4rem;
+}
+
+.plan-card__bar span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  line-height: 1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.bar-pto {
+  background: var(--pto-soft);
+  color: var(--pto);
+  font-weight: 700;
+}
+
+.bar-holiday {
+  background: var(--holiday-soft);
+  color: var(--holiday);
+}
+
+.bar-weekly {
+  background: var(--weekly-soft);
+  color: var(--weekly);
+}
+
+.bar-company {
+  background: var(--company-soft);
+  color: var(--company);
+}
+
+.plan-card__detail {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.plan-card__detail summary {
+  cursor: pointer;
+}
+
+.plan-card__reason {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.plan-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.note {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.export-status {
+  font-size: 0.8rem;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.empty {
+  margin: 0;
+  padding: 1rem;
+  background: var(--bg-sunken);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.year-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.year-summary > div {
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+}
+
+.year-summary .label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.year-summary .value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- カレンダー ---------- */
+
+.legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  font-size: 0.82rem;
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legend .swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 5px;
+  border: 1px solid var(--border-strong);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.months {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 1rem;
+}
+
+.month {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem;
+  background: var(--bg);
+}
+
+.month table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.month caption {
+  font-weight: 700;
+  text-align: left;
+  padding-bottom: 0.35rem;
+  font-size: 0.95rem;
+}
+
+.month th {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding-bottom: 0.2rem;
+}
+
+.month td {
+  padding: 1px;
+  text-align: center;
+}
+
+.month .cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  aspect-ratio: 1 / 1;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.month .cell .mark {
+  font-size: 0.6rem;
+  line-height: 1;
+  height: 0.7em;
+}
+
+/* 凡例の見本（.swatch--*）とカレンダーのセル（.cell--*）で配色を共有する */
+
+.cell--workday,
+.swatch--workday {
+  color: var(--text-muted);
+}
+
+.cell--holiday,
+.cell--substitute,
+.cell--citizens,
+.swatch--holiday {
+  background: var(--holiday-soft);
+  color: var(--holiday);
+  border-color: var(--holiday);
+  font-weight: 700;
+}
+
+.cell--weekly,
+.swatch--weekly {
+  background: var(--weekly-soft);
+  color: var(--weekly);
+  border-color: var(--weekly);
+}
+
+.cell--company,
+.swatch--company {
+  background: var(--company-soft);
+  color: var(--company);
+  border-color: var(--company);
+}
+
+.cell--pto,
+.swatch--pto {
+  background: var(--pto-soft);
+  color: var(--pto);
+  border-color: var(--pto);
+  font-weight: 700;
+}
+
+.cell--pto {
+  outline: 2px dashed var(--pto);
+  outline-offset: -3px;
+}
+
+/* ---------- 祝日一覧 ---------- */
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table.data {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.88rem;
+}
+
+table.data th,
+table.data td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+table.data th {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+table.data td:first-child {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.kind-tag {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.kind-tag--holiday {
+  color: var(--holiday);
+  background: var(--holiday-soft);
+}
+
+.kind-tag--substitute {
+  color: var(--weekly);
+  background: var(--weekly-soft);
+}
+
+.kind-tag--citizens {
+  color: var(--company);
+  background: var(--company-soft);
+}
+
+/* ---------- フッター ---------- */
+
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding-block: 1.5rem 3rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.site-footer h2 {
+  font-size: 0.92rem;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+
+.site-footer ul {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.storage-status {
+  margin: 0.5rem 0 0;
+  min-height: 1.2em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@media print {
+  .site-header__inner,
+  .settings,
+  .tablist,
+  .plan-card__actions,
+  .site-footer button {
+    display: none;
+  }
+
+  .panel {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+}

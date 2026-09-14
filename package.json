@@ -1,0 +1,17 @@
+{
+  "name": "daily-useful-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "日常の困りごとを解決する、依存なし・通信なしの単一ページツール集",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "test:tz": "TZ=UTC npm test && TZ=Asia/Tokyo npm test && TZ=America/Los_Angeles npm test",
+    "check": "node tools/static-check.js",
+    "verify:browser": "node tools/verify-browser.js",
+    "audit": "npm audit --audit-level=low"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
