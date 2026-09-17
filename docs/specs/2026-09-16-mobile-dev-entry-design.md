@@ -138,18 +138,49 @@ PR #<番号> <URL>
 `verification-before-completion` の要求は変わらない。
 **実行していないコマンドの結果を書かない。** 確認できなかったものは「未検証」の行に書く。
 
-### Vercel プレビューの扱い（縮退つき）
+### Vercel プレビューの扱い
 
-| リポジトリ | 現状 | 完了報告での扱い |
-|---|---|---|
-| daily-useful-tools / game-apps | `vercel.json` あり | プレビュー URL を添える（連携確認後） |
-| kouritsu-apps / syakai-hackathon | `vercel.json` なし | 連携するまでは「未検証」と明示 |
-| web-sites / dxworkrepository | 実装なし | 実装追加時に判断 |
-| app_oshikatsu | Docker 構成 | 対象外（プレビュー環境なし） |
+**2026-09-17 に全7リポジトリの PR を実測して確定。** 当初は `vercel.json` の有無で判定していたが、
+**これは誤った基準だった**（`kouritsu-apps` と `syakai-hackathon` は `vercel.json` が無いのに連携済み）。
+連携は Vercel プロジェクト側の設定で決まり、リポジトリの中身からは判定できない。
+**PR に vercel[bot] のコメントが付くかどうかが唯一の判定手段である。**
 
-**未確認の前提:** 各リポジトリが Vercel プロジェクトに連携済みで、Preview Deployments が
-有効かどうかは、リポジトリの中身からは判定できない。PR に Vercel bot のコメントが付くかで確認する。
-**連携が無い場合でも `/go` は動作する**（プレビュー行を出さないだけ）。
+| リポジトリ | 連携 | プロジェクト数 | `rootDirectory` |
+|---|---|---|---|
+| daily-useful-tools | あり | 5 | `tools` / `weather` / ルート×3 |
+| game-apps | あり | 4 | `chiikawa-weeding`×3 / ルート |
+| syakai-hackathon | あり | 3 | ルート×3 |
+| kouritsu-apps | あり | 1 | ルート |
+| app_oshikatsu | なし | 0 | — |
+| web-sites | なし | 0 | — |
+| dxworkrepository | なし | 0 | — |
+
+#### どのプレビュー URL を添えるか
+
+**1リポジトリに複数のプロジェクトがあり、それぞれ `rootDirectory` が異なる。**
+URL を1本貼るだけでは、変更した箇所のプレビューとは限らない。
+
+完了報告では、**変更したパスを含む `rootDirectory` を持つプロジェクトの URL を、プロジェクト名つきで示す。**
+
+```
+プレビュー: soranarabe-v2 (weather/) https://soranarabe-v2-git-....vercel.app
+```
+
+判定できないとき（該当が複数ある、`rootDirectory` が重複している等）は、
+**推測で1本選ばず、候補を並べて人間に確認する。**
+
+#### 観測された問題（本設計の対象外）
+
+`game-apps` は4プロジェクト中3つが同じ `rootDirectory: chiikawa-weeding` を指しており、
+`daily-useful-tools` にもルート直下を指すプロジェクトが3つある。
+どれが正なのか、リポジトリからも PR からも判断できない。
+**重複プロジェクトの整理は別テーマ**とし、本設計では「候補を並べて聞く」で対処する。
+
+#### 連携が無いリポジトリ
+
+`app_oshikatsu` / `web-sites` / `dxworkrepository` では、プレビュー行を出さず「未検証」と明示する。
+**連携の有無にかかわらず `/go` は動作する。**
+
 
 ## 制約とリスク
 
