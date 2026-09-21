@@ -14,7 +14,7 @@ test('コミット済みの配信物が src/ の再ビルド結果と一致す�
   assert.equal(
     actual,
     expected,
-    'yasumi/index.html が古くなっています。`npm run build` を実行してコミットしてください。',
+    'yasumi/index.html が古くなっています。`npm run build:html` を実行してコミットしてください。',
   );
 });
 

@@ -160,12 +160,16 @@ python3 tools/build_standalone.py out.html --fragment # Artifact用（doctype/he
 （ビルド忘れは `tests/build.test.js` が検出する）。
 
 ```bash
-npm run build   # src/ から yasumi/index.html を生成
-npm test        # 単体テスト（Node 組み込みの node:test、依存追加なし）
-npm run lint    # 静的解析（構文検査・危険な API・外部 URL・機密情報の直書き）
-npm run check   # lint + test
-npm audit       # 依存の脆弱性（実行時依存ゼロ）
+npm run build:html  # src/ から yasumi/index.html を生成
+npm test            # 単体テスト（Node 組み込みの node:test、依存追加なし）
+npm run lint        # 静的解析（構文検査・危険な API・外部 URL・機密情報の直書き）
+npm run check       # lint + test
+npm audit           # 依存の脆弱性（実行時依存ゼロ）
 ```
+
+生成用のスクリプトを `build` ではなく `build:html` という名前にしているのは、
+Vercel のゼロコンフィグ検出が `build` スクリプトを見つけると、このリポジトリを静的配信ではなく
+「ビルドが必要なプロジェクト」と判断し、出力ディレクトリが見つからずデプロイに失敗するため。
 
 ## デプロイ
 

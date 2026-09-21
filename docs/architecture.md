@@ -209,7 +209,7 @@ img-src data:; base-uri 'none'; form-action 'none';
 ```bash
 npm test        # 単体テスト
 npm run lint    # 静的解析
-npm run build   # 単一 HTML を再生成
+npm run build:html # 単一 HTML を再生成
 npm audit       # 依存の脆弱性（実行時依存ゼロ）
 ```
 
