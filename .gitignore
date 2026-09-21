@@ -1,0 +1,33 @@
+# 依存パッケージ
+node_modules/
+.npm/
+.pnpm-store/
+
+# 機密情報
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# ビルド成果物・一時ファイル
+dist/
+build/
+out/
+tmp/
+*.tmp
+*.log
+npm-debug.log*
+.cache/
+.vercel/
+
+# エディタ・OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# 生成した単一 HTML の検証用出力（tools/build.mjs の出力先以外）
+*.generated.html

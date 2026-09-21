@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="__CSP__" />
+    <meta name="referrer" content="no-referrer" />
+    <title>つなぎやすみ — 有給の連休プランナー</title>
+    <meta
+      name="description"
+      content="祝日と週休のあいだを有給でつないで、いちばんよく休める取り方を計算します。通信なし・登録なし。"
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f6f5c'/%3E%3Crect x='6' y='9' width='6' height='6' rx='1.5' fill='%23fff'/%3E%3Crect x='20' y='9' width='6' height='6' rx='1.5' fill='%23fff'/%3E%3Crect x='6' y='19' width='20' height='5' rx='2' fill='%23a9e2cd'/%3E%3C/svg%3E"
+    />
+    <style>
+      __STYLE__
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="site-header">
+        <div>
+          <h1 class="title">つなぎやすみ</h1>
+          <p class="tagline">とびとびの休みを、つないで見る。</p>
+        </div>
+        <button type="button" id="themeToggle" class="icon-button">テーマ: 自動</button>
+      </header>
+
+      <section class="card" aria-labelledby="controls-heading">
+        <h2 id="controls-heading" class="visually-hidden">計画の条件</h2>
+        <div class="controls">
+          <label class="field" for="year">計画する年<select id="year"></select></label>
+          <label class="field" for="budget">使える有給<input id="budget" type="number" min="0" max="40" step="1" inputmode="numeric" /></label>
+          <label class="field" for="mode">ねらい<select id="mode"></select></label>
+        </div>
+        <p class="note">
+          初期値は「土日祝休み・有給5日」です。シフト勤務の方は下の「勤務形態と会社の休業日」を開いて、休みの曜日を変更してください。
+        </p>
+      </section>
+
+      <section class="card" aria-labelledby="summary-heading">
+        <h2 id="summary-heading">この取り方だと、こうなります</h2>
+        <p class="lead" id="summaryLead"></p>
+        <div class="stats" id="stats"></div>
+        <div id="warn" hidden></div>
+      </section>
+
+      <section class="card" aria-labelledby="plan-heading">
+        <h2 id="plan-heading">できあがる連休</h2>
+        <p class="note">3日以上の連休を、日付順に並べています。有給を使わずにできる連休も含みます。</p>
+        <ul class="streaks" id="streaks"></ul>
+        <div class="actions">
+          <button type="button" id="applyPlan" class="button primary">おすすめの取り方にする</button>
+          <button type="button" id="clearPicks" class="button">有給をすべて外す</button>
+          <button type="button" id="downloadIcs" class="button">.ics でカレンダーに取り込む</button>
+        </div>
+        <p class="note">
+          カレンダーで日を選び直すと、その選択が優先されます。年・有給日数・ねらい・勤務形態を変えると、おすすめの取り方で計算し直します。
+        </p>
+        <p class="note" id="downloadNote" role="status"></p>
+      </section>
+
+      <section class="card" aria-labelledby="ranking-heading">
+        <h2 id="ranking-heading">狙い目ランキング</h2>
+        <p class="note">
+          少ない有給で効きやすい取り方の順です。「今の休み」は、その日を取る前からつながっている休みの日数です
+          （5日の休みを6日にするより、2日と2日をつないで5連休にする方を上位にしています）。
+          ほかの日を取らない前提での評価なので、上のおすすめとは選ぶ日が異なることがあります。
+        </p>
+        <div class="table-scroll">
+          <table id="ranking">
+            <thead>
+              <tr>
+                <th scope="col">有給</th>
+                <th scope="col">できる連休</th>
+                <th scope="col">今の休み</th>
+                <th scope="col">取る日</th>
+                <th scope="col">やり方</th>
+                <th scope="col">操作</th>
+              </tr>
+            </thead>
+            <tbody id="rankingBody"></tbody>
+          </table>
+        </div>
+        <p class="note" id="rankingEmpty" hidden>候補がありません。有給の日数を増やすか、条件を見直してください。</p>
+      </section>
+
+      <section class="card" aria-labelledby="calendar-heading">
+        <h2 id="calendar-heading">年間カレンダー</h2>
+        <p class="note">
+          出勤日を押すと、有給の予定として出し入れできます。
+          <a class="skip-link" href="#after-calendar">カレンダーを読み飛ばして設定へ</a>
+        </p>
+        <ul class="legend">
+          <li><span class="chip off" aria-hidden="true"></span>休み（週休・会社休業日）</li>
+          <li><span class="chip holiday" aria-hidden="true">祝</span>祝日・振替休日</li>
+          <li><span class="chip leave" aria-hidden="true">有</span>有給にする日</li>
+          <li><span class="chip streak" aria-hidden="true">＿</span>連休（3日以上）に含まれる日</li>
+        </ul>
+        <div class="months" id="months"></div>
+      </section>
+
+      <details class="settings" id="after-calendar">
+        <summary>勤務形態と会社の休業日</summary>
+
+        <fieldset class="dow-picker" id="weeklyOff"></fieldset>
+
+        <label class="check-row" for="useHolidays">
+          <input type="checkbox" id="useHolidays" />
+          祝日も休みにする（シフト勤務などで祝日も出勤する場合は外してください）
+        </label>
+
+        <h3>会社の休業日</h3>
+        <p class="note">年末年始・夏季休業・創立記念日など、会社独自の休みを登録できます（最大20件）。</p>
+        <ul class="closures" id="closures"></ul>
+        <div class="closure-form">
+          <label class="field" for="closureStart">開始日<input type="date" id="closureStart" /></label>
+          <label class="field" for="closureEnd">終了日（省略可）<input type="date" id="closureEnd" /></label>
+          <label class="field" for="closureLabel">名前<input type="text" id="closureLabel" maxlength="40" placeholder="年末年始" /></label>
+          <button type="button" id="closureAdd" class="button">追加する</button>
+        </div>
+        <p class="form-error" id="closureError" role="alert"></p>
+
+        <div class="actions">
+          <button type="button" id="resetAll" class="button">設定をすべて初期化する</button>
+        </div>
+      </details>
+
+      <footer class="site-footer">
+        <p>
+          入力した内容はこのブラウザの中だけに保存され、外部へ送信されません（通信・解析・外部フォントの読み込みを一切行いません）。
+          共有のパソコンで使ったときは、「勤務形態と会社の休業日」の中にある「設定をすべて初期化する」で消せます。
+        </p>
+        <ul>
+          <li>祝日は国民の祝日に関する法律にもとづいて計算しています。春分の日・秋分の日は近似式による算出です。</li>
+          <li>国民の祝日は前年2月の官報で確定します。翌々年以降の表示は予測です。</li>
+          <li>本アプリは労務上の助言ではありません。取得の可否や付与日数は勤務先の規程に従ってください。</li>
+        </ul>
+        <p>つなぎやすみ — MIT License</p>
+      </footer>
+    </div>
+    <script>
+      __SCRIPT__
+    </script>
+  </body>
+</html>
