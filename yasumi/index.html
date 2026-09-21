@@ -1,0 +1,2206 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-OgQsiWwwVaP2R3/E0YUOeXE+D3zbxZ6GSMqbAcmJwcs='; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'" />
+    <meta name="referrer" content="no-referrer" />
+    <title>つなぎやすみ — 有給の連休プランナー</title>
+    <meta
+      name="description"
+      content="祝日と週休のあいだを有給でつないで、いちばんよく休める取り方を計算します。通信なし・登録なし。"
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f6f5c'/%3E%3Crect x='6' y='9' width='6' height='6' rx='1.5' fill='%23fff'/%3E%3Crect x='20' y='9' width='6' height='6' rx='1.5' fill='%23fff'/%3E%3Crect x='6' y='19' width='20' height='5' rx='2' fill='%23a9e2cd'/%3E%3C/svg%3E"
+    />
+    <style>
+      /* つなぎやすみ — スタイル。外部フォント・外部リソースは一切読み込まない。 */
+
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --ink: #16202c;
+  --ink-mute: #5a6775;
+  --line: #d9dfe6;
+  --accent: #1f6f5c;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2f1eb;
+  --holiday: #b3453a;
+  --holiday-soft: #fbe9e6;
+  --leave: #b8760c;
+  --leave-soft: #fdf1dc;
+  --shadow: 0 1px 2px rgba(16, 32, 44, 0.08), 0 8px 24px rgba(16, 32, 44, 0.06);
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #11161c;
+    --surface: #1a212a;
+    --surface-2: #222b36;
+    --ink: #e8edf2;
+    --ink-mute: #9aa8b6;
+    --line: #313c48;
+    --accent: #5dc0a3;
+    --accent-ink: #0d1419;
+    --accent-soft: #1e3b34;
+    --holiday: #f08b7e;
+    --holiday-soft: #3a2422;
+    --leave: #edb75a;
+    --leave-soft: #3a2f18;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #11161c;
+  --surface: #1a212a;
+  --surface-2: #222b36;
+  --ink: #e8edf2;
+  --ink-mute: #9aa8b6;
+  --line: #313c48;
+  --accent: #5dc0a3;
+  --accent-ink: #0d1419;
+  --accent-soft: #1e3b34;
+  --holiday: #f08b7e;
+  --holiday-soft: #3a2422;
+  --leave: #edb75a;
+  --leave-soft: #3a2f18;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic',
+    Meiryo, sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.wrap {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 16px 64px;
+}
+
+/* ヘッダー */
+.site-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 28px 0 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: 0.04em;
+}
+
+.tagline {
+  margin: 2px 0 0;
+  color: var(--ink-mute);
+  font-size: 0.9rem;
+}
+
+.icon-button {
+  flex: none;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: var(--surface-2);
+}
+
+/* カード */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  margin-top: 18px;
+}
+
+.card > h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+
+.card > h2 + .note {
+  margin-top: 0;
+}
+
+.note {
+  color: var(--ink-mute);
+  font-size: 0.85rem;
+  margin: 6px 0 0;
+}
+
+/* 操作バー */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 20px;
+  align-items: flex-end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--ink-mute);
+}
+
+.field select,
+.field input[type='number'],
+.field input[type='date'],
+.field input[type='text'] {
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  min-height: 40px;
+}
+
+.field input[type='number'] {
+  width: 7.5rem;
+}
+
+/* サマリー */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stat {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.stat dt {
+  font-size: 0.8rem;
+  color: var(--ink-mute);
+}
+
+.stat dd {
+  margin: 2px 0 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat dd .unit {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--ink-mute);
+  margin-left: 2px;
+}
+
+.lead {
+  margin: 12px 0 0;
+  font-size: 1rem;
+}
+
+.warn {
+  margin-top: 12px;
+  background: var(--holiday-soft);
+  border: 1px solid var(--holiday);
+  color: var(--ink);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+
+/* ボタン列 */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.button {
+  font: inherit;
+  font-size: 0.9rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 9px 14px;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--surface-2);
+}
+
+.button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.button.primary:hover {
+  filter: brightness(1.06);
+}
+
+/* 連休リスト */
+.streaks {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.streak {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  background: var(--surface);
+}
+
+.streak .len {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.streak .span {
+  font-variant-numeric: tabular-nums;
+}
+
+.streak .leave {
+  font-size: 0.85rem;
+  color: var(--leave);
+}
+
+.streak.no-leave {
+  border-left-color: var(--line);
+}
+
+.streak.no-leave .len {
+  color: var(--ink);
+}
+
+/* ランキング表 */
+/* position: static だと、中の .visually-hidden（絶対配置）がこの領域からはみ出し、
+   ページ全体の横幅を押し広げてしまう。 */
+.table-scroll {
+  position: relative;
+  overflow-x: auto;
+  margin-top: 12px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  border-bottom: 1px solid var(--line);
+  padding: 8px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+th {
+  color: var(--ink-mute);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+td.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+tr.picked td {
+  background: var(--accent-soft);
+}
+
+/* カレンダー */
+/* カレンダーは日ごとにボタンが並ぶため、キーボードで読み飛ばせる出口を用意する。 */
+.skip-link {
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  color: var(--ink-mute);
+}
+
+.legend .chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 4px;
+  margin-right: 4px;
+  border: 1px solid var(--line);
+  font-size: 0.75em;
+}
+
+.chip.off {
+  background: var(--surface-2);
+}
+
+.chip.holiday {
+  background: var(--holiday-soft);
+  color: var(--holiday);
+}
+
+.chip.leave {
+  background: var(--leave-soft);
+  color: var(--leave);
+  border-color: var(--leave);
+}
+
+.chip.streak {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* 1か月ぶんの最小幅は「セルの最小幅 30px × 7 + 隙間」で決まる。
+   これを下回る列幅にすると月どうしが重なるため、minmax の下限を割らないこと。 */
+.months {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.month {
+  min-width: 0;
+}
+
+.month h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.month h3 .month-note {
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--ink-mute);
+  margin-left: 6px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.dow {
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--ink-mute);
+  padding-bottom: 2px;
+}
+
+.dow.sun {
+  color: var(--holiday);
+}
+
+.dow.sat {
+  color: #3f74b0;
+}
+
+.day {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  padding: 0;
+}
+
+button.day {
+  cursor: pointer;
+}
+
+button.day:hover {
+  border-color: var(--accent);
+}
+
+.day.empty {
+  visibility: hidden;
+}
+
+.day.off {
+  background: var(--surface-2);
+  color: var(--ink-mute);
+}
+
+.day.holiday {
+  background: var(--holiday-soft);
+  color: var(--holiday);
+  font-weight: 600;
+}
+
+/* 祝日だが出勤日（祝日を休みにしない設定）。背景は付けず、文字色で示す。 */
+.day.holiday-work {
+  color: var(--holiday);
+  font-weight: 600;
+}
+
+.day.in-streak {
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+
+.day.leave {
+  background: var(--leave-soft);
+  border-color: var(--leave);
+  color: var(--leave);
+  font-weight: 700;
+}
+
+.day .mark {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  font-size: 0.55rem;
+  line-height: 1;
+}
+
+.day.today {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+:where(button, select, input, a, summary):focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 設定 */
+details.settings {
+  margin-top: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 4px 18px 18px;
+}
+
+details.settings > summary {
+  cursor: pointer;
+  padding: 14px 0;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.dow-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.dow-picker legend {
+  padding: 0;
+  font-size: 0.85rem;
+  color: var(--ink-mute);
+}
+
+.dow-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: var(--surface);
+  min-height: 40px;
+}
+
+.dow-toggle input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 0.95rem;
+}
+
+.check-row input {
+  accent-color: var(--accent);
+  width: 18px;
+  height: 18px;
+}
+
+.closures {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.closure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 0.9rem;
+}
+
+.closure .span {
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+.closure button {
+  margin-left: auto;
+}
+
+.closure-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin-top: 12px;
+}
+
+.form-error {
+  color: var(--holiday);
+  font-size: 0.85rem;
+  margin: 8px 0 0;
+  min-height: 1.2em;
+}
+
+/* フッター */
+.site-footer {
+  margin-top: 28px;
+  color: var(--ink-mute);
+  font-size: 0.8rem;
+}
+
+.site-footer ul {
+  padding-left: 1.2em;
+  margin: 6px 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 560px) {
+  .title {
+    font-size: 1.35rem;
+  }
+
+  .card {
+    padding: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="site-header">
+        <div>
+          <h1 class="title">つなぎやすみ</h1>
+          <p class="tagline">とびとびの休みを、つないで見る。</p>
+        </div>
+        <button type="button" id="themeToggle" class="icon-button">テーマ: 自動</button>
+      </header>
+
+      <section class="card" aria-labelledby="controls-heading">
+        <h2 id="controls-heading" class="visually-hidden">計画の条件</h2>
+        <div class="controls">
+          <label class="field" for="year">計画する年<select id="year"></select></label>
+          <label class="field" for="budget">使える有給<input id="budget" type="number" min="0" max="40" step="1" inputmode="numeric" /></label>
+          <label class="field" for="mode">ねらい<select id="mode"></select></label>
+        </div>
+        <p class="note">
+          初期値は「土日祝休み・有給5日」です。シフト勤務の方は下の「勤務形態と会社の休業日」を開いて、休みの曜日を変更してください。
+        </p>
+      </section>
+
+      <section class="card" aria-labelledby="summary-heading">
+        <h2 id="summary-heading">この取り方だと、こうなります</h2>
+        <p class="lead" id="summaryLead"></p>
+        <div class="stats" id="stats"></div>
+        <div id="warn" hidden></div>
+      </section>
+
+      <section class="card" aria-labelledby="plan-heading">
+        <h2 id="plan-heading">できあがる連休</h2>
+        <p class="note">3日以上の連休を、日付順に並べています。有給を使わずにできる連休も含みます。</p>
+        <ul class="streaks" id="streaks"></ul>
+        <div class="actions">
+          <button type="button" id="applyPlan" class="button primary">おすすめの取り方にする</button>
+          <button type="button" id="clearPicks" class="button">有給をすべて外す</button>
+          <button type="button" id="downloadIcs" class="button">.ics でカレンダーに取り込む</button>
+        </div>
+        <p class="note">
+          カレンダーで日を選び直すと、その選択が優先されます。年・有給日数・ねらい・勤務形態を変えると、おすすめの取り方で計算し直します。
+        </p>
+        <p class="note" id="downloadNote" role="status"></p>
+      </section>
+
+      <section class="card" aria-labelledby="ranking-heading">
+        <h2 id="ranking-heading">狙い目ランキング</h2>
+        <p class="note">
+          少ない有給で効きやすい取り方の順です。「今の休み」は、その日を取る前からつながっている休みの日数です
+          （5日の休みを6日にするより、2日と2日をつないで5連休にする方を上位にしています）。
+          ほかの日を取らない前提での評価なので、上のおすすめとは選ぶ日が異なることがあります。
+        </p>
+        <div class="table-scroll">
+          <table id="ranking">
+            <thead>
+              <tr>
+                <th scope="col">有給</th>
+                <th scope="col">できる連休</th>
+                <th scope="col">今の休み</th>
+                <th scope="col">取る日</th>
+                <th scope="col">やり方</th>
+                <th scope="col">操作</th>
+              </tr>
+            </thead>
+            <tbody id="rankingBody"></tbody>
+          </table>
+        </div>
+        <p class="note" id="rankingEmpty" hidden>候補がありません。有給の日数を増やすか、条件を見直してください。</p>
+      </section>
+
+      <section class="card" aria-labelledby="calendar-heading">
+        <h2 id="calendar-heading">年間カレンダー</h2>
+        <p class="note">
+          出勤日を押すと、有給の予定として出し入れできます。
+          <a class="skip-link" href="#after-calendar">カレンダーを読み飛ばして設定へ</a>
+        </p>
+        <ul class="legend">
+          <li><span class="chip off" aria-hidden="true"></span>休み（週休・会社休業日）</li>
+          <li><span class="chip holiday" aria-hidden="true">祝</span>祝日・振替休日</li>
+          <li><span class="chip leave" aria-hidden="true">有</span>有給にする日</li>
+          <li><span class="chip streak" aria-hidden="true">＿</span>連休（3日以上）に含まれる日</li>
+        </ul>
+        <div class="months" id="months"></div>
+      </section>
+
+      <details class="settings" id="after-calendar">
+        <summary>勤務形態と会社の休業日</summary>
+
+        <fieldset class="dow-picker" id="weeklyOff"></fieldset>
+
+        <label class="check-row" for="useHolidays">
+          <input type="checkbox" id="useHolidays" />
+          祝日も休みにする（シフト勤務などで祝日も出勤する場合は外してください）
+        </label>
+
+        <h3>会社の休業日</h3>
+        <p class="note">年末年始・夏季休業・創立記念日など、会社独自の休みを登録できます（最大20件）。</p>
+        <ul class="closures" id="closures"></ul>
+        <div class="closure-form">
+          <label class="field" for="closureStart">開始日<input type="date" id="closureStart" /></label>
+          <label class="field" for="closureEnd">終了日（省略可）<input type="date" id="closureEnd" /></label>
+          <label class="field" for="closureLabel">名前<input type="text" id="closureLabel" maxlength="40" placeholder="年末年始" /></label>
+          <button type="button" id="closureAdd" class="button">追加する</button>
+        </div>
+        <p class="form-error" id="closureError" role="alert"></p>
+
+        <div class="actions">
+          <button type="button" id="resetAll" class="button">設定をすべて初期化する</button>
+        </div>
+      </details>
+
+      <footer class="site-footer">
+        <p>
+          入力した内容はこのブラウザの中だけに保存され、外部へ送信されません（通信・解析・外部フォントの読み込みを一切行いません）。
+          共有のパソコンで使ったときは、「勤務形態と会社の休業日」の中にある「設定をすべて初期化する」で消せます。
+        </p>
+        <ul>
+          <li>祝日は国民の祝日に関する法律にもとづいて計算しています。春分の日・秋分の日は近似式による算出です。</li>
+          <li>国民の祝日は前年2月の官報で確定します。翌々年以降の表示は予測です。</li>
+          <li>本アプリは労務上の助言ではありません。取得の可否や付与日数は勤務先の規程に従ってください。</li>
+        </ul>
+        <p>つなぎやすみ — MIT License</p>
+      </footer>
+    </div>
+    <script>
+      'use strict';
+
+(() => {
+
+/* ==== src/lib/date.js ==== */
+// 日付ユーティリティ。
+// 日付は 'YYYY-MM-DD' 文字列を唯一の表現とし、計算は UTC でのみ行う。
+// 端末のタイムゾーン設定によって祝日が1日ずれる事故を構造的に防ぐため、
+// ローカル時刻の Date メソッド（getFullYear など）は使わない。
+
+const WEEKDAY_JA = ['日', '月', '火', '水', '木', '金', '土'];
+
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const MS_PER_DAY = 86400000;
+
+/** 年・月(1始まり)・日から 'YYYY-MM-DD' を作る。 */
+function ymd(year, month, day) {
+  const p2 = (n) => String(n).padStart(2, '0');
+  return `${String(year).padStart(4, '0')}-${p2(month)}-${p2(day)}`;
+}
+
+/** 'YYYY-MM-DD' を {year, month, day} に分解する。不正な日付は null。 */
+function parseDate(value) {
+  if (typeof value !== 'string') return null;
+  const m = DATE_RE.exec(value);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  // 2月30日のような存在しない日を弾く（UTC で往復させて一致を見る）
+  const ms = Date.UTC(year, month - 1, day);
+  const back = new Date(ms);
+  if (back.getUTCFullYear() !== year || back.getUTCMonth() !== month - 1 || back.getUTCDate() !== day) {
+    return null;
+  }
+  return { year, month, day };
+}
+
+function isValidDate(value) {
+  return parseDate(value) !== null;
+}
+
+function toMs(value) {
+  const parts = parseDate(value);
+  if (!parts) throw new TypeError(`日付の形式が不正です: ${String(value)}`);
+  return Date.UTC(parts.year, parts.month - 1, parts.day);
+}
+
+function fromMs(ms) {
+  const d = new Date(ms);
+  return ymd(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+}
+
+/** 曜日を返す（0=日曜 … 6=土曜）。 */
+function dayOfWeek(value) {
+  return new Date(toMs(value)).getUTCDay();
+}
+
+/** n 日後（負数なら n 日前）の日付。 */
+function addDays(value, n) {
+  return fromMs(toMs(value) + n * MS_PER_DAY);
+}
+
+/** to - from を日数で返す。 */
+function diffDays(from, to) {
+  return Math.round((toMs(to) - toMs(from)) / MS_PER_DAY);
+}
+
+/** from から to まで（両端を含む）の日付配列。 */
+function eachDate(from, to) {
+  const out = [];
+  const last = toMs(to);
+  for (let ms = toMs(from); ms <= last; ms += MS_PER_DAY) out.push(fromMs(ms));
+  return out;
+}
+
+/** その月の日数。 */
+function daysInMonth(year, month) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function yearOf(value) {
+  const parts = parseDate(value);
+  if (!parts) throw new TypeError(`日付の形式が不正です: ${String(value)}`);
+  return parts.year;
+}
+
+/** '2026年9月21日(月)' の形式にする。 */
+function formatJa(value, { weekday = true } = {}) {
+  const parts = parseDate(value);
+  if (!parts) throw new TypeError(`日付の形式が不正です: ${String(value)}`);
+  const base = `${parts.year}年${parts.month}月${parts.day}日`;
+  return weekday ? `${base}(${WEEKDAY_JA[dayOfWeek(value)]})` : base;
+}
+
+/** '9/21(月)' の形式にする。 */
+function formatShortJa(value) {
+  const parts = parseDate(value);
+  if (!parts) throw new TypeError(`日付の形式が不正です: ${String(value)}`);
+  return `${parts.month}/${parts.day}(${WEEKDAY_JA[dayOfWeek(value)]})`;
+}
+
+/* ==== src/lib/holidays.js ==== */
+// 国民の祝日・振替休日・国民の休日の算出。
+//
+// 計算順序には意味がある（docs/architecture.md 2.2）。
+//   1. 国民の祝日（固定日・ハッピーマンデー・春分/秋分）
+//   2. 年別の特例（2020/2021 の五輪に伴う移動）
+//   3. 振替休日（祝日が日曜のとき、その後の最初の「祝日でない日」。連鎖する）
+//   4. 国民の休日（前後がともに祝日である平日。祝日・日曜・振替休日は除く）
+
+
+const HOLIDAY_YEAR_MIN = 2020;
+const HOLIDAY_YEAR_MAX = 2050;
+
+/** 休日の種別。 */
+const KIND_NATIONAL = 'national'; // 国民の祝日
+const KIND_SUBSTITUTE = 'substitute'; // 振替休日
+const KIND_CITIZEN = 'citizen'; // 国民の休日
+
+// 春分・秋分の近似式（1980〜2099 年で有効）。
+function equinoxDay(year, base) {
+  return Math.floor(base + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+}
+
+function vernalEquinoxDay(year) {
+  return equinoxDay(year, 20.8431);
+}
+
+function autumnalEquinoxDay(year) {
+  return equinoxDay(year, 23.2488);
+}
+
+/** その月の n 番目の weekday（0=日）の日。 */
+function nthWeekdayDay(year, month, weekday, n) {
+  const firstDow = dayOfWeek(ymd(year, month, 1));
+  const shift = (weekday - firstDow + 7) % 7;
+  return 1 + shift + (n - 1) * 7;
+}
+
+const MONDAY = 1;
+
+// 2020・2021 年は東京オリンピック・パラリンピックに伴い一部の祝日が移動した。
+const MOVED = {
+  2020: { 海の日: ymd(2020, 7, 23), スポーツの日: ymd(2020, 7, 24), 山の日: ymd(2020, 8, 10) },
+  2021: { 海の日: ymd(2021, 7, 22), スポーツの日: ymd(2021, 7, 23), 山の日: ymd(2021, 8, 8) },
+};
+
+/** その年の「国民の祝日」だけを返す（振替休日・国民の休日を含まない）。 */
+function nationalHolidaysOf(year) {
+  const moved = MOVED[year] ?? {};
+  const at = (name, fallback) => moved[name] ?? fallback;
+  const entries = [
+    [ymd(year, 1, 1), '元日'],
+    [ymd(year, 1, nthWeekdayDay(year, 1, MONDAY, 2)), '成人の日'],
+    [ymd(year, 2, 11), '建国記念の日'],
+    [ymd(year, 2, 23), '天皇誕生日'],
+    [ymd(year, 3, vernalEquinoxDay(year)), '春分の日'],
+    [ymd(year, 4, 29), '昭和の日'],
+    [ymd(year, 5, 3), '憲法記念日'],
+    [ymd(year, 5, 4), 'みどりの日'],
+    [ymd(year, 5, 5), 'こどもの日'],
+    [at('海の日', ymd(year, 7, nthWeekdayDay(year, 7, MONDAY, 3))), '海の日'],
+    [at('山の日', ymd(year, 8, 11)), '山の日'],
+    [ymd(year, 9, nthWeekdayDay(year, 9, MONDAY, 3)), '敬老の日'],
+    [ymd(year, 9, autumnalEquinoxDay(year)), '秋分の日'],
+    [at('スポーツの日', ymd(year, 10, nthWeekdayDay(year, 10, MONDAY, 2))), 'スポーツの日'],
+    [ymd(year, 11, 3), '文化の日'],
+    [ymd(year, 11, 23), '勤労感謝の日'],
+  ];
+  return new Map(entries.sort((a, b) => (a[0] < b[0] ? -1 : 1)));
+}
+
+const cache = new Map();
+
+/**
+ * その年の休日をすべて返す。
+ * @returns {Map<string, {name: string, kind: string}>} 日付昇順
+ */
+function holidaysOf(year) {
+  if (!Number.isInteger(year)) throw new TypeError('年は整数で指定してください');
+  const cached = cache.get(year);
+  if (cached) return new Map(cached);
+
+  // 年末年始の振替・国民の休日が年をまたぐ可能性があるため前後1年ぶんを計算してから絞る。
+  const national = new Map();
+  for (const y of [year - 1, year, year + 1]) {
+    for (const [date, name] of nationalHolidaysOf(y)) national.set(date, name);
+  }
+
+  const all = new Map();
+  for (const [date, name] of national) all.set(date, { name, kind: KIND_NATIONAL });
+
+  // 振替休日: 祝日が日曜なら、その後の最初の「祝日でない日」。
+  for (const date of [...national.keys()]) {
+    if (dayOfWeek(date) !== 0) continue;
+    let candidate = addDays(date, 1);
+    while (national.has(candidate)) candidate = addDays(candidate, 1);
+    if (!all.has(candidate)) all.set(candidate, { name: '振替休日', kind: KIND_SUBSTITUTE });
+  }
+
+  // 国民の休日: 前後がともに「国民の祝日」である平日。
+  for (const date of [...national.keys()]) {
+    const candidate = addDays(date, 1);
+    if (national.has(candidate) || all.has(candidate)) continue;
+    if (dayOfWeek(candidate) === 0) continue;
+    if (!national.has(addDays(candidate, 1))) continue;
+    all.set(candidate, { name: '国民の休日', kind: KIND_CITIZEN });
+  }
+
+  const result = new Map(
+    [...all.entries()].filter(([date]) => yearOf(date) === year).sort((a, b) => (a[0] < b[0] ? -1 : 1)),
+  );
+  cache.set(year, new Map(result));
+  return result;
+}
+
+/** from〜to（両端含む）に含まれる休日の Map。 */
+function holidaysInRange(from, to) {
+  const out = new Map();
+  for (let y = yearOf(from); y <= yearOf(to); y += 1) {
+    for (const [date, info] of holidaysOf(y)) {
+      if (date >= from && date <= to) out.set(date, info);
+    }
+  }
+  return out;
+}
+
+/** 祝日として確定しているか（未確定の年かどうか）の判定に使う。 */
+function isConfirmedYear(year, today) {
+  // 国民の祝日は前年2月の官報で確定する。翌年までを「確定」とみなす。
+  const thisYear = yearOf(today);
+  return year <= thisYear + 1;
+}
+
+/* ==== src/lib/calendar.js ==== */
+// 休日タイムラインの構築。
+// 週休曜日・祝日・会社の休業日を重ね合わせ、1日ごとの「休みかどうか」を決める。
+
+
+const DEFAULT_WEEKLY_OFF = [true, false, false, false, false, false, true]; // 日〜土
+
+/**
+ * @param {object} options
+ * @param {string} options.start 開始日 'YYYY-MM-DD'
+ * @param {string} options.end   終了日 'YYYY-MM-DD'（両端を含む）
+ * @param {boolean[]} options.weeklyOff 長さ7の配列（0=日曜）。true が週休
+ * @param {boolean} [options.useHolidays=true] 祝日を休みとするか
+ * @param {Array<{start: string, end: string, label?: string}>} [options.closures] 会社の休業日
+ * @param {string} [options.selectableFrom] 有給を取れる範囲の開始（既定は start）
+ * @param {string} [options.selectableTo] 有給を取れる範囲の終了（既定は end）
+ * @returns {Array<{date: string, dow: number, off: boolean, selectable: boolean,
+ *                  holiday: string|null, labels: string[]}>}
+ */
+function buildTimeline({
+  start,
+  end,
+  weeklyOff = DEFAULT_WEEKLY_OFF,
+  useHolidays = true,
+  closures = [],
+  selectableFrom = start,
+  selectableTo = end,
+}) {
+  if (!isValidDate(start) || !isValidDate(end)) throw new TypeError('start / end が不正です');
+  if (end < start) throw new RangeError('end は start 以降である必要があります');
+  if (!Array.isArray(weeklyOff) || weeklyOff.length !== 7) {
+    throw new TypeError('weeklyOff は長さ7の配列である必要があります');
+  }
+
+  // 祝日は「休みにするか」に関わらず常に引く。祝日も出勤する働き方でも、
+  // 世間が休む日がどこかは計画の材料になるため、表示だけは残す。
+  const holidays = holidaysInRange(start, end);
+  const closureLabels = buildClosureIndex(closures, start, end);
+
+  return eachDate(start, end).map((date) => {
+    const dow = dayOfWeek(date);
+    const labels = [];
+    const holiday = holidays.get(date) ?? null;
+
+    if (weeklyOff[dow]) labels.push('週休');
+    if (holiday && useHolidays) labels.push(holiday.name);
+    const closure = closureLabels.get(date);
+    if (closure) labels.push(closure);
+
+    const off = labels.length > 0;
+    return {
+      date,
+      dow,
+      off,
+      selectable: !off && date >= selectableFrom && date <= selectableTo,
+      holiday: holiday ? holiday.name : null,
+      labels,
+    };
+  });
+}
+
+function buildClosureIndex(closures, start, end) {
+  const index = new Map();
+  if (!Array.isArray(closures)) return index;
+  for (const closure of closures) {
+    if (!closure || !isValidDate(closure.start) || !isValidDate(closure.end)) continue;
+    if (closure.end < closure.start) continue;
+    const from = closure.start > start ? closure.start : start;
+    const to = closure.end < end ? closure.end : end;
+    if (to < from) continue;
+    const label = typeof closure.label === 'string' && closure.label.trim() !== '' ? closure.label : '会社休業日';
+    for (const date of eachDate(from, to)) {
+      if (!index.has(date)) index.set(date, label);
+    }
+  }
+  return index;
+}
+
+/** タイムラインから日付→エントリの索引を作る。 */
+function indexByDate(timeline) {
+  return new Map(timeline.map((entry) => [entry.date, entry]));
+}
+
+/* ==== src/lib/planner.js ==== */
+// 連休の解析・効率ランキング・有給取得日の最適化。
+//
+// タイムラインを「休みの塊（ブロック）」と「出勤日の隙間（ギャップ）」の交互列として扱う。
+//   OFF_0  GAP_0  OFF_1  GAP_1 … GAP_{m-1}  OFF_m
+// ギャップ j に対する選択は (a, b) の2変数で表せる。
+//   a … 先頭から連続して取る有給日数（左のブロックを伸ばす）
+//   b … 末尾から連続して取る有給日数（右のブロックを伸ばす）
+//   a + b === ギャップ長 のとき、左右のブロックが連結する
+// 有給を飛び飛びに取ることもできるが、間に出勤日が残れば連休にならないため、
+// 「連休を作る」という目的の下では上記が候補の全体を尽くす。
+
+/** 3日以上を「連休」とみなす。 */
+const MIN_STREAK = 3;
+
+const SCORE_MODES = {
+  // 各連休の「3日目以降の日数」の合計を最大化する。
+  // 単純に連休の日数を合計すると、もともと長い休みに1日足すのと、
+  // 週末をつないで5連休を作るのが同じ価値になってしまうため、
+  // 「2日（ふつうの週末）を超えた部分」だけを数えて、つなぐ取り方を評価する。
+  balanced: {
+    label: '連休を増やす（おすすめ）',
+    score: (n) => Math.max(0, n - (MIN_STREAK - 1)),
+  },
+  // 同じ日数でも1本の長い連休に集中させる。
+  longest: {
+    label: 'ひとつの長い連休をつくる',
+    score: (n) => (n >= MIN_STREAK ? n * n : 0),
+  },
+};
+
+const DEFAULT_MODE = 'balanced';
+
+function scoreFnOf(mode) {
+  return (SCORE_MODES[mode] ?? SCORE_MODES[DEFAULT_MODE]).score;
+}
+
+/**
+ * タイムラインをブロックとギャップに分解する。
+ * blocks.length === gaps.length + 1 が常に成り立つ（両端は長さ0のブロックで埋める）。
+ */
+function segments(timeline) {
+  const blocks = [];
+  const gaps = [];
+  const empty = () => ({ len: 0, dates: [] });
+
+  if (timeline.length === 0) return { blocks: [empty()], gaps: [] };
+  if (!timeline[0].off) blocks.push(empty());
+
+  let i = 0;
+  while (i < timeline.length) {
+    const { off } = timeline[i];
+    let j = i;
+    while (j < timeline.length && timeline[j].off === off) j += 1;
+    const run = timeline.slice(i, j);
+    const dates = run.map((entry) => entry.date);
+    if (off) {
+      blocks.push({ len: run.length, dates });
+    } else {
+      let maxA = 0;
+      while (maxA < run.length && run[maxA].selectable) maxA += 1;
+      let maxB = 0;
+      while (maxB < run.length && run[run.length - 1 - maxB].selectable) maxB += 1;
+      gaps.push({
+        len: run.length,
+        dates,
+        maxA,
+        maxB,
+        canMerge: run.every((entry) => entry.selectable),
+      });
+    }
+    i = j;
+  }
+  if (gaps.length === blocks.length) blocks.push(empty());
+  return { blocks, gaps };
+}
+
+/** 休み + 取得した有給で構成される連休の一覧。 */
+function findStreaks(timeline, picks = []) {
+  const picked = picks instanceof Set ? picks : new Set(picks);
+  const streaks = [];
+  let run = null;
+  for (const entry of timeline) {
+    const isOff = entry.off || picked.has(entry.date);
+    if (!isOff) {
+      if (run) streaks.push(run);
+      run = null;
+      continue;
+    }
+    if (!run) run = { start: entry.date, end: entry.date, length: 0, days: [], leaveDates: [] };
+    run.end = entry.date;
+    run.length += 1;
+    run.days.push(entry.date);
+    if (!entry.off && picked.has(entry.date)) run.leaveDates.push(entry.date);
+  }
+  if (run) streaks.push(run);
+  return streaks;
+}
+
+/** 連休の集計。minStreak 日以上のものだけを数える。 */
+function summarize(timeline, picks = [], { minStreak = MIN_STREAK, within = null } = {}) {
+  const all = findStreaks(timeline, picks);
+  const inRange = within
+    ? all.filter((streak) => streak.end >= within.from && streak.start <= within.to)
+    : all;
+  const streaks = inRange.filter((streak) => streak.length >= minStreak);
+  const longest = streaks.reduce((max, streak) => Math.max(max, streak.length), 0);
+  const picked = picks instanceof Set ? [...picks] : [...new Set(picks)];
+  return {
+    streaks,
+    count: streaks.length,
+    longest,
+    usedDays: picked.length,
+    offDaysInStreaks: streaks.reduce((sum, streak) => sum + streak.length, 0),
+  };
+}
+
+/**
+ * 「有給を何日使うと何連休になるか」の候補（アトム）を列挙する。
+ * 他の候補を選ばない前提での単独評価だが、並び順は optimize と同じ評価関数の増分で決める。
+ * （「連休日数 ÷ 有給日数」で並べると、すでに5連休ある休みに1日足す取り方が 6.0倍 と
+ *  最上位に出てしまい、推奨プランと食い違ううえ、実際に得られるものも小さい。）
+ */
+function listOpportunities(timeline, {
+  maxCost = Infinity,
+  minStreak = MIN_STREAK,
+  limit = 40,
+  mode = DEFAULT_MODE,
+} = {}) {
+  const score = scoreFnOf(mode);
+  const { blocks, gaps } = segments(timeline);
+  const out = [];
+
+  gaps.forEach((gap, j) => {
+    const left = blocks[j].len;
+    const right = blocks[j + 1].len;
+
+    // 前伸ばし・後伸ばし（ギャップを埋め切らない）
+    for (let k = 1; k < gap.len; k += 1) {
+      if (k > maxCost) break;
+      if (k <= gap.maxA) {
+        out.push(makeOpportunity('extend', gap.dates.slice(0, k), k, left, 0, score));
+      }
+      if (k <= gap.maxB) {
+        out.push(makeOpportunity('extend', gap.dates.slice(gap.len - k), k, right, 0, score));
+      }
+    }
+    // 橋渡し（ギャップを埋めて左右をつなぐ）
+    if (gap.canMerge && gap.len <= maxCost) {
+      out.push(makeOpportunity('bridge', gap.dates.slice(), gap.len, left, right, score));
+    }
+  });
+
+  return out
+    .filter((item) => item.streakLength >= minStreak && item.cost > 0)
+    .sort(
+      (a, b) =>
+        b.valuePerLeave - a.valuePerLeave ||
+        b.streakLength - a.streakLength ||
+        a.cost - b.cost ||
+        (a.dates[0] < b.dates[0] ? -1 : 1),
+    )
+    .slice(0, limit);
+}
+
+function makeOpportunity(type, dates, cost, left, right, score) {
+  const streakLength = left + cost + right;
+  // もともと連続していた休みの日数。「何日から何日に伸びるのか」を隠さずに示すために持つ。
+  const baseLength = left + right;
+  const value = score(streakLength) - score(left) - score(right);
+  return {
+    type,
+    dates,
+    cost,
+    streakLength,
+    baseLength,
+    value,
+    valuePerLeave: value / cost,
+    note: noteOf(type, left, right),
+  };
+}
+
+function noteOf(type, left, right) {
+  if (type === 'bridge') return `${left}日と${right}日の休みをつなぐ`;
+  if (left === 0) return '休みのない週に連休をつくる';
+  return `${left}日の休みに続けて休む`;
+}
+
+/**
+ * 予算内で評価関数を最大化する有給取得日を求める（連鎖 DP による厳密解）。
+ * @returns {{picks: string[], score: number, baseline: number, gained: number, usedDays: number}}
+ */
+function optimize(timeline, { budget = 0, mode = DEFAULT_MODE } = {}) {
+  const score = scoreFnOf(mode);
+  const { blocks, gaps } = segments(timeline);
+  const baseline = blocks.reduce((sum, block) => sum + score(block.len), 0);
+  const cap = Math.max(0, Math.floor(budget));
+
+  if (cap === 0 || gaps.length === 0) {
+    return { picks: [], score: baseline, baseline, gained: 0, usedDays: 0 };
+  }
+
+  const optionsPerGap = gaps.map((gap) => gapOptions(gap, cap));
+
+  // 状態: `${使用日数}|${いま開いている連休の長さ}` → 最良値
+  const layers = [new Map([['0|0', { value: 0, used: 0, len: 0, prev: null, choice: null }]])];
+
+  for (let j = 0; j < gaps.length; j += 1) {
+    const current = layers[j];
+    const next = new Map();
+    for (const [key, state] of current) {
+      const openLen = state.len + blocks[j].len;
+      const remaining = cap - state.used;
+      for (const option of optionsPerGap[j]) {
+        if (option.cost > remaining) continue;
+        const used = state.used + option.cost;
+        const value = option.merge ? state.value : state.value + score(openLen + option.a);
+        const len = option.merge ? openLen + gaps[j].len : option.b;
+        const nextKey = `${used}|${len}`;
+        const existing = next.get(nextKey);
+        if (!existing || value > existing.value) {
+          next.set(nextKey, { value, used, len, prev: key, choice: option });
+        }
+      }
+    }
+    layers.push(next);
+  }
+
+  const lastBlock = blocks[blocks.length - 1].len;
+  let best = null;
+  for (const [key, state] of layers[gaps.length]) {
+    const value = state.value + score(state.len + lastBlock);
+    // 同点なら有給の使用日数が少ない方を選ぶ
+    if (!best || value > best.value || (value === best.value && state.used < best.used)) {
+      best = { value, used: state.used, key };
+    }
+  }
+
+  const picks = [];
+  let key = best.key;
+  for (let j = gaps.length - 1; j >= 0; j -= 1) {
+    const state = layers[j + 1].get(key);
+    const { choice } = state;
+    const gap = gaps[j];
+    if (choice.merge) {
+      picks.push(...gap.dates);
+    } else {
+      if (choice.a > 0) picks.push(...gap.dates.slice(0, choice.a));
+      if (choice.b > 0) picks.push(...gap.dates.slice(gap.len - choice.b));
+    }
+    key = state.prev;
+  }
+  picks.sort();
+
+  return {
+    picks,
+    score: best.value,
+    baseline,
+    gained: best.value - baseline,
+    usedDays: picks.length,
+  };
+}
+
+function gapOptions(gap, budget) {
+  const options = [];
+  const maxA = Math.min(gap.maxA, budget, gap.len);
+  for (let a = 0; a <= maxA; a += 1) {
+    const maxB = Math.min(gap.maxB, budget - a, gap.len - a);
+    for (let b = 0; b <= maxB; b += 1) {
+      if (a + b === gap.len) continue; // 埋め切りは merge として別に持つ
+      options.push({ a, b, cost: a + b, merge: false });
+    }
+  }
+  if (gap.canMerge && gap.len <= budget) {
+    options.push({ a: gap.len, b: 0, cost: gap.len, merge: true });
+  }
+  return options;
+}
+
+/* ==== src/lib/ics.js ==== */
+// iCalendar (RFC 5545) 形式での書き出し。
+// ラベルはユーザー入力なので、必ず escapeText / stripControls を通してから組み立てる。
+
+
+const CRLF = '\r\n';
+const MAX_OCTETS = 75;
+const PROD_ID = '-//tsunagiyasumi//有給の連休プランナー//JA';
+
+/** RFC 5545 で許可されない制御文字を除去する（タブは残す）。 */
+function stripControls(value) {
+  return String(value).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+}
+
+/** TEXT 値のエスケープ。バックスラッシュ → セミコロン/カンマ → 改行 の順で処理する。 */
+function escapeText(value) {
+  return stripControls(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r\n|\r|\n/g, '\\n');
+}
+
+/** 1行を 75 オクテットで折り返す（継続行は先頭にスペース1つ）。マルチバイト文字は分割しない。 */
+function foldLine(line) {
+  const encoder = new TextEncoder();
+  const out = [];
+  let current = '';
+  let bytes = 0;
+  for (const ch of line) {
+    const size = encoder.encode(ch).length;
+    if (bytes + size > MAX_OCTETS) {
+      out.push(current);
+      current = ' ';
+      bytes = 1;
+    }
+    current += ch;
+    bytes += size;
+  }
+  out.push(current);
+  return out.join(CRLF);
+}
+
+/** 'YYYY-MM-DD' → 'YYYYMMDD' */
+function toDateValue(date) {
+  return String(date).replace(/-/g, '');
+}
+
+/** Date → 'YYYYMMDDTHHMMSSZ' */
+function toTimestamp(now) {
+  return `${now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')}`;
+}
+
+/** UID 生成関数を作る。テストからは決定的な関数を注入できる。 */
+function createUidFactory(scope = globalThis) {
+  const webcrypto = scope && scope.crypto;
+  let counter = 0;
+  return () => {
+    counter += 1;
+    if (webcrypto && typeof webcrypto.randomUUID === 'function') {
+      return `${webcrypto.randomUUID()}@tsunagiyasumi`;
+    }
+    if (webcrypto && typeof webcrypto.getRandomValues === 'function') {
+      const bytes = webcrypto.getRandomValues(new Uint8Array(16));
+      const hex = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+      return `${hex}@tsunagiyasumi`;
+    }
+    // 乱数源が無い環境向けの退避手段。UID は一意性のみが要件で、秘密値ではない。
+    return `${Date.now().toString(36)}-${counter}@tsunagiyasumi`;
+  };
+}
+
+/**
+ * 有給取得日のカレンダーを組み立てる。
+ * @param {object} options
+ * @param {string[]} options.picks 取得する有給日
+ * @param {Array<{start: string, end: string, length: number, leaveDates: string[]}>} [options.streaks]
+ * @param {Date} [options.now] DTSTAMP に使う時刻
+ * @param {() => string} [options.uid] UID 生成関数
+ * @param {string} [options.summary] イベント名
+ */
+function buildLeaveCalendar({
+  picks,
+  streaks = [],
+  now = new Date(),
+  uid = createUidFactory(),
+  summary = '有給（つなぎやすみ）',
+} = {}) {
+  const dates = [...new Set(picks ?? [])].sort();
+  const stamp = toTimestamp(now);
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    `PRODID:${PROD_ID}`,
+    'CALSCALE:GREGORIAN',
+    `X-WR-CALNAME:${escapeText('つなぎやすみ')}`,
+  ];
+
+  for (const date of dates) {
+    const streak = streaks.find((item) => date >= item.start && date <= item.end);
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:${escapeText(uid())}`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;VALUE=DATE:${toDateValue(date)}`,
+      `DTEND;VALUE=DATE:${toDateValue(addDays(date, 1))}`,
+      `SUMMARY:${escapeText(summary)}`,
+      `DESCRIPTION:${escapeText(describe(date, streak))}`,
+      'TRANSP:OPAQUE',
+      'END:VEVENT',
+    );
+  }
+
+  lines.push('END:VCALENDAR');
+  return `${lines.map(foldLine).join(CRLF)}${CRLF}`;
+}
+
+function describe(date, streak) {
+  if (!streak) return 'つなぎやすみで選んだ有給です。';
+  const span = `${formatShortJa(streak.start)}〜${formatShortJa(streak.end)}`;
+  return `${span} の${streak.length}連休をつくる有給（この連休で使う有給: ${streak.leaveDates.length}日）。`;
+}
+
+/* ==== src/lib/settings.js ==== */
+// 設定の正規化と検証。
+// localStorage の中身は「利用者以外にも書き換えられうる外部入力」として扱い、
+// 型・範囲・件数・文字数をすべて検証してから使う。例外は投げず、不正値は既定値へ倒す。
+
+
+const STORAGE_KEY = 'tsunagiyasumi:v1';
+
+const LIMITS = {
+  budgetMax: 40,
+  closuresMax: 20,
+  closureSpanDays: 366,
+  labelMaxLength: 40,
+  picksMax: 400,
+};
+
+const THEMES = ['auto', 'light', 'dark'];
+
+function defaultSettings(year) {
+  return {
+    year: clampYear(year),
+    budget: 5,
+    weeklyOff: [...DEFAULT_WEEKLY_OFF],
+    useHolidays: true,
+    mode: DEFAULT_MODE,
+    closures: [],
+    picks: [],
+    picksTouched: false,
+    theme: 'auto',
+  };
+}
+
+function clampYear(value) {
+  const year = Number.isInteger(value) ? value : HOLIDAY_YEAR_MIN;
+  return Math.min(HOLIDAY_YEAR_MAX, Math.max(HOLIDAY_YEAR_MIN, year));
+}
+
+/** ユーザー入力・保存値を安全な設定オブジェクトに正規化する。 */
+function normalizeSettings(raw, { fallbackYear = HOLIDAY_YEAR_MIN } = {}) {
+  const base = defaultSettings(fallbackYear);
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base;
+
+  const year = Number.isInteger(raw.year) ? clampYear(raw.year) : base.year;
+
+  let budget = base.budget;
+  if (typeof raw.budget === 'number' && Number.isFinite(raw.budget)) {
+    budget = Math.min(LIMITS.budgetMax, Math.max(0, Math.floor(raw.budget)));
+  }
+
+  let weeklyOff = base.weeklyOff;
+  if (Array.isArray(raw.weeklyOff) && raw.weeklyOff.length === 7) {
+    weeklyOff = raw.weeklyOff.map((value) => value === true);
+  }
+
+  const mode = typeof raw.mode === 'string' && Object.hasOwn(SCORE_MODES, raw.mode) ? raw.mode : base.mode;
+  const theme = THEMES.includes(raw.theme) ? raw.theme : base.theme;
+
+  return {
+    year,
+    budget,
+    weeklyOff,
+    useHolidays: raw.useHolidays === undefined ? base.useHolidays : raw.useHolidays === true,
+    mode,
+    closures: normalizeClosures(raw.closures),
+    picks: normalizePicks(raw.picks),
+    picksTouched: raw.picksTouched === true,
+    theme,
+  };
+}
+
+function normalizeLabel(value) {
+  if (typeof value !== 'string') return '';
+  // 制御文字（改行を含む）を除去してから長さを制限する。
+  return value
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .trim()
+    .slice(0, LIMITS.labelMaxLength);
+}
+
+function normalizeClosures(value) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  for (const item of value) {
+    if (out.length >= LIMITS.closuresMax) break;
+    if (!item || typeof item !== 'object') continue;
+    const { start, end } = item;
+    if (!isValidDate(start) || !isValidDate(end)) continue;
+    if (end < start) continue;
+    if (diffDays(start, end) + 1 > LIMITS.closureSpanDays) continue;
+    const label = normalizeLabel(item.label) || '会社休業日';
+    out.push({ start, end, label });
+  }
+  return out;
+}
+
+function normalizePicks(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  for (const item of value) {
+    if (seen.size >= LIMITS.picksMax) break;
+    if (isValidDate(item)) seen.add(item);
+  }
+  return [...seen].sort();
+}
+
+/** localStorage から読み込む。読めない・壊れている場合も既定値で起動する。 */
+function loadSettings(storage, { fallbackYear } = {}) {
+  let raw = null;
+  try {
+    const text = storage?.getItem(STORAGE_KEY);
+    if (typeof text === 'string' && text !== '') raw = JSON.parse(text);
+  } catch {
+    raw = null; // 破損・JSON 不正・プライベートモードでの例外
+  }
+  return normalizeSettings(raw, { fallbackYear });
+}
+
+/** localStorage に保存する。保存できない環境でも操作は止めない。 */
+function saveSettings(storage, settings) {
+  try {
+    storage?.setItem(STORAGE_KEY, JSON.stringify(settings));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function clearSettings(storage) {
+  try {
+    storage?.removeItem(STORAGE_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* ==== src/app.js ==== */
+// つなぎやすみ — UI 層。
+// 計算は src/lib/* の純粋関数に委ね、ここは DOM の組み立てとイベント処理だけを担当する。
+// DOM 生成は textContent / createElement のみで行う（innerHTML は使わない）。
+
+
+const THEME_LABEL = { auto: '自動', light: 'ライト', dark: 'ダーク' };
+
+const state = {
+  settings: null,
+  timeline: [],
+  index: new Map(),
+  picks: [],
+  today: todayLocalIso(),
+};
+
+function todayLocalIso() {
+  // 「今日」だけは利用者のローカル時刻で判断する。
+  const now = new Date();
+  return ymd(now.getFullYear(), now.getMonth() + 1, now.getDate());
+}
+
+function $(id) {
+  return document.getElementById(id);
+}
+
+function el(tag, props = {}, children = []) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(props)) {
+    if (value === undefined || value === null || value === false) continue;
+    if (key === 'class') node.className = value;
+    else if (key === 'text') node.textContent = value;
+    else if (key === 'dataset') for (const [k, v] of Object.entries(value)) node.dataset[k] = v;
+    else node.setAttribute(key, value === true ? '' : String(value));
+  }
+  for (const child of [].concat(children)) {
+    if (child === null || child === undefined) continue;
+    node.append(typeof child === 'string' ? document.createTextNode(child) : child);
+  }
+  return node;
+}
+
+function clear(node) {
+  while (node.firstChild) node.removeChild(node.firstChild);
+}
+
+/* ---------------------------------------------------------------- 起動 */
+
+function boot() {
+  const thisYear = yearOf(state.today);
+  const loaded = loadSettings(window.localStorage, { fallbackYear: thisYear });
+  // 過ぎた年の設定が残っていても、開いた年の計画から始められるようにする。
+  if (loaded.year < thisYear) {
+    loaded.year = Math.min(HOLIDAY_YEAR_MAX, thisYear);
+    loaded.picks = [];
+    loaded.picksTouched = false;
+  }
+  state.settings = loaded;
+
+  buildYearOptions();
+  buildWeekdayToggles();
+  applyTheme();
+  bindEvents();
+  syncControls();
+  recompute();
+}
+
+function buildYearOptions() {
+  const select = $('year');
+  clear(select);
+  for (let y = HOLIDAY_YEAR_MIN; y <= HOLIDAY_YEAR_MAX; y += 1) {
+    select.append(el('option', { value: String(y), text: `${y}年` }));
+  }
+}
+
+function buildWeekdayToggles() {
+  const box = $('weeklyOff');
+  clear(box);
+  box.append(el('legend', { text: '休みの曜日（週休）' }));
+  WEEKDAY_JA.forEach((name, dow) => {
+    const input = el('input', { type: 'checkbox', id: `dow-${dow}`, dataset: { dow: String(dow) } });
+    box.append(el('label', { class: 'dow-toggle', for: `dow-${dow}` }, [input, name]));
+  });
+}
+
+function bindEvents() {
+  $('year').addEventListener('change', (event) => {
+    update({ year: Number(event.target.value), picks: [], picksTouched: false });
+  });
+  $('budget').addEventListener('change', (event) => {
+    const value = Math.min(LIMITS.budgetMax, Math.max(0, Math.floor(Number(event.target.value) || 0)));
+    event.target.value = String(value);
+    update({ budget: value, picksTouched: false });
+  });
+  $('mode').addEventListener('change', (event) => {
+    update({ mode: event.target.value, picksTouched: false });
+  });
+  $('weeklyOff').addEventListener('change', () => {
+    const weeklyOff = WEEKDAY_JA.map((_, dow) => $(`dow-${dow}`).checked);
+    update({ weeklyOff, picksTouched: false });
+  });
+  $('useHolidays').addEventListener('change', (event) => {
+    update({ useHolidays: event.target.checked, picksTouched: false });
+  });
+  $('applyPlan').addEventListener('click', () => update({ picksTouched: false }));
+  $('clearPicks').addEventListener('click', () => update({ picks: [], picksTouched: true }));
+  $('downloadIcs').addEventListener('click', downloadIcs);
+  $('resetAll').addEventListener('click', resetAll);
+  $('themeToggle').addEventListener('click', cycleTheme);
+  $('months').addEventListener('click', onCalendarClick);
+  $('ranking').addEventListener('click', onRankingClick);
+  $('closureAdd').addEventListener('click', addClosure);
+  $('closures').addEventListener('click', onClosureListClick);
+}
+
+function syncControls() {
+  const s = state.settings;
+  $('year').value = String(s.year);
+  $('budget').value = String(s.budget);
+  $('budget').max = String(LIMITS.budgetMax);
+  $('mode').value = s.mode;
+  $('useHolidays').checked = s.useHolidays;
+  WEEKDAY_JA.forEach((_, dow) => {
+    $(`dow-${dow}`).checked = s.weeklyOff[dow] === true;
+  });
+  $('themeToggle').textContent = `テーマ: ${THEME_LABEL[s.theme]}`;
+}
+
+function update(patch) {
+  state.settings = { ...state.settings, ...patch };
+  saveSettings(window.localStorage, state.settings);
+  syncControls();
+  recompute();
+}
+
+function applyTheme() {
+  const { theme } = state.settings;
+  if (theme === 'auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', theme);
+}
+
+function cycleTheme() {
+  const next = THEMES[(THEMES.indexOf(state.settings.theme) + 1) % THEMES.length];
+  state.settings = { ...state.settings, theme: next };
+  saveSettings(window.localStorage, state.settings);
+  applyTheme();
+  syncControls();
+}
+
+function resetAll() {
+  clearSettings(window.localStorage);
+  state.settings = defaultSettings(yearOf(state.today));
+  applyTheme();
+  syncControls();
+  recompute();
+}
+
+/* ------------------------------------------------------------ 再計算 */
+
+function windowOf(year) {
+  // 年末年始をまたぐ連休を数えるため、前後にはみ出した範囲で組み立てる。
+  return { start: ymd(year - 1, 12, 1), end: ymd(year + 1, 1, 31) };
+}
+
+function recompute() {
+  const s = state.settings;
+  const span = windowOf(s.year);
+  state.timeline = buildTimeline({
+    start: span.start,
+    end: span.end,
+    weeklyOff: s.weeklyOff,
+    useHolidays: s.useHolidays,
+    closures: s.closures,
+    selectableFrom: ymd(s.year, 1, 1),
+    selectableTo: ymd(s.year, 12, 31),
+  });
+  state.index = indexByDate(state.timeline);
+
+  const selectable = new Set(
+    state.timeline.filter((entry) => entry.selectable).map((entry) => entry.date),
+  );
+
+  if (s.picksTouched) {
+    state.picks = s.picks.filter((date) => selectable.has(date));
+  } else {
+    state.picks = optimize(state.timeline, { budget: s.budget, mode: s.mode }).picks;
+  }
+  if (state.picks.join(',') !== s.picks.join(',')) {
+    state.settings = { ...s, picks: state.picks };
+    saveSettings(window.localStorage, state.settings);
+  }
+
+  render();
+}
+
+function render() {
+  const s = state.settings;
+  const within = { from: ymd(s.year, 1, 1), to: ymd(s.year, 12, 31) };
+  const stats = summarize(state.timeline, state.picks, { within });
+  renderSummary(stats, within);
+  renderStreaks(stats.streaks);
+  renderRanking();
+  renderCalendar(stats.streaks);
+  renderClosures();
+}
+
+function renderSummary(stats, within) {
+  const s = state.settings;
+  const used = state.picks.filter((date) => date >= within.from && date <= within.to).length;
+  const offDays = state.timeline.filter(
+    (entry) => entry.date >= within.from && entry.date <= within.to && entry.off,
+  ).length;
+
+  const lead =
+    stats.count === 0
+      ? `この設定では ${MIN_STREAK}日以上の連休ができません。休みの曜日や有給の日数を見直してみてください。`
+      : `有給${used}日で、${s.year}年に${MIN_STREAK}日以上の連休が${stats.count}回。いちばん長いのは${stats.longest}連休です。`;
+  $('summaryLead').textContent = lead;
+
+  const list = $('stats');
+  clear(list);
+  for (const [term, value, unit] of [
+    [`${MIN_STREAK}日以上の連休`, stats.count, '回'],
+    ['最長の連休', stats.longest, '日'],
+    ['使う有給', used, `日 / ${s.budget}日`],
+    ['年間の休日（有給を除く）', offDays, '日'],
+  ]) {
+    list.append(
+      el('div', { class: 'stat' }, [
+        el('dt', { text: term }),
+        el('dd', {}, [String(value), el('span', { class: 'unit', text: unit })]),
+      ]),
+    );
+  }
+
+  const warn = $('warn');
+  clear(warn);
+  const messages = [];
+  if (used > s.budget) messages.push(`選んでいる有給が予算より${used - s.budget}日多くなっています。`);
+  if (!isConfirmedYear(s.year, state.today)) {
+    messages.push(
+      `${s.year}年の祝日は現行法にもとづく予測です。国民の祝日は前年2月の官報で確定します。`,
+    );
+  }
+  if (!state.settings.weeklyOff.some(Boolean) && !state.settings.useHolidays) {
+    messages.push('休みの曜日が未設定で、祝日も休みにしない設定です。連休は有給だけで作ることになります。');
+  }
+  warn.hidden = messages.length === 0;
+  for (const message of messages) warn.append(el('p', { class: 'warn', text: message }));
+}
+
+function renderStreaks(streaks) {
+  const list = $('streaks');
+  clear(list);
+  if (streaks.length === 0) {
+    list.append(el('li', { class: 'note', text: '該当する連休はありません。' }));
+    return;
+  }
+  for (const streak of streaks) {
+    const leave = streak.leaveDates.length;
+    list.append(
+      el('li', { class: leave > 0 ? 'streak' : 'streak no-leave' }, [
+        el('span', { class: 'len', text: `${streak.length}連休` }),
+        el('span', { class: 'span', text: `${formatShortJa(streak.start)}〜${formatShortJa(streak.end)}` }),
+        el('span', {
+          class: 'leave',
+          text:
+            leave > 0
+              ? `有給${leave}日（${streak.leaveDates.map(formatShortJa).join('・')}）`
+              : '有給なし',
+        }),
+      ]),
+    );
+  }
+}
+
+function renderRanking() {
+  const s = state.settings;
+  const picked = new Set(state.picks);
+  const rows = listOpportunities(state.timeline, {
+    maxCost: Math.max(1, s.budget),
+    mode: s.mode,
+    limit: 12,
+  }).filter((item) => item.dates.every((date) => date >= ymd(s.year, 1, 1) && date <= ymd(s.year, 12, 31)));
+
+  const body = $('rankingBody');
+  clear(body);
+  if (rows.length === 0) {
+    $('rankingEmpty').hidden = false;
+    return;
+  }
+  $('rankingEmpty').hidden = true;
+
+  for (const row of rows) {
+    const isPicked = row.dates.every((date) => picked.has(date));
+    body.append(
+      el('tr', { class: isPicked ? 'picked' : null }, [
+        el('td', { class: 'num', text: `${row.cost}日` }),
+        el('td', { class: 'num', text: `${row.streakLength}連休` }),
+        el('td', { class: 'num', text: row.baseLength === 0 ? '—' : `${row.baseLength}日` }),
+        el('td', { text: row.dates.map(formatShortJa).join('・') }),
+        el('td', { text: row.note }),
+        el('td', {}, [
+          el('button', {
+            class: 'button',
+            type: 'button',
+            dataset: { dates: row.dates.join(',') },
+            text: isPicked ? '選択済み' : 'この日を取る',
+            disabled: isPicked ? true : null,
+          }),
+        ]),
+      ]),
+    );
+  }
+}
+
+function renderCalendar(streaks) {
+  const s = state.settings;
+  const inStreak = new Set();
+  for (const streak of streaks) for (const date of streak.days) inStreak.add(date);
+  const picked = new Set(state.picks);
+
+  const container = $('months');
+  clear(container);
+
+  for (let month = 1; month <= 12; month += 1) {
+    const section = el('section', { class: 'month' });
+    const holidayCount = countHolidays(s.year, month);
+    section.append(
+      el('h3', {}, [
+        `${month}月`,
+        el('span', { class: 'month-note', text: holidayCount > 0 ? `祝日${holidayCount}日` : '' }),
+      ]),
+    );
+
+    // 各日のセルが完全な日付を aria-label で読み上げるため、表としての ARIA 構造は付けない。
+    const grid = el('div', { class: 'grid' });
+    WEEKDAY_JA.forEach((name, dow) => {
+      const variant = dow === 0 ? ' sun' : dow === 6 ? ' sat' : '';
+      grid.append(el('div', { class: `dow${variant}`, text: name, 'aria-hidden': 'true' }));
+    });
+
+    const first = ymd(s.year, month, 1);
+    for (let i = 0; i < dayOfWeek(first); i += 1) {
+      grid.append(el('div', { class: 'day empty', 'aria-hidden': 'true' }));
+    }
+
+    for (let day = 1; day <= daysInMonth(s.year, month); day += 1) {
+      const date = ymd(s.year, month, day);
+      grid.append(dayCell(date, day, { picked, inStreak }));
+    }
+    section.append(grid);
+    container.append(section);
+  }
+}
+
+function countHolidays(year, month) {
+  const prefix = ymd(year, month, 1).slice(0, 7);
+  return state.timeline.filter((entry) => entry.date.startsWith(prefix) && entry.holiday).length;
+}
+
+function dayCell(date, day, { picked, inStreak }) {
+  const entry = state.index.get(date);
+  if (!entry) return el('div', { class: 'day empty', 'aria-hidden': 'true' });
+
+  const isPicked = picked.has(date);
+  const classes = ['day'];
+  if (entry.off) classes.push('off');
+  // 祝日でも出勤する設定のときは、休みと見分けがつくよう文字色だけを変える。
+  if (entry.holiday) classes.push(entry.off ? 'holiday' : 'holiday-work');
+  if (isPicked) classes.push('leave');
+  if (inStreak.has(date)) classes.push('in-streak');
+  if (date === state.today) classes.push('today');
+
+  const workingHoliday = entry.holiday && !entry.labels.includes(entry.holiday) ? `${entry.holiday}（出勤日）` : null;
+  const description = [formatJa(date), ...entry.labels, workingHoliday, isPicked ? '有給' : null]
+    .filter(Boolean)
+    .join(' ');
+
+  const mark = markOf(entry, isPicked);
+  const children = [String(day), mark ? el('span', { class: 'mark', text: mark }) : null];
+
+  if (!entry.selectable) {
+    return el('div', { class: classes.join(' '), 'aria-label': description }, children);
+  }
+  return el(
+    'button',
+    {
+      type: 'button',
+      class: classes.join(' '),
+      dataset: { date },
+      'aria-pressed': isPicked ? 'true' : 'false',
+      'aria-label': `${description}（押すと有給の予定を切り替え）`,
+    },
+    children,
+  );
+}
+
+// 色だけに頼らないよう、セルに1文字の記号を添える。
+function markOf(entry, isPicked) {
+  if (isPicked) return '有';
+  if (entry.holiday) return '祝';
+  if (entry.off && !entry.labels.includes('週休')) return '休';
+  return '';
+}
+
+function onCalendarClick(event) {
+  const button = event.target.closest('button.day');
+  if (!button || !button.dataset.date) return;
+  togglePick(button.dataset.date);
+}
+
+function onRankingClick(event) {
+  const button = event.target.closest('button[data-dates]');
+  if (!button) return;
+  const dates = button.dataset.dates.split(',').filter(isValidDate);
+  const next = new Set(state.picks);
+  for (const date of dates) {
+    if (state.index.get(date)?.selectable) next.add(date);
+  }
+  update({ picks: [...next].sort(), picksTouched: true });
+}
+
+function togglePick(date) {
+  const entry = state.index.get(date);
+  if (!entry || !entry.selectable) return;
+  const next = new Set(state.picks);
+  if (next.has(date)) next.delete(date);
+  else next.add(date);
+  update({ picks: [...next].sort(), picksTouched: true });
+}
+
+/* -------------------------------------------------------- 会社休業日 */
+
+function renderClosures() {
+  const list = $('closures');
+  clear(list);
+  const { closures } = state.settings;
+  if (closures.length === 0) {
+    list.append(el('li', { class: 'note', text: '登録された休業日はありません。' }));
+    return;
+  }
+  closures.forEach((closure, i) => {
+    list.append(
+      el('li', { class: 'closure' }, [
+        el('span', { text: closure.label }),
+        el('span', {
+          class: 'span',
+          text:
+            closure.start === closure.end
+              ? formatJa(closure.start)
+              : `${formatJa(closure.start)} 〜 ${formatJa(closure.end)}`,
+        }),
+        el('button', {
+          type: 'button',
+          class: 'button',
+          dataset: { removeIndex: String(i) },
+          text: '削除',
+          'aria-label': `${closure.label} を削除`,
+        }),
+      ]),
+    );
+  });
+}
+
+function onClosureListClick(event) {
+  const button = event.target.closest('button[data-remove-index]');
+  if (!button) return;
+  const index = Number(button.dataset.removeIndex);
+  const closures = state.settings.closures.filter((_, i) => i !== index);
+  update({ closures, picksTouched: false });
+}
+
+function addClosure() {
+  const startInput = $('closureStart');
+  const endInput = $('closureEnd');
+  const labelInput = $('closureLabel');
+  const error = $('closureError');
+  const start = startInput.value;
+  const end = endInput.value || start;
+  const label = normalizeLabel(labelInput.value) || '会社休業日';
+
+  const problem = validateClosure(start, end);
+  error.textContent = problem ?? '';
+  if (problem) return;
+
+  update({
+    closures: [...state.settings.closures, { start, end, label }].sort((a, b) => (a.start < b.start ? -1 : 1)),
+    picksTouched: false,
+  });
+  startInput.value = '';
+  endInput.value = '';
+  labelInput.value = '';
+}
+
+function validateClosure(start, end) {
+  if (!isValidDate(start)) return '開始日を入力してください。';
+  if (!isValidDate(end)) return '終了日の形式が正しくありません。';
+  if (end < start) return '終了日は開始日以降にしてください。';
+  if (diffDays(start, end) + 1 > LIMITS.closureSpanDays) return '1件あたりの期間は366日までです。';
+  if (state.settings.closures.length >= LIMITS.closuresMax) {
+    return `休業日は${LIMITS.closuresMax}件まで登録できます。`;
+  }
+  return null;
+}
+
+/* -------------------------------------------------------------- 書き出し */
+
+function downloadIcs() {
+  const picksInYear = state.picks;
+  if (picksInYear.length === 0) {
+    $('downloadNote').textContent = '書き出す有給日がありません。カレンダーから日を選んでください。';
+    return;
+  }
+  const streaks = findStreaks(state.timeline, picksInYear).filter((streak) => streak.leaveDates.length > 0);
+  const text = buildLeaveCalendar({ picks: picksInYear, streaks });
+  const blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = el('a', { href: url, download: `tsunagiyasumi-${state.settings.year}.ics` });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $('downloadNote').textContent = `${picksInYear.length}日ぶんの有給を書き出しました。`;
+}
+
+/* ----------------------------------------------------------------- */
+
+function populateModes() {
+  const select = $('mode');
+  clear(select);
+  for (const [value, info] of Object.entries(SCORE_MODES)) {
+    select.append(el('option', { value, text: info.label }));
+  }
+}
+
+populateModes();
+boot();
+
+})();
+    </script>
+  </body>
+</html>
