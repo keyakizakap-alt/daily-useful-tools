@@ -1,0 +1,37 @@
+# 依存パッケージ
+node_modules/
+.pnpm-store/
+
+# 環境変数・秘密情報
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ビルド成果物・生成物
+dist/
+build/
+out/
+coverage/
+*.tsbuildinfo
+tools/out.html
+standalone*.html
+
+# ログ・一時ファイル
+*.log
+npm-debug.log*
+.cache/
+tmp/
+.tmp/
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Playwright
+playwright-report/
+test-results/
