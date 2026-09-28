@@ -153,8 +153,9 @@ Google Cloud の現行認定資格 15 種（Foundational 2 / Associate 3 / Profe
 
 ## デプロイ
 
-静的サイトなのでビルド不要。リポジトリ全体をそのまま配信すれば、
+静的サイトなのでビルド不要。GitHub Pages ではリポジトリ全体をそのまま配信し、
 `/`（こいのかたち）・`/weather/`（そらならべ）・`/gcp-cert/`（くもみち）が動く。
+Vercel では、くもみちを**別プロジェクト**として分けて配信する（下記）。
 
 ### GitHub Pages
 
@@ -182,3 +183,23 @@ vercel --prod   # 本番環境へデプロイ
 ```
 
 デプロイ後の URL は `https://<プロジェクト名>.vercel.app/weather/` で天気アプリが開く。
+
+**くもみち（`gcp-cert/`）は別プロジェクトで配信する**
+
+同じリポジトリから 2 つ目の Vercel プロジェクトを作り、Root Directory を `gcp-cert` にする。
+URL（オリジン）・設定・デプロイ履歴・localStorage が既存アプリと完全に分かれる。
+
+1. [vercel.com/new](https://vercel.com/new) で同じリポジトリをもう一度 Import（プロジェクト名は例: `kumomichi`）
+2. **Root Directory** に `gcp-cert` を指定、Framework Preset は **Other**、Build Command / Output Directory は空のまま
+3. Deploy → `https://<プロジェクト名>.vercel.app/` でくもみちが開く
+
+CLI の場合は `vercel --cwd gcp-cert`（初回にプロジェクトをリンク）。
+
+分離のための設定:
+
+| ファイル | 役割 |
+|---|---|
+| `gcp-cert/vercel.json` | くもみち専用の設定（ヘッダ・`cleanUrls`）。`ignoreCommand` で `gcp-cert/` に変更がないコミットはビルドしない |
+| `gcp-cert/.vercelignore` | くもみちプロジェクトから `tools/`（開発用スクリプト）を除外。プロジェクト側のファイルが直下のものより優先される |
+| `.vercelignore` | 直下のプロジェクト（こいのかたち・そらならべ）から `gcp-cert/` を除外 |
+| `vercel.json` | `ignoreCommand` で `gcp-cert/` だけの変更ではビルドしない。念のため `/gcp-cert` へのアクセスは `/` にリダイレクト |
