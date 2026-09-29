@@ -535,17 +535,17 @@
   }
   function pairsFor(ns) { return ns.flatMap(n => (n.pairs || []).map(p => ({ cue: p[0], ans: p[1], n }))); }
   const certLabel = n => n.c === "common" ? "共通" : BY_ID[n.c].abbr;
-  function noteCard(n) {
+  function noteCard(n, open) {
     const known = !!st.known[n.id];
     const c = BY_ID[n.c];
     const dom = c && n.d != null ? c.domains[n.d] : null;
-    return `<article class="card note-card ${known ? "known" : ""}" id="note-${esc(n.id)}">
+    return `<article class="card note-card ${known ? "known" : ""}" id="note-${esc(n.id)}"><details ${open ? "open" : ""}><summary>
       <div class="note-head"><span class="chip ${CAT[n.cat].cls}">${CAT[n.cat].ja}</span>
         ${c ? `<a class="chip" href="#/cert/${c.id}" style="text-decoration:none">${esc(c.abbr)}</a>` : `<span class="chip">共通</span>`}
         ${dom ? `<span class="small muted">ドメイン${n.d + 1}「${esc(dom.t)}」</span>` : ""}
         ${known ? `<span class="chip ok">覚えた</span>` : ""}</div>
       <h3>${esc(n.t)}</h3>
-      <p class="sum">${rich(n.s)}</p>
+      <p class="sum">${rich(n.s)}</p></summary>
       ${n.b ? `<ul>${n.b.map(x => `<li>${rich(x)}</li>`).join("")}</ul>` : ""}
       ${n.tbl ? `<div class="scroll-x"><table class="tbl"><thead><tr>${n.tbl.h.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${n.tbl.r.map(r => `<tr>${r.map(x => `<td>${rich(x)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : ""}
       ${n.pairs ? `<div class="pairs">${n.pairs.map(p => `<div class="pair"><span>${esc(p[0])}</span><span class="arrow" aria-hidden="true">→</span><b>${esc(p[1])}</b></div>`).join("")}</div>` : ""}
@@ -554,10 +554,10 @@
         <div class="btn-row">${c && n.d != null ? `<a class="btn sm" href="#/quiz?c=${c.id}&mode=practice&d=${n.d}">このドメインの問題を解く</a>` : ""}
           ${!c && n.rel ? n.rel.map(r => `<a class="btn sm ghost" href="#/cert/${r}">${esc(BY_ID[r].abbr)}</a>`).join("") : ""}</div>
         <button class="btn sm ${known ? "" : "primary"}" type="button" data-known="${esc(n.id)}" aria-pressed="${known}">${known ? "✓ 覚えた（取り消す）" : "覚えた"}</button>
-      </div></article>`;
+      </div></details></article>`;
   }
   function viewLearn(p) {
-    const f = { c: p.get("c") || "", cat: p.get("cat") || "", q: p.get("q") || "", unread: p.get("unread") === "1" };
+    const f = { c: p.get("c") || "", cat: p.get("cat") || "", q: p.get("q") || "", unread: p.get("unread") === "1", expand: false };
     const base = notesFor(f.c);
     const counts = { "": base.length };
     Object.keys(CAT).forEach(k => { counts[k] = base.filter(n => n.cat === k).length; });
@@ -597,13 +597,22 @@
       list.sort((a, b) => (a.c === "common" ? 0 : 1) - (b.c === "common" ? 0 : 1) || order[a.cat] - order[b.cat]);
       const pairs = pairsFor(list);
       $("#l-actions").innerHTML = `<span class="small muted" style="align-self:center">${list.length} 件表示</span>
+        <button class="btn sm ghost" type="button" id="l-expand">${f.expand ? "すべて閉じる" : "すべて開く"}</button>
         ${pairs.length ? `<a class="btn sm primary" href="#/learn/flash?${new URLSearchParams(Object.assign({}, f.c && { c: f.c }, f.cat && { cat: f.cat }))}">この条件でフラッシュカード（${pairs.length}枚）</a>` : ""}`;
-      $("#l-list").innerHTML = list.length ? list.map(noteCard).join("") : `<section class="card pad"><p class="muted" style="margin:0">条件に合うノートがありません。</p></section>`;
-      $("#l-list").querySelectorAll("[data-known]").forEach(b => b.addEventListener("click", () => {
-        const id = b.dataset.known; if (st.known[id]) delete st.known[id]; else st.known[id] = todayStr();
-        save(); renderList();
-      }));
+      /* 件数が少ないとき・検索中は開いた状態、多いときは見出しだけ */
+      const openAll = list.length <= 4 || words.length > 0 || f.expand;
+      $("#l-list").innerHTML = list.length ? list.map(n => noteCard(n, openAll)).join("") : `<section class="card pad"><p class="muted" style="margin:0">条件に合うノートがありません。</p></section>`;
+      $("#l-expand").addEventListener("click", () => { f.expand = !f.expand; renderList(); });
     };
+    /* 「覚えた」は委譲で受け、開閉状態を保ったままそのカードだけ差し替える */
+    $("#l-list").addEventListener("click", e => {
+      const b = e.target.closest("[data-known]"); if (!b) return;
+      const id = b.dataset.known; if (st.known[id]) delete st.known[id]; else st.known[id] = todayStr();
+      save();
+      const art = b.closest("article"), wasOpen = art.querySelector("details").open;
+      const tmp = document.createElement("div"); tmp.innerHTML = noteCard(NOTES.find(n => n.id === id), wasOpen);
+      art.replaceWith(tmp.firstElementChild);
+    });
     app.querySelectorAll("[data-cat]").forEach(b => b.addEventListener("click", () => { f.cat = b.dataset.cat; setParam(); viewLearn(new URLSearchParams(location.hash.split("?")[1] || "")); }));
     $("#l-cert").addEventListener("change", e => { f.c = e.target.value; setParam(); viewLearn(new URLSearchParams(location.hash.split("?")[1] || "")); });
     $("#l-q").addEventListener("input", e => { f.q = e.target.value; setParam(); renderList(); });
