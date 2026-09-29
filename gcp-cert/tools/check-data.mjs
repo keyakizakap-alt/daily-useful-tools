@@ -11,6 +11,7 @@ vm.createContext(ctx);
 const load = f => vm.runInContext(readFileSync(f, "utf8").replace(/^window\.GC = window\.GC \|\| \{\};/m, "var GC = window.GC = window.GC || {};"), ctx, { filename: f });
 load(join(root, "data/certs.js"));
 for (const f of readdirSync(join(root, "data/questions")).sort()) load(join(root, "data/questions", f));
+for (const f of readdirSync(join(root, "data/notes")).sort()) load(join(root, "data/notes", f));
 
 const GC = ctx.window.GC;
 const errs = [];
@@ -53,7 +54,29 @@ for (const c of GC.certs) {
   if (qs.length < 10) errs.push(`${c.id}: 問題が ${qs.length} 問しかありません`);
   c.domains.forEach((_, i) => { if (!qs.some(q => q.d === i)) errs.push(`${c.id}: ドメイン${i + 1}の問題がありません`); });
 }
-console.log(`資格 ${GC.certs.length} 種 / 問題 ${GC.q.length} 問`);
+const noteIds = new Set();
+const CATS = ["basic", "advanced", "frequent"];
+for (const n of GC.notes || []) {
+  const where = n.id || n.t;
+  if (noteIds.has(n.id) || seen.has(n.id)) errs.push(`${where}: ノートIDが重複`);
+  noteIds.add(n.id);
+  if (!CATS.includes(n.cat)) errs.push(`${where}: カテゴリ ${n.cat} が不正`);
+  if (!n.t || !n.s) errs.push(`${where}: タイトルか要約がありません`);
+  if (!n.b && !n.tbl && !n.pairs) errs.push(`${where}: 本文（b / tbl / pairs）がありません`);
+  if (n.c !== "common") {
+    const c = certs.get(n.c);
+    if (!c) { errs.push(`${where}: 未知の資格 ${n.c}`); continue; }
+    if (n.d != null && (!Number.isInteger(n.d) || n.d < 0 || n.d >= c.domains.length)) errs.push(`${where}: ドメイン番号 ${n.d} が範囲外`);
+  } else if (!Array.isArray(n.rel) || !n.rel.length || n.rel.some(r => !certs.has(r))) errs.push(`${where}: 共通ノートの rel が不正`);
+  if (n.tbl && (!n.tbl.h || n.tbl.r.some(r => r.length !== n.tbl.h.length))) errs.push(`${where}: 表の列数が見出しと一致しません`);
+  if (n.pairs && n.pairs.some(p => p.length !== 2 || !p[0] || !p[1])) errs.push(`${where}: pairs の形式が不正`);
+}
+for (const c of GC.certs) {
+  const own = (GC.notes || []).filter(n => n.c === c.id);
+  for (const cat of CATS) if (!own.some(n => n.cat === cat) && !(GC.notes || []).some(n => n.c === "common" && n.cat === cat && n.rel.includes(c.id)))
+    errs.push(`${c.id}: カテゴリ ${cat} のノートがありません`);
+}
+console.log(`資格 ${GC.certs.length} 種 / 問題 ${GC.q.length} 問 / ノート ${(GC.notes || []).length} 件（ペア ${(GC.notes || []).reduce((a, n) => a + (n.pairs || []).length, 0)}）`);
 console.log(Object.entries(per).map(([k, v]) => `${k}:${v}`).join(" "));
 if (errs.length) { console.error(errs.map(e => "✗ " + e).join("\n")); process.exit(1); }
 console.log("OK");

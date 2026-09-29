@@ -10,6 +10,12 @@
   const BY_ID = Object.fromEntries(CERTS.map(c => [c.id, c]));
   const Q = GC.q;
   const Q_BY_ID = Object.fromEntries(Q.map(q => [q.id, q]));
+  const NOTES = GC.notes || [];
+  const CAT = {
+    basic:    { ja: "基礎", cls: "acc",  desc: "用語・仕組み・前提知識" },
+    advanced: { ja: "応用", cls: "warn", desc: "設計判断・組み合わせ・シナリオ" },
+    frequent: { ja: "頻出", cls: "ng",   desc: "よく問われる「この要件ならこれ」" }
+  };
   const Q_BY_CERT = {};
   CERTS.forEach(c => { Q_BY_CERT[c.id] = Q.filter(q => q.c === c.id); });
 
@@ -27,7 +33,7 @@
 
   /* ---------------- storage ---------------- */
   const KEY = "kumomichi.v1";
-  const blank = () => ({ certs: {}, ans: {}, mocks: [], plan: { hpw: 8, level: "std", start: "" }, theme: "auto" });
+  const blank = () => ({ certs: {}, ans: {}, mocks: [], known: {}, plan: { hpw: 8, level: "std", start: "" }, theme: "auto" });
   let st = blank();
   try {
     const raw = localStorage.getItem(KEY);
@@ -127,6 +133,8 @@
     });
     if (parts[0] === "cert" && BY_ID[parts[1]]) viewCert(BY_ID[parts[1]]);
     else if (parts[0] === "quiz") viewQuizStart(params);
+    else if (parts[0] === "learn" && parts[1] === "flash") viewFlash(params);
+    else if (parts[0] === "learn") viewLearn(params);
     else if (parts[0] === "review") viewReview();
     else if (parts[0] === "plan") viewPlan();
     else if (parts[0] === "updates") viewUpdates();
@@ -295,6 +303,14 @@
               <div style="display:flex;justify-content:space-between"><span class="muted">回答済み</span><span class="tnum">${s.answered} / ${s.total}</span></div>
               <div style="display:flex;justify-content:space-between"><span class="muted">模試ベスト</span><span class="tnum">${s.best == null ? "—" : pct(s.best) + "%"}</span></div>
               <div style="display:flex;justify-content:space-between"><span class="muted">準備度（目安）</span><b class="tnum">${readiness(c.id)}%</b></div>
+            </div>
+          </section>
+          <section class="card pad">
+            <h2 style="margin:0 0 4px;font-size:16px">学習ノート</h2>
+            <p class="small muted" style="margin:0 0 10px">覚えた ${notesFor(c.id).filter(n => st.known[n.id]).length} / ${notesFor(c.id).length}（共通ノート含む）</p>
+            <div class="grid" style="gap:8px">
+              ${Object.entries(CAT).map(([k, v]) => `<a class="btn sm" style="justify-content:space-between" href="#/learn?c=${c.id}&cat=${k}"><span><span class="chip ${v.cls}">${v.ja}</span> ${esc(v.desc)}</span><span class="tnum">${notesFor(c.id).filter(n => n.cat === k).length}</span></a>`).join("")}
+              <a class="btn primary sm" href="#/learn/flash?c=${c.id}">フラッシュカード（${pairsFor(notesFor(c.id)).length}枚）</a>
             </div>
           </section>
           <section class="card pad">
@@ -509,6 +525,146 @@
   });
 
   /* ============================================================
+     LEARN（学習ノート）
+     ============================================================ */
+  /* 資格IDを指定すると、その資格のノート＋関連する共通ノートを返す */
+  function notesFor(cid) {
+    if (!cid) return NOTES;
+    if (cid === "common") return NOTES.filter(n => n.c === "common");
+    return NOTES.filter(n => n.c === cid || (n.c === "common" && (n.rel || []).includes(cid)));
+  }
+  function pairsFor(ns) { return ns.flatMap(n => (n.pairs || []).map(p => ({ cue: p[0], ans: p[1], n }))); }
+  const certLabel = n => n.c === "common" ? "共通" : BY_ID[n.c].abbr;
+  function noteCard(n, open) {
+    const known = !!st.known[n.id];
+    const c = BY_ID[n.c];
+    const dom = c && n.d != null ? c.domains[n.d] : null;
+    return `<article class="card note-card ${known ? "known" : ""}" id="note-${esc(n.id)}"><details ${open ? "open" : ""}><summary>
+      <div class="note-head"><span class="chip ${CAT[n.cat].cls}">${CAT[n.cat].ja}</span>
+        ${c ? `<a class="chip" href="#/cert/${c.id}" style="text-decoration:none">${esc(c.abbr)}</a>` : `<span class="chip">共通</span>`}
+        ${dom ? `<span class="small muted">ドメイン${n.d + 1}「${esc(dom.t)}」</span>` : ""}
+        ${known ? `<span class="chip ok">覚えた</span>` : ""}</div>
+      <h3>${esc(n.t)}</h3>
+      <p class="sum">${rich(n.s)}</p></summary>
+      ${n.b ? `<ul>${n.b.map(x => `<li>${rich(x)}</li>`).join("")}</ul>` : ""}
+      ${n.tbl ? `<div class="scroll-x"><table class="tbl"><thead><tr>${n.tbl.h.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${n.tbl.r.map(r => `<tr>${r.map(x => `<td>${rich(x)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : ""}
+      ${n.pairs ? `<div class="pairs">${n.pairs.map(p => `<div class="pair"><span>${esc(p[0])}</span><span class="arrow" aria-hidden="true">→</span><b>${esc(p[1])}</b></div>`).join("")}</div>` : ""}
+      ${n.tip ? `<p class="tipbox"><b>試験のコツ</b>　${rich(n.tip)}</p>` : ""}
+      <div class="note-foot">
+        <div class="btn-row">${c && n.d != null ? `<a class="btn sm" href="#/quiz?c=${c.id}&mode=practice&d=${n.d}">このドメインの問題を解く</a>` : ""}
+          ${!c && n.rel ? n.rel.map(r => `<a class="btn sm ghost" href="#/cert/${r}">${esc(BY_ID[r].abbr)}</a>`).join("") : ""}</div>
+        <button class="btn sm ${known ? "" : "primary"}" type="button" data-known="${esc(n.id)}" aria-pressed="${known}">${known ? "✓ 覚えた（取り消す）" : "覚えた"}</button>
+      </div></details></article>`;
+  }
+  function viewLearn(p) {
+    const f = { c: p.get("c") || "", cat: p.get("cat") || "", q: p.get("q") || "", unread: p.get("unread") === "1", expand: false };
+    const base = notesFor(f.c);
+    const counts = { "": base.length };
+    Object.keys(CAT).forEach(k => { counts[k] = base.filter(n => n.cat === k).length; });
+    const knownAll = NOTES.filter(n => st.known[n.id]).length;
+    app.innerHTML = `
+      <div class="page-head"><div class="eyebrow">Knowledge cards · ${NOTES.length} notes</div><h1>学ぶ</h1>
+        <p>問題を解く前のインプット用ノート。<b>基礎</b>（用語・仕組み）→ <b>応用</b>（設計判断）→ <b>頻出</b>（「この要件ならこれ」）の順がおすすめ。</p></div>
+      <section class="card pad">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
+          <div class="seg" role="group" aria-label="カテゴリ">
+            ${[["", "すべて"]].concat(Object.entries(CAT).map(([k, v]) => [k, v.ja])).map(([k, ja]) => `<button type="button" data-cat="${k}" aria-pressed="${f.cat === k}">${ja}<small class="tnum">${counts[k]}</small></button>`).join("")}
+          </div>
+          <div class="small muted tnum">覚えた ${knownAll} / ${NOTES.length}</div>
+        </div>
+        <div class="filters">
+          <select id="l-cert" aria-label="資格で絞り込む">
+            <option value="">すべての資格</option><option value="common" ${f.c === "common" ? "selected" : ""}>共通（全資格の土台）</option>
+            ${GC.phases.flatMap(ph => ph.ids).map(id => `<option value="${id}" ${f.c === id ? "selected" : ""}>${esc(BY_ID[id].abbr)} — ${esc(BY_ID[id].name)}</option>`).join("")}
+          </select>
+          <input type="search" id="l-q" placeholder="キーワードで検索（例: Spanner、SLO、VPC）" value="${esc(f.q)}" aria-label="キーワードで検索">
+          <label class="chk"><input type="checkbox" id="l-unread" ${f.unread ? "checked" : ""}> 未習得のみ</label>
+        </div>
+        <div class="btn-row" id="l-actions"></div>
+      </section>
+      <div class="notes" id="l-list"></div>
+      ${footer()}`;
+    const setParam = () => {
+      const q = new URLSearchParams();
+      if (f.c) q.set("c", f.c); if (f.cat) q.set("cat", f.cat); if (f.q) q.set("q", f.q); if (f.unread) q.set("unread", "1");
+      history.replaceState(null, "", "#/learn" + (q.toString() ? "?" + q : ""));
+    };
+    const renderList = () => {
+      const words = f.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const list = notesFor(f.c).filter(n => (!f.cat || n.cat === f.cat) && (!f.unread || !st.known[n.id]) &&
+        words.every(w => JSON.stringify([n.t, n.s, n.b, n.tbl, n.pairs, n.tip]).toLowerCase().includes(w)));
+      const order = { basic: 0, advanced: 1, frequent: 2 };
+      list.sort((a, b) => (a.c === "common" ? 0 : 1) - (b.c === "common" ? 0 : 1) || order[a.cat] - order[b.cat]);
+      const pairs = pairsFor(list);
+      $("#l-actions").innerHTML = `<span class="small muted" style="align-self:center">${list.length} 件表示</span>
+        <button class="btn sm ghost" type="button" id="l-expand">${f.expand ? "すべて閉じる" : "すべて開く"}</button>
+        ${pairs.length ? `<a class="btn sm primary" href="#/learn/flash?${new URLSearchParams(Object.assign({}, f.c && { c: f.c }, f.cat && { cat: f.cat }))}">この条件でフラッシュカード（${pairs.length}枚）</a>` : ""}`;
+      /* 件数が少ないとき・検索中は開いた状態、多いときは見出しだけ */
+      const openAll = list.length <= 4 || words.length > 0 || f.expand;
+      $("#l-list").innerHTML = list.length ? list.map(n => noteCard(n, openAll)).join("") : `<section class="card pad"><p class="muted" style="margin:0">条件に合うノートがありません。</p></section>`;
+      $("#l-expand").addEventListener("click", () => { f.expand = !f.expand; renderList(); });
+    };
+    /* 「覚えた」は委譲で受け、開閉状態を保ったままそのカードだけ差し替える */
+    $("#l-list").addEventListener("click", e => {
+      const b = e.target.closest("[data-known]"); if (!b) return;
+      const id = b.dataset.known; if (st.known[id]) delete st.known[id]; else st.known[id] = todayStr();
+      save();
+      const art = b.closest("article"), wasOpen = art.querySelector("details").open;
+      const tmp = document.createElement("div"); tmp.innerHTML = noteCard(NOTES.find(n => n.id === id), wasOpen);
+      art.replaceWith(tmp.firstElementChild);
+    });
+    app.querySelectorAll("[data-cat]").forEach(b => b.addEventListener("click", () => { f.cat = b.dataset.cat; setParam(); viewLearn(new URLSearchParams(location.hash.split("?")[1] || "")); }));
+    $("#l-cert").addEventListener("change", e => { f.c = e.target.value; setParam(); viewLearn(new URLSearchParams(location.hash.split("?")[1] || "")); });
+    $("#l-q").addEventListener("input", e => { f.q = e.target.value; setParam(); renderList(); });
+    $("#l-unread").addEventListener("change", e => { f.unread = e.target.checked; setParam(); renderList(); });
+    renderList();
+  }
+
+  /* フラッシュカード: 頻出ノートの「キーワード → 答え」を1枚ずつ。まだの札は後ろに回す */
+  let flash = null;
+  function viewFlash(p) {
+    const c = p.get("c") || "", cat = p.get("cat") || "";
+    const deck = shuffle(pairsFor(notesFor(c).filter(n => !cat || n.cat === cat)));
+    const back = "#/learn" + (c || cat ? "?" + new URLSearchParams(Object.assign({}, c && { c }, cat && { cat })) : "");
+    flash = { deck, total: deck.length, ok: 0, again: 0, open: false, back };
+    renderFlash();
+  }
+  function renderFlash() {
+    const F = flash;
+    if (!F.deck.length) {
+      app.innerHTML = `<div class="flash"><section class="card pad" style="text-align:center">
+        <div class="eyebrow">Flashcards</div><h1 style="font-size:22px;margin:4px 0">${F.total ? "全部めくりました" : "カードがありません"}</h1>
+        ${F.total ? `<p class="muted">${F.total} 枚 · 「もう一度」${F.again} 回</p>` : ""}
+        <div class="btn-row" style="justify-content:center"><a class="btn primary" href="${F.back}">ノートに戻る</a></div></section></div>`;
+      return;
+    }
+    const card = F.deck[0];
+    const src = card.n.c === "common" ? "共通" : BY_ID[card.n.c].abbr;
+    app.innerHTML = `<div class="flash">
+      <div class="qbar"><a class="btn sm ghost" href="${F.back}">✕ やめる</a><b style="font-size:14px">フラッシュカード</b>
+        <div class="bar" aria-hidden="true"><i style="width:${pct(F.ok / F.total)}%"></i></div><span class="small tnum">${F.ok} / ${F.total}</span></div>
+      <section class="card flash-card" aria-live="polite">
+        <div class="src">${esc(src)} · ${esc(card.n.t)}</div>
+        <div class="cue">${esc(card.cue)}</div>
+        ${F.open ? `<div class="ans">${esc(card.ans)}</div>` : `<div class="muted small">答えを思い浮かべてからめくる</div>`}
+      </section>
+      <div class="btn-row" style="justify-content:center;margin-top:14px">
+        ${F.open ? `<button class="btn" id="f-again" type="button">もう一度（1）</button><button class="btn primary" id="f-ok" type="button">覚えた（2）</button>`
+                 : `<button class="btn primary" id="f-open" type="button">答えを見る（Space）</button>`}
+      </div></div>`;
+    const on = (id, fn) => { const el = $("#" + id); if (el) el.addEventListener("click", fn); };
+    on("f-open", () => { F.open = true; renderFlash(); });
+    on("f-ok", () => { F.deck.shift(); F.ok++; F.open = false; renderFlash(); });
+    on("f-again", () => { F.deck.push(F.deck.shift()); F.again++; F.open = false; renderFlash(); });
+  }
+  document.addEventListener("keydown", e => {
+    if (!flash || !app.querySelector(".flash-card") || e.target.closest("input,select,textarea")) return;
+    if (!flash.open && (e.key === " " || e.key === "Enter")) { e.preventDefault(); $("#f-open").click(); }
+    else if (flash.open && e.key === "1") $("#f-again").click();
+    else if (flash.open && (e.key === "2" || e.key === "Enter")) { e.preventDefault(); $("#f-ok").click(); }
+  });
+
+  /* ============================================================
      REVIEW
      ============================================================ */
   function viewReview() {
@@ -655,7 +811,7 @@
           <p class="small muted" style="margin:0 0 12px">すべての進捗（回答履歴・模試・ステータス・計画）を削除します。元に戻せません。</p>
           <button class="btn" id="reset" type="button" style="color:var(--ng);border-color:var(--ng)">すべての進捗を削除</button></section>
         <section class="card pad"><h2 style="margin:0 0 6px;font-size:16px">収録データ</h2>
-          <p class="small" style="margin:0">資格 ${CERTS.length} 種・オリジナル演習問題 ${Q.length} 問（${CERTS.map(c => c.abbr + " " + Q_BY_CERT[c.id].length).join(" / ")}）</p></section>
+          <p class="small" style="margin:0">資格 ${CERTS.length} 種・学習ノート ${NOTES.length} 件・オリジナル演習問題 ${Q.length} 問（${CERTS.map(c => c.abbr + " " + Q_BY_CERT[c.id].length).join(" / ")}）</p></section>
       </div>
       ${footer()}`;
     $("#s-theme").addEventListener("change", e => { st.theme = e.target.value; applyTheme(); save(); });
