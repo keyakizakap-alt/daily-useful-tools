@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'none'; font-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>おくるまえに — 送信前のメール点検</title>
+<meta name="description" content="メールの敬語・体裁・言い方の圧・機密情報の書き込みを、送信前にブラウザ内だけで点検します。本文はどこにも送信されません。">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="brand">
+      <h1>おくるまえに</h1>
+      <p class="tagline">送信ボタンの前の、1分の点検。</p>
+    </div>
+    <div class="header-tools">
+      <p class="local-badge" title="このページは通信を一切行いません">
+        <span aria-hidden="true">🔒</span> 本文は端末内で処理され、どこにも送信されません
+      </p>
+      <div class="theme-switch" role="group" aria-label="表示テーマ">
+        <button type="button" data-theme-value="light">ライト</button>
+        <button type="button" data-theme-value="dark">ダーク</button>
+        <button type="button" data-theme-value="system">自動</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ============ 入力 ============ -->
+  <section class="panel panel-input" aria-labelledby="input-heading">
+    <h2 id="input-heading">下書き</h2>
+
+    <div class="field">
+      <label for="audience">送信相手</label>
+      <select id="audience">
+        <option value="external">社外の相手</option>
+        <option value="boss">社内の上司・先輩</option>
+        <option value="colleague">社内の同僚</option>
+      </select>
+      <p class="hint" id="audience-hint">相手によって、指摘するルールが変わります。</p>
+    </div>
+
+    <div class="field">
+      <label for="subject">件名</label>
+      <input type="text" id="subject" autocomplete="off" spellcheck="false"
+             placeholder="【ご確認】9月分請求書の送付について">
+    </div>
+
+    <div class="field">
+      <label for="body">本文</label>
+      <textarea id="body" rows="18" spellcheck="false"
+                placeholder="宛名から署名まで、そのまま貼り付けてください。&#10;引用行（&gt; で始まる行）は点検の対象外です。"></textarea>
+      <p class="hint counter" id="counter">0文字 / 0行</p>
+    </div>
+
+    <div class="actions">
+      <button type="button" id="btn-fix-all" class="primary">修正候補をまとめて適用</button>
+      <button type="button" id="btn-copy">本文をコピー</button>
+      <button type="button" id="btn-sample">例文を入れる</button>
+      <button type="button" id="btn-clear" class="danger">消去</button>
+    </div>
+
+    <div class="save-row">
+      <input type="checkbox" id="opt-save">
+      <label for="opt-save">この端末に下書きを保存する（既定は保存しない）</label>
+    </div>
+  </section>
+
+  <!-- ============ 結果 ============ -->
+  <section class="panel panel-result" aria-labelledby="result-heading">
+    <h2 id="result-heading">点検結果</h2>
+
+    <div class="score-card">
+      <div class="score-number"><span id="score">100</span><small>点</small></div>
+      <div class="score-body">
+        <div class="score-bar" aria-hidden="true"><span id="score-bar-fill"></span></div>
+        <p class="score-counts" id="score-counts"></p>
+      </div>
+    </div>
+
+    <p class="summary" id="summary" role="status" aria-live="polite">本文を入力すると、ここに指摘が出ます。</p>
+
+    <div class="filters" id="filters" role="group" aria-label="分類でしぼりこむ"></div>
+
+    <ol class="findings" id="findings"></ol>
+
+    <details class="preview-wrap">
+      <summary>本文のハイライト表示</summary>
+      <div class="preview" id="preview" aria-label="指摘箇所のハイライト"></div>
+    </details>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <p>
+    ルールベースの点検ツールです。生成AIや外部APIは使っていないため、指摘は網羅的ではありません。
+    最終的な判断は書き手が行ってください。指摘が的外れなときは「無視」を押してください。
+  </p>
+  <p class="foot-links">
+    <a href="https://github.com/keyakizakap-alt/daily-useful-tools/blob/main/mail-check/docs/requirements.md">要件定義</a> ・
+    <a href="https://github.com/keyakizakap-alt/daily-useful-tools/blob/main/mail-check/docs/architecture.md">設計</a> ・
+    <a href="https://github.com/keyakizakap-alt/daily-useful-tools/blob/main/mail-check/feedback/review_report.md">レビュー記録</a>
+  </p>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

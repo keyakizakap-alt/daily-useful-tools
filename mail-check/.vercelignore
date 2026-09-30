@@ -1,0 +1,8 @@
+# おくるまえに専用プロジェクト（Root Directory = mail-check）で配信しないファイル。
+# プロジェクト側の .vercelignore はリポジトリ直下のものより優先されるため、
+# 直下の .vercelignore で mail-check を除外していても、このプロジェクトには影響しない。
+docs/
+feedback/
+tests/
+package.json
+package-lock.json

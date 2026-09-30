@@ -1,3 +1,5 @@
 # リポジトリ直下を Root Directory とする Vercel プロジェクト（こいのかたち・そらならべ）から除外するもの。
-# くもみち（gcp-cert/）は Root Directory = gcp-cert の別プロジェクトで配信する。
+# くもみち（gcp-cert/）と おくるまえに（mail-check/）は、それぞれ
+# Root Directory = gcp-cert / mail-check の別プロジェクトで配信する。
 /gcp-cert
+/mail-check

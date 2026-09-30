@@ -92,6 +92,57 @@ Google Cloud の現行認定資格 15 種（Foundational 2 / Associate 3 / Profe
   「頻出」は公式の出題範囲と一般的な学習資料からの推定で、実際の出題統計ではない。
 - 整合性チェック: `node gcp-cert/tools/check-data.mjs`（ID 重複・正解インデックス・複数選択表記・配点合計・全ドメインの問題有無・ノートの形式と全資格×全カテゴリの有無など）
 
+## おくるまえに — 送信前のメール点検 (`mail-check/`)
+
+> 送信ボタンの前の、1分の点検。
+
+メールの下書きを貼ると、**敬語の誤り・二重敬語・言い方の圧・期限のあいまいさ・体裁の抜け・
+本文への機密情報の書き込み**を指摘し、その場で修正候補に置き換えられる。
+
+`mail-check/index.html` をブラウザで開くだけ。ビルド・サーバー・APIキーは不要。
+
+### 機能
+
+- **重要度つきの指摘** — 高（そのまま送ると信頼や情報を損なう）／中／低の3段階。分類（機密情報・敬語・二重敬語・
+  尊敬謙譲の混同・あいまい・圧・構成・冗長・表記・文体）ごとに絞り込める。
+- **1クリック置換と一括適用** — 修正候補を持つ指摘は、1件ずつ、またはまとめて本文へ反映できる。
+- **理由の表示** — 「なぜ直すのか」を1件ずつ表示する。直す以外に、覚えて次から避けられる。
+- **送信相手による出し分け** — 社外／社内の上司・先輩／社内の同僚で適用ルールが変わる（「了解しました」は同僚宛なら指摘しない）。
+- **機密情報の検出** — パスワードの直書き、APIキー・トークン、クレジットカード番号（Luhn 検査つき）、
+  マイナンバーらしき12桁、口座番号を検出する。
+- **構成チェック** — 件名（空・長すぎ・用件不明・強い符号）、宛名・挨拶・結び・署名の欠落、添付の付け忘れ、
+  長すぎる行、敬体と常体の混在、「させていただく」の多用、依頼の前置きの不足。
+- **引用行を除外** — `>` で始まる行（返信の引用）は点検の対象外。
+- **無視** — 的外れな指摘はその場で消せる。本文を直して位置が動いても無視は維持される。
+- ハイライト表示、点数（100点満点）、ライト／ダーク（OS設定追従＋手動切り替え）、キーボード操作対応。
+
+### 本文はどこにも送信されない
+
+これがこのツールの第一の設計方針である。
+
+- 通信コードを持たない（`fetch` / `XMLHttpRequest` なし。外部フォント・CDN・解析タグもなし）。
+- `Content-Security-Policy` で `default-src 'none'; connect-src 'none'; form-action 'none'` を宣言。
+- 依存パッケージ 0。`npm audit` の指摘対象となる本番依存を持たない。
+- 下書きの端末内保存は**既定で無効**。有効にした場合も `localStorage` のみで、解除すると削除する。
+- 判定はルールベースなので、生成AIに本文を渡す必要がない（指摘理由も説明可能）。
+
+### 開発
+
+ツール内だけで完結している（リポジトリ直下には何も置かない）。
+
+```bash
+cd mail-check
+npm test        # 単体テスト（node:test、依存ゼロ）
+npm run smoke   # file:// のブラウザ結合テスト（playwright があるとき）
+npm run lint    # 構文チェック
+npm audit       # 依存監査（依存0件）
+```
+
+設計と判断の記録は [`mail-check/docs/requirements.md`](mail-check/docs/requirements.md) /
+[`mail-check/docs/architecture.md`](mail-check/docs/architecture.md)、
+レビューと修正の記録は [`mail-check/feedback/review_report.md`](mail-check/feedback/review_report.md) にある。
+
+
 ## そらならべ — 日本の天気を、ならべて見る (`weather/`)
 
 > ぜんぶの空を、ならべて見る。
@@ -159,8 +210,8 @@ Google Cloud の現行認定資格 15 種（Foundational 2 / Associate 3 / Profe
 ## デプロイ
 
 静的サイトなのでビルド不要。GitHub Pages ではリポジトリ全体をそのまま配信し、
-`/`（こいのかたち）・`/weather/`（そらならべ）・`/gcp-cert/`（くもみち）が動く。
-Vercel では、くもみちを**別プロジェクト**として分けて配信する（下記）。
+`/`（こいのかたち）・`/weather/`（そらならべ）・`/gcp-cert/`（くもみち）・`/mail-check/`（おくるまえに）が動く。
+Vercel では、くもみちと おくるまえに を**それぞれ別プロジェクト**として分けて配信する（下記）。
 
 ### GitHub Pages
 
@@ -208,3 +259,20 @@ CLI の場合は `vercel --cwd gcp-cert`（初回にプロジェクトをリン�
 | `gcp-cert/.vercelignore` | くもみちプロジェクトから `tools/`（開発用スクリプト）を除外。プロジェクト側のファイルが直下のものより優先される |
 | `.vercelignore` | 直下のプロジェクト（こいのかたち・そらならべ）から `gcp-cert/` を除外 |
 | `vercel.json` | `ignoreCommand` で `gcp-cert/` だけの変更ではビルドしない。念のため `/gcp-cert` へのアクセスは `/` にリダイレクト |
+
+**おくるまえに（`mail-check/`）も別プロジェクトで配信する**
+
+くもみちと同じ手順で、3 つ目の Vercel プロジェクトを作り Root Directory を `mail-check` にする。
+
+1. [vercel.com/new](https://vercel.com/new) で同じリポジトリをもう一度 Import（プロジェクト名は例: `okurumae`）
+2. **Root Directory** に `mail-check` を指定、Framework Preset は **Other**、Build Command / Output Directory は空のまま
+3. Deploy → `https://<プロジェクト名>.vercel.app/` でおくるまえにが開く
+
+CLI の場合は `vercel --cwd mail-check`（初回にプロジェクトをリンク）。
+
+| ファイル | 役割 |
+|---|---|
+| `mail-check/vercel.json` | おくるまえに専用の設定。`ignoreCommand` で `mail-check/` に変更がないコミットはビルドしない |
+| `mail-check/.vercelignore` | 配信対象から `docs/` `feedback/` `tests/` `package*.json` を除外（画面に必要な4ファイルだけを配信する） |
+| `.vercelignore` | 直下のプロジェクトから `mail-check/` を除外 |
+| `vercel.json` | `ignoreCommand` の除外に `mail-check` を追加。`/mail-check` へのアクセスは `/` にリダイレクト |
