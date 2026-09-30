@@ -15,15 +15,23 @@
 ## 2. システム構成
 
 ```
-src/
-├── index.html   画面（マークアップのみ。インラインスクリプトを持たない）
-├── styles.css   スタイル（ライト／ダークのトークン定義）
-├── engine.js    点検エンジン（DOM 非依存の純粋関数群）★テスト対象
-└── app.js       DOM 層（入出力・描画・保存。engine.js を呼ぶだけ）
-tests/
-├── engine.test.js   単体テスト（node:test、依存ゼロ）
-└── smoke.mjs        ブラウザ結合スモーク（playwright が使える場合のみ）
+mail-check/                 ← このツールだけで完結するディレクトリ
+├── index.html              画面（マークアップのみ。インラインスクリプトを持たない）
+├── styles.css              スタイル（ライト／ダークのトークン定義）
+├── engine.js               点検エンジン（DOM 非依存の純粋関数群）★テスト対象
+├── app.js                  DOM 層（入出力・描画・保存。engine.js を呼ぶだけ）
+├── package.json            開発用スクリプト（依存0件）
+├── vercel.json             このツール専用の Vercel プロジェクト設定
+├── .vercelignore           配信しないもの（docs / feedback / tests / package*.json）
+├── docs/                   要件定義・設計・PR 記録
+├── feedback/               レビューとトリアージの記録
+└── tests/
+    ├── engine.test.js      単体テスト（node:test、依存ゼロ）
+    └── smoke.mjs           ブラウザ結合スモーク（playwright が使える場合のみ）
 ```
+
+リポジトリ直下には何も置かない。既存アプリ（`index.html` = こいのかたち、`weather/` = そらならべ、
+`gcp-cert/` = くもみち）と混ざらないよう、**1ツール1ディレクトリで自己完結**させる（`gcp-cert/` と同じ方式）。
 
 データの流れ（すべてブラウザ内・単方向）:
 
@@ -42,7 +50,7 @@ tests/
 ### 3.1 `engine.js`（DOM 非依存）
 
 ブラウザでは `<script src="engine.js">` としてグローバル `OkuruMae` を公開し、Node からは
-`require('../src/engine.js')` で同じオブジェクトを読む UMD 形式。二重実装を作らない。
+`require('../engine.js')` で同じオブジェクトを読む UMD 形式。二重実装を作らない。
 
 公開 API:
 
@@ -122,7 +130,7 @@ tests/
 | 正規表現 DoS | すべてのパターンでネストした量指定子を使わず、繰り返しの上限を明示（`{1,8}` 等） |
 | 誤検出による害 | 「無視」機能と重要度表示で、利用者が最終判断を下せるようにする |
 
-CSP（`index.html` の `<meta http-equiv="Content-Security-Policy">`）:
+CSP（`mail-check/index.html` の `<meta http-equiv="Content-Security-Policy">`）:
 
 ```
 default-src 'none'; script-src 'self'; style-src 'self'; img-src 'none';

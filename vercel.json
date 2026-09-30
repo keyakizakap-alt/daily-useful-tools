@@ -1,7 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':(exclude)gcp-cert' ':(exclude)mail-check'",
   "cleanUrls": true,
   "trailingSlash": false,
+  "redirects": [
+    { "source": "/gcp-cert", "destination": "/", "permanent": false },
+    { "source": "/gcp-cert/:path*", "destination": "/", "permanent": false },
+    { "source": "/mail-check", "destination": "/", "permanent": false },
+    { "source": "/mail-check/:path*", "destination": "/", "permanent": false }
+  ],
   "headers": [
     {
       "source": "/(.*)",

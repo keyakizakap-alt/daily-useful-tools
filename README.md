@@ -52,14 +52,54 @@ python3 tools/build_standalone.py out.html --fragment # Artifact用（doctype/he
 
 # 収録ツール
 
-## おくるまえに — 送信前のメール点検 (`src/`)
+## くもみち — Google Cloud 認定 全冠ナビ (`gcp-cert/`)
+
+> 15 の認定を、ひとつの道に。
+
+Google Cloud の現行認定資格 15 種（Foundational 2 / Associate 3 / Professional 10、ベータの Agentic Architect を含む）の
+出題範囲・試験情報・最新の変更点をまとめ、演習と学習計画で全冠取得を支援する非公式アプリ。
+`gcp-cert/index.html` をブラウザで開くだけ（ビルド・サーバー不要）。
+
+### 機能
+
+- **全冠ダッシュボード** — 合格数リング、残り受験料・学習時間、今日の復習、次に取り組む資格、更新期限。
+- **全冠ロードマップ** — 出題範囲の重なりが大きい順に 4 フェーズで提案（本アプリの推奨順で、公式の推奨ではない）。
+- **資格ごとの詳細** — 試験時間・問題数・受験料・言語・有効期間・推奨経験・最新の変更、ドメインと配点、学習メモ、公式リンク。
+- **学ぶ（学習ノート）** — 79 件のインプット用ノートを **基礎**（用語・仕組み）/ **応用**（設計判断・シナリオ）/ **頻出**（「この要件ならこれ」）の3カテゴリで整理。
+  資格・キーワードで絞り込み、「覚えた」の記録、ドメイン別問題への導線つき。全資格の土台になる「共通」ノート（サービス選択の比較表など）も収録。
+- **フラッシュカード** — ノート内の「キーワード → 答え」193 組を1枚ずつ。覚えていない札は後ろに回す。キーボード操作（Space / 1 / 2）対応。
+- **演習** — ランダム 10 問（未回答・苦手を優先）、ドメイン別、まちがえた問題。選択肢は毎回シャッフル。キーボード操作対応。
+- **模擬試験** — 公式の試験時間を問題数に比例させた時間制限、見直しマーク、問題一覧、ドメイン別の結果。配点が分かる資格は配点比で出題。
+- **間隔反復（Leitner 方式）** — 1 → 3 → 7 → 16 → 35 日。苦手ドメイン（正答率 60% 未満）を一覧表示。
+- **学習計画** — 開始日・週あたり時間・経験レベルから、未合格資格の受験目安日をガントで表示し、受験予定日に一括反映。
+- **最新情報** — Pearson VUE への移行、Vertex AI → Gemini Enterprise Agent Platform などの名称変更、廃止資格、データの確からしさ。
+- 進捗は localStorage のみに保存（JSON で書き出し / 読み込み可）。ライト／ダーク、レスポンシブ。
+
+### データの出典と確からしさ（2026-09-28 確認）
+
+- 資格一覧・試験時間・問題数・受験料・言語・有効期間・推奨経験・**ドメイン名**は、各資格の公式ページ
+  （`https://cloud.google.com/learn/certification/<slug>`）で確認した値。
+- **配点比率**は公式の試験ガイド PDF（`services.google.com`）が作成環境のネットワーク制限で取得できなかったため、
+  資格ごとに「公式HTML / 二次情報 / 未確認」を明示している。未確認の資格は模試を均等配分で出題する。
+- 演習問題（210 問）は公開されている出題範囲をもとに作成した**オリジナル問題**で、実際の試験問題ではない。
+- 公式の合格点は非公開。模試の 70% ラインは本アプリの目安。
+
+### データの編集
+
+- 資格マスタ: `gcp-cert/data/certs.js`
+- 演習問題: `gcp-cert/data/questions/*.js`（`{ id, c, d, q, o, a, e, m? }`）
+- 学習ノート: `gcp-cert/data/notes/*.js`（`{ id, c, d?, cat, t, s, b?, tbl?, pairs?, tip?, rel? }`。`c: "common"` は `rel` の資格にも表示）
+  「頻出」は公式の出題範囲と一般的な学習資料からの推定で、実際の出題統計ではない。
+- 整合性チェック: `node gcp-cert/tools/check-data.mjs`（ID 重複・正解インデックス・複数選択表記・配点合計・全ドメインの問題有無・ノートの形式と全資格×全カテゴリの有無など）
+
+## おくるまえに — 送信前のメール点検 (`mail-check/`)
 
 > 送信ボタンの前の、1分の点検。
 
 メールの下書きを貼ると、**敬語の誤り・二重敬語・言い方の圧・期限のあいまいさ・体裁の抜け・
 本文への機密情報の書き込み**を指摘し、その場で修正候補に置き換えられる。
 
-`src/index.html` をブラウザで開くだけ。ビルド・サーバー・APIキーは不要。
+`mail-check/index.html` をブラウザで開くだけ。ビルド・サーバー・APIキーは不要。
 
 ### 機能
 
@@ -88,15 +128,20 @@ python3 tools/build_standalone.py out.html --fragment # Artifact用（doctype/he
 
 ### 開発
 
+ツール内だけで完結している（リポジトリ直下には何も置かない）。
+
 ```bash
+cd mail-check
 npm test        # 単体テスト（node:test、依存ゼロ）
 npm run smoke   # file:// のブラウザ結合テスト（playwright があるとき）
 npm run lint    # 構文チェック
 npm audit       # 依存監査（依存0件）
 ```
 
-設計と判断の記録は [`docs/requirements.md`](docs/requirements.md) / [`docs/architecture.md`](docs/architecture.md)、
-レビューと修正の記録は [`feedback/review_report.md`](feedback/review_report.md) にある。
+設計と判断の記録は [`mail-check/docs/requirements.md`](mail-check/docs/requirements.md) /
+[`mail-check/docs/architecture.md`](mail-check/docs/architecture.md)、
+レビューと修正の記録は [`mail-check/feedback/review_report.md`](mail-check/feedback/review_report.md) にある。
+
 
 ## そらならべ — 日本の天気を、ならべて見る (`weather/`)
 
@@ -164,8 +209,9 @@ npm audit       # 依存監査（依存0件）
 
 ## デプロイ
 
-静的サイトなのでビルド不要。リポジトリ全体をそのまま配信すれば、
-`/`（こいのかたち）・`/weather/`（そらならべ）・`/src/`（おくるまえに）のすべてが動く。
+静的サイトなのでビルド不要。GitHub Pages ではリポジトリ全体をそのまま配信し、
+`/`（こいのかたち）・`/weather/`（そらならべ）・`/gcp-cert/`（くもみち）・`/mail-check/`（おくるまえに）が動く。
+Vercel では、くもみちと おくるまえに を**それぞれ別プロジェクト**として分けて配信する（下記）。
 
 ### GitHub Pages
 
@@ -193,3 +239,40 @@ vercel --prod   # 本番環境へデプロイ
 ```
 
 デプロイ後の URL は `https://<プロジェクト名>.vercel.app/weather/` で天気アプリが開く。
+
+**くもみち（`gcp-cert/`）は別プロジェクトで配信する**
+
+同じリポジトリから 2 つ目の Vercel プロジェクトを作り、Root Directory を `gcp-cert` にする。
+URL（オリジン）・設定・デプロイ履歴・localStorage が既存アプリと完全に分かれる。
+
+1. [vercel.com/new](https://vercel.com/new) で同じリポジトリをもう一度 Import（プロジェクト名は例: `kumomichi`）
+2. **Root Directory** に `gcp-cert` を指定、Framework Preset は **Other**、Build Command / Output Directory は空のまま
+3. Deploy → `https://<プロジェクト名>.vercel.app/` でくもみちが開く
+
+CLI の場合は `vercel --cwd gcp-cert`（初回にプロジェクトをリンク）。
+
+分離のための設定:
+
+| ファイル | 役割 |
+|---|---|
+| `gcp-cert/vercel.json` | くもみち専用の設定（ヘッダ・`cleanUrls`）。`ignoreCommand` で `gcp-cert/` に変更がないコミットはビルドしない |
+| `gcp-cert/.vercelignore` | くもみちプロジェクトから `tools/`（開発用スクリプト）を除外。プロジェクト側のファイルが直下のものより優先される |
+| `.vercelignore` | 直下のプロジェクト（こいのかたち・そらならべ）から `gcp-cert/` を除外 |
+| `vercel.json` | `ignoreCommand` で `gcp-cert/` だけの変更ではビルドしない。念のため `/gcp-cert` へのアクセスは `/` にリダイレクト |
+
+**おくるまえに（`mail-check/`）も別プロジェクトで配信する**
+
+くもみちと同じ手順で、3 つ目の Vercel プロジェクトを作り Root Directory を `mail-check` にする。
+
+1. [vercel.com/new](https://vercel.com/new) で同じリポジトリをもう一度 Import（プロジェクト名は例: `okurumae`）
+2. **Root Directory** に `mail-check` を指定、Framework Preset は **Other**、Build Command / Output Directory は空のまま
+3. Deploy → `https://<プロジェクト名>.vercel.app/` でおくるまえにが開く
+
+CLI の場合は `vercel --cwd mail-check`（初回にプロジェクトをリンク）。
+
+| ファイル | 役割 |
+|---|---|
+| `mail-check/vercel.json` | おくるまえに専用の設定。`ignoreCommand` で `mail-check/` に変更がないコミットはビルドしない |
+| `mail-check/.vercelignore` | 配信対象から `docs/` `feedback/` `tests/` `package*.json` を除外（画面に必要な4ファイルだけを配信する） |
+| `.vercelignore` | 直下のプロジェクトから `mail-check/` を除外 |
+| `vercel.json` | `ignoreCommand` の除外に `mail-check` を追加。`/mail-check` へのアクセスは `/` にリダイレクト |

@@ -1,7 +1,7 @@
 /* ============================================================
    おくるまえに — ブラウザ結合スモークテスト
    ------------------------------------------------------------
-   file:// で開いた src/index.html に対して、入力 → 指摘表示 →
+   file:// で開いた mail-check/index.html に対して、入力 → 指摘表示 →
    置換 → 一括適用 → 無視 までを実際のブラウザで確認する。
    playwright が入っていない環境では「未実行」として正常終了する。
    実行: npm run smoke
@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 
-const PAGE = pathToFileURL(path.resolve(import.meta.dirname, '../src/index.html')).href;
+const PAGE = pathToFileURL(path.resolve(import.meta.dirname, '../index.html')).href;
 
 async function loadPlaywright() {
   const candidates = ['playwright'];

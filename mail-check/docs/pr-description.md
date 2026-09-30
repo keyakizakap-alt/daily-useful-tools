@@ -19,7 +19,7 @@
 
 企画は10体の仮想エージェント（PM／ターゲットユーザー3体／アーキテクト2体／UI-UXデザイナー2体／
 セキュリティエンジニア2体）による議論として実施し、候補5案から本案を採択した。議論の記録は
-[`docs/requirements.md`](docs/requirements.md) §1 にある。決定的だったのはセキュリティエンジニアの
+[`docs/requirements.md`](requirements.md) §1 にある。決定的だったのはセキュリティエンジニアの
 「クラウドLLMに投げる設計なら反対する。ローカル完結であることを第一の製品価値にすべき」という指摘で、
 これがそのまま技術選択を決めた。
 
@@ -34,14 +34,16 @@
 | 外部フォント・CDN も使わない | 「通信ゼロ」の主張と実装を一致させる |
 
 ```
-src/
-├── index.html   画面（インラインスクリプトを持たない）
-├── styles.css   ライト／ダークのトークン定義
-├── engine.js    点検エンジン（純粋関数。UMD でブラウザと Node の双方から読む）
-└── app.js       DOM 層（入出力・描画・保存）
-docs/            要件定義・設計
-tests/           単体テスト（node:test）・ブラウザ結合スモーク（playwright）
-feedback/        レビューとトリアージの記録
+mail-check/          ← このツールだけで完結するディレクトリ（既存アプリと同じ配信面を共有しない）
+├── index.html       画面（インラインスクリプトを持たない）
+├── styles.css       ライト／ダークのトークン定義
+├── engine.js        点検エンジン（純粋関数。UMD でブラウザと Node の双方から読む）
+├── app.js           DOM 層（入出力・描画・保存）
+├── package.json     開発用スクリプト（依存0件）
+├── vercel.json / .vercelignore   このツール専用の Vercel プロジェクト設定
+├── docs/            要件定義・設計・本記録
+├── feedback/        レビューとトリアージの記録
+└── tests/           単体テスト（node:test）・ブラウザ結合スモーク（playwright）
 ```
 
 判定は2層構造。**スパンルール**（正規表現で本文中の位置を特定。50件）と
@@ -49,7 +51,7 @@ feedback/        レビューとトリアージの記録
 ルール追加はテーブルへの1行追加で済む。修正候補は文字列にも関数にもでき、
 `ご確認して下さい → ご確認ください` のような語形に応じた置換ができる。
 
-セキュリティ方針（詳細は [`docs/architecture.md`](docs/architecture.md) §4）:
+セキュリティ方針（詳細は [`architecture.md`](architecture.md) §4）:
 
 - CSP で `default-src 'none'; script-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'`
 - 利用者入力が HTML になる経路を `buildSegments` → `escapeHtml` の一本に限定
@@ -63,7 +65,7 @@ feedback/        レビューとトリアージの記録
 15件の指摘を得た。プロジェクト方針（`CLAUDE.md` / `.claude/skills/review-triage`）に従い、
 **コードを編集する前に**全指摘を1枚の表に集約して分類した（A 根本4件 / B スコープ外2件 /
 C 対症療法7件 / E 誤検知・意図的2件）。内訳と根拠は
-[`feedback/review_report.md`](feedback/review_report.md)。
+[`review_report.md`](../feedback/review_report.md)。
 
 ### 指摘を根本原因に収束させた結果
 
@@ -84,7 +86,7 @@ ID と分類の不一致の解消（`double.goSasete` → `redundant.goSasete`�
 - **却下（E）**: 「すみません」の置換候補を外す（R10 — `why` に代替案を併記済み、重要度は中、無視可能）／
   例文のダミーパスワードを消す（R11 — 機密検出の動作確認に必要で、例文であることは操作から明らか）
 - **別Issue（B）**: 件名への全ルール適用（R9 — 位置空間の二重化が必要）／
-  文字数カウントの書記素対応（R14 — 表示のみの問題）。`docs/requirements.md` §8 に FUT-01〜04 として記録
+  文字数カウントの書記素対応（R14 — 表示のみの問題）。`mail-check/docs/requirements.md` §8 に FUT-01〜04 として記録
 
 ### 検証
 
@@ -107,13 +109,16 @@ ID と分類の不一致の解消（`double.goSasete` → `redundant.goSasete`�
 
 | パス | 内容 |
 |---|---|
-| `docs/requirements.md` | 企画会議の記録・課題・ユースケース・機能／非機能要件・受け入れテスト・今後の課題 |
-| `docs/architecture.md` | 構成・モジュール設計・セキュリティ方針・テスト方針・採らなかった選択の記録 |
-| `src/` | MVP 実装（`index.html` / `styles.css` / `engine.js` / `app.js`） |
-| `tests/` | `engine.test.js`（40件）・`smoke.mjs`（21件、playwright がない環境では未実行として正常終了） |
-| `feedback/review_report.md` | レビュー15件のトリアージ・コンフリクト解消・根本原因・対応結果・残る限界 |
-| `PR_DESCRIPTION.md` | 本ファイル |
-| `.gitignore` / `package.json` / `package-lock.json` | 開発環境（依存0件。`.env` とビルド成果物、依存パッケージを除外） |
+| `mail-check/index.html` `styles.css` `engine.js` `app.js` | MVP 実装 |
+| `mail-check/docs/requirements.md` | 企画会議の記録・課題・ユースケース・機能／非機能要件・受け入れテスト・今後の課題 |
+| `mail-check/docs/architecture.md` | 構成・モジュール設計・セキュリティ方針・テスト方針・採らなかった選択の記録 |
+| `mail-check/docs/pr-description.md` | 本ファイル（作業記録） |
+| `mail-check/tests/` | `engine.test.js`（40件）・`smoke.mjs`（21件、playwright がない環境では未実行として正常終了） |
+| `mail-check/feedback/review_report.md` | レビュー15件のトリアージ・コンフリクト解消・根本原因・対応結果・残る限界 |
+| `mail-check/package.json` / `package-lock.json` | 開発用スクリプト（依存0件） |
+| `mail-check/vercel.json` / `.vercelignore` | このツール専用の Vercel プロジェクト設定 |
+| `vercel.json` / `.vercelignore`（直下） | 既存アプリのプロジェクトから `mail-check/` を除外 |
+| `.gitignore`（直下） | `.env` とビルド成果物、依存パッケージを除外 |
 | `README.md` | 収録ツールとして追記 |
 
 ## 5. 既知の限界

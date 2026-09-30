@@ -6,7 +6,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const E = require('../src/engine.js');
+const E = require('../engine.js');
 
 const OPTS = { subject: '10/2打ち合わせ資料のご確認のお願い', audience: 'external' };
 
