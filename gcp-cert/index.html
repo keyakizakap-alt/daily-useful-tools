@@ -264,7 +264,7 @@ table.kv tr:last-child th, table.kv tr:last-child td { border-bottom: 0; }
 .dom .en { font-size: 12px; color: var(--text-3); margin: 1px 0 8px; }
 .dom ul { margin: 8px 0 0; padding-left: 1.15em; font-size: 13.5px; color: var(--text-2); }
 .dom li { margin: 2px 0; }
-.dom .acc-row { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-3); margin-top: 8px; }
+.dom .acc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12px; color: var(--text-3); margin-top: 8px; }
 .dom .acc-row .bar { flex: 1; max-width: 220px; height: 6px; }
 .side { display: grid; gap: 14px; position: sticky; top: 84px; }
 @media (max-width: 900px) { .side { position: static; } }
@@ -407,6 +407,9 @@ table.kv tr:last-child th, table.kv tr:last-child td { border-bottom: 0; }
   .section-title { flex-direction: column; align-items: flex-start; }
   .filters select, .filters input[type="search"] { width: 100%; flex: 1 1 100%; }
   .pair { padding: 8px 10px; }
+  .seg { display: flex; flex-wrap: nowrap; width: 100%; }
+  .seg button { flex: 1; padding: 6px 4px; font-size: 13px; white-space: nowrap; }
+  .seg button small { margin-left: 2px; }
 }
 @media (max-width: 720px) { .nav { justify-content: space-between; } }
 @media (max-width: 360px) {
@@ -454,6 +457,10 @@ table.kv tr:last-child th, table.kv tr:last-child td { border-bottom: 0; }
 <script src="data/notes/common.js"></script>
 <script src="data/notes/foundational-associate.js"></script>
 <script src="data/notes/professional.js"></script>
+<script src="data/notes/more-common.js"></script>
+<script src="data/notes/more-foundational-associate.js"></script>
+<script src="data/notes/more-professional-core.js"></script>
+<script src="data/notes/more-professional-specialty.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -269,6 +269,7 @@
                 <ul>${d.topics.map(t => `<li>${esc(t)}</li>`).join("")}</ul>
                 <div class="acc-row"><span>演習 ${ds.n}/${ds.total}</span><div class="bar"><i style="width:${acc == null ? 0 : pct(acc)}%;background:${acc != null && acc < .6 ? "var(--ng)" : "var(--ok)"}"></i></div>
                   <span class="tnum">${acc == null ? "未回答" : "正答率 " + pct(acc) + "%"}</span>
+                  <a class="btn sm ghost" href="#/learn?c=${c.id}&d=${i}">ノート ${NOTES.filter(n => n.c === c.id && n.d === i).length}</a>
                   <a class="btn sm ghost" href="#/quiz?c=${c.id}&mode=practice&d=${i}">このドメインを解く</a></div>
               </div>`;
             }).join("")}
@@ -557,7 +558,8 @@
       </div></details></article>`;
   }
   function viewLearn(p) {
-    const f = { c: p.get("c") || "", cat: p.get("cat") || "", q: p.get("q") || "", unread: p.get("unread") === "1", expand: false };
+    const f = { c: p.get("c") || "", cat: p.get("cat") || "", d: p.has("d") ? Number(p.get("d")) : null, q: p.get("q") || "", unread: p.get("unread") === "1", expand: false };
+    const cc = BY_ID[f.c];
     const base = notesFor(f.c);
     const counts = { "": base.length };
     Object.keys(CAT).forEach(k => { counts[k] = base.filter(n => n.cat === k).length; });
@@ -577,6 +579,7 @@
             <option value="">すべての資格</option><option value="common" ${f.c === "common" ? "selected" : ""}>共通（全資格の土台）</option>
             ${GC.phases.flatMap(ph => ph.ids).map(id => `<option value="${id}" ${f.c === id ? "selected" : ""}>${esc(BY_ID[id].abbr)} — ${esc(BY_ID[id].name)}</option>`).join("")}
           </select>
+          ${cc ? `<select id="l-dom" aria-label="ドメインで絞り込む"><option value="">すべてのドメイン</option>${cc.domains.map((d, i) => `<option value="${i}" ${f.d === i ? "selected" : ""}>${i + 1}. ${esc(d.t)}</option>`).join("")}</select>` : ""}
           <input type="search" id="l-q" placeholder="キーワードで検索（例: Spanner、SLO、VPC）" value="${esc(f.q)}" aria-label="キーワードで検索">
           <label class="chk"><input type="checkbox" id="l-unread" ${f.unread ? "checked" : ""}> 未習得のみ</label>
         </div>
@@ -586,19 +589,19 @@
       ${footer()}`;
     const setParam = () => {
       const q = new URLSearchParams();
-      if (f.c) q.set("c", f.c); if (f.cat) q.set("cat", f.cat); if (f.q) q.set("q", f.q); if (f.unread) q.set("unread", "1");
+      if (f.c) q.set("c", f.c); if (f.cat) q.set("cat", f.cat); if (cc && f.d != null) q.set("d", f.d); if (f.q) q.set("q", f.q); if (f.unread) q.set("unread", "1");
       history.replaceState(null, "", "#/learn" + (q.toString() ? "?" + q : ""));
     };
     const renderList = () => {
       const words = f.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
-      const list = notesFor(f.c).filter(n => (!f.cat || n.cat === f.cat) && (!f.unread || !st.known[n.id]) &&
+      const list = notesFor(f.c).filter(n => (!f.cat || n.cat === f.cat) && (!cc || f.d == null || (n.c === cc.id && n.d === f.d)) && (!f.unread || !st.known[n.id]) &&
         words.every(w => JSON.stringify([n.t, n.s, n.b, n.tbl, n.pairs, n.tip]).toLowerCase().includes(w)));
       const order = { basic: 0, advanced: 1, frequent: 2 };
       list.sort((a, b) => (a.c === "common" ? 0 : 1) - (b.c === "common" ? 0 : 1) || order[a.cat] - order[b.cat]);
       const pairs = pairsFor(list);
       $("#l-actions").innerHTML = `<span class="small muted" style="align-self:center">${list.length} 件表示</span>
         <button class="btn sm ghost" type="button" id="l-expand">${f.expand ? "すべて閉じる" : "すべて開く"}</button>
-        ${pairs.length ? `<a class="btn sm primary" href="#/learn/flash?${new URLSearchParams(Object.assign({}, f.c && { c: f.c }, f.cat && { cat: f.cat }))}">この条件でフラッシュカード（${pairs.length}枚）</a>` : ""}`;
+        ${pairs.length ? `<a class="btn sm primary" href="#/learn/flash?${new URLSearchParams(Object.assign({}, f.c && { c: f.c }, f.cat && { cat: f.cat }, cc && f.d != null && { d: f.d }))}">この条件でフラッシュカード（${pairs.length}枚）</a>` : ""}`;
       /* 件数が少ないとき・検索中は開いた状態、多いときは見出しだけ */
       const openAll = list.length <= 4 || words.length > 0 || f.expand;
       $("#l-list").innerHTML = list.length ? list.map(n => noteCard(n, openAll)).join("") : `<section class="card pad"><p class="muted" style="margin:0">条件に合うノートがありません。</p></section>`;
@@ -614,7 +617,8 @@
       art.replaceWith(tmp.firstElementChild);
     });
     app.querySelectorAll("[data-cat]").forEach(b => b.addEventListener("click", () => { f.cat = b.dataset.cat; setParam(); viewLearn(new URLSearchParams(location.hash.split("?")[1] || "")); }));
-    $("#l-cert").addEventListener("change", e => { f.c = e.target.value; setParam(); viewLearn(new URLSearchParams(location.hash.split("?")[1] || "")); });
+    $("#l-cert").addEventListener("change", e => { f.c = e.target.value; f.d = null; setParam(); viewLearn(new URLSearchParams(location.hash.split("?")[1] || "")); });
+    if (cc) $("#l-dom").addEventListener("change", e => { f.d = e.target.value === "" ? null : Number(e.target.value); setParam(); renderList(); });
     $("#l-q").addEventListener("input", e => { f.q = e.target.value; setParam(); renderList(); });
     $("#l-unread").addEventListener("change", e => { f.unread = e.target.checked; setParam(); renderList(); });
     renderList();
@@ -623,9 +627,9 @@
   /* フラッシュカード: 頻出ノートの「キーワード → 答え」を1枚ずつ。まだの札は後ろに回す */
   let flash = null;
   function viewFlash(p) {
-    const c = p.get("c") || "", cat = p.get("cat") || "";
-    const deck = shuffle(pairsFor(notesFor(c).filter(n => !cat || n.cat === cat)));
-    const back = "#/learn" + (c || cat ? "?" + new URLSearchParams(Object.assign({}, c && { c }, cat && { cat })) : "");
+    const c = p.get("c") || "", cat = p.get("cat") || "", d = BY_ID[c] && p.has("d") ? Number(p.get("d")) : null;
+    const deck = shuffle(pairsFor(notesFor(c).filter(n => (!cat || n.cat === cat) && (d == null || (n.c === c && n.d === d)))));
+    const back = "#/learn" + (c || cat ? "?" + new URLSearchParams(Object.assign({}, c && { c }, cat && { cat }, d != null && { d })) : "");
     flash = { deck, total: deck.length, ok: 0, again: 0, open: false, back };
     renderFlash();
   }

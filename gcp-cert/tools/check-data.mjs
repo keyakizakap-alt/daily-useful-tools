@@ -75,6 +75,7 @@ for (const c of GC.certs) {
   const own = (GC.notes || []).filter(n => n.c === c.id);
   for (const cat of CATS) if (!own.some(n => n.cat === cat) && !(GC.notes || []).some(n => n.c === "common" && n.cat === cat && n.rel.includes(c.id)))
     errs.push(`${c.id}: カテゴリ ${cat} のノートがありません`);
+  c.domains.forEach((d, i) => { if (!own.some(n => n.d === i)) errs.push(`${c.id}: ドメイン${i + 1}「${d.t}」のノートがありません`); });
 }
 console.log(`資格 ${GC.certs.length} 種 / 問題 ${GC.q.length} 問 / ノート ${(GC.notes || []).length} 件（ペア ${(GC.notes || []).reduce((a, n) => a + (n.pairs || []).length, 0)}）`);
 console.log(Object.entries(per).map(([k, v]) => `${k}:${v}`).join(" "));
