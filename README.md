@@ -223,7 +223,8 @@ npm audit       # 依存監査（依存0件）
 
 静的サイトなのでビルド不要。GitHub Pages ではリポジトリ全体をそのまま配信し、
 `/`（トップページ）・`/love-type/`（こいのかたち）・`/weather/`（そらならべ）・`/gcp-cert/`（くもみち）・`/mail-check/`（おくるまえに）が動く。
-Vercel では、くもみちと おくるまえに を**それぞれ別プロジェクト**として分けて配信する（下記）。
+Vercel でも、リポジトリ直下を Root Directory とする1つのプロジェクトでトップページと全アプリを配信する。
+くもみち・おくるまえには、必要なら別プロジェクトとしても配信できる（下記）。
 
 ### GitHub Pages
 
@@ -251,9 +252,11 @@ vercel --prod   # 本番環境へデプロイ
 ```
 
 デプロイ後は `https://<プロジェクト名>.vercel.app/` でトップページ、`/love-type/` でこいのかたち、`/weather/` で天気アプリが開く。
-くもみち・おくるまえには下記の別プロジェクトで配信するため、直下のプロジェクトでは `/gcp-cert` `/mail-check` はトップページにリダイレクトされる。
+`/gcp-cert/` でくもみち、`/mail-check/` でおくるまえにも開く。
+各アプリは相対パスでファイルを読むため、直下の `vercel.json` は `trailingSlash: true`（`/gcp-cert` → `/gcp-cert/`）にしている。
+`false` にすると `data/*.js` や画像の読み込み先がずれてアプリが動かなくなる。
 
-**くもみち（`gcp-cert/`）は別プロジェクトで配信する**
+**（任意）くもみち（`gcp-cert/`）を別プロジェクトでも配信する**
 
 同じリポジトリから 2 つ目の Vercel プロジェクトを作り、Root Directory を `gcp-cert` にする。
 URL（オリジン）・設定・デプロイ履歴・localStorage が既存アプリと完全に分かれる。
@@ -270,10 +273,8 @@ CLI の場合は `vercel --cwd gcp-cert`（初回にプロジェクトをリン�
 |---|---|
 | `gcp-cert/vercel.json` | くもみち専用の設定（ヘッダ・`cleanUrls`）。`ignoreCommand` で `gcp-cert/` に変更がないコミットはビルドしない |
 | `gcp-cert/.vercelignore` | くもみちプロジェクトから `tools/`（開発用スクリプト）を除外。プロジェクト側のファイルが直下のものより優先される |
-| `.vercelignore` | 直下のプロジェクト（トップページ・こいのかたち・そらならべ）から `gcp-cert/` を除外 |
-| `vercel.json` | `ignoreCommand` で `gcp-cert/` だけの変更ではビルドしない。念のため `/gcp-cert` へのアクセスは `/` にリダイレクト |
 
-**おくるまえに（`mail-check/`）も別プロジェクトで配信する**
+**（任意）おくるまえに（`mail-check/`）を別プロジェクトでも配信する**
 
 くもみちと同じ手順で、3 つ目の Vercel プロジェクトを作り Root Directory を `mail-check` にする。
 
@@ -287,5 +288,3 @@ CLI の場合は `vercel --cwd mail-check`（初回にプロジェクトをリ�
 |---|---|
 | `mail-check/vercel.json` | おくるまえに専用の設定。`ignoreCommand` で `mail-check/` に変更がないコミットはビルドしない |
 | `mail-check/.vercelignore` | 配信対象から `docs/` `feedback/` `tests/` `package*.json` を除外（画面に必要な4ファイルだけを配信する） |
-| `.vercelignore` | 直下のプロジェクトから `mail-check/` を除外 |
-| `vercel.json` | `ignoreCommand` の除外に `mail-check` を追加。`/mail-check` へのアクセスは `/` にリダイレクト |

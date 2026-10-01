@@ -1,7 +1,11 @@
-# リポジトリ直下を Root Directory とする Vercel プロジェクト（トップページ・こいのかたち・そらならべ）から除外するもの。
-# こいのかたちは love-type/ 配下のファイルを使い、開発用の love-type/tools/ は配信しない。
-# くもみち（gcp-cert/）と おくるまえに（mail-check/）は、それぞれ
-# Root Directory = gcp-cert / mail-check の別プロジェクトで配信する。
-/gcp-cert
-/mail-check
+# リポジトリ直下を Root Directory とする Vercel プロジェクトで配信しないもの（開発用のファイル）。
+# このプロジェクトでトップページと全アプリ（love-type / weather / gcp-cert / mail-check）を配信する。
+# gcp-cert/ と mail-check/ は、Root Directory を指定した別プロジェクトとしても配信できる
+# （その場合は各フォルダの vercel.json と .vercelignore が使われる）。
 /love-type/tools
+/gcp-cert/tools
+/mail-check/docs
+/mail-check/feedback
+/mail-check/tests
+/mail-check/package.json
+/mail-check/package-lock.json
