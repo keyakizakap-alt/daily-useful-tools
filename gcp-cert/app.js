@@ -96,32 +96,6 @@
   function jpDate(s) { if (!s) return "—"; const d = parseYmd(s); return d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日"; }
   function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
   const sameSet = (a, b) => a.length === b.length && a.every(x => b.includes(x));
-  /* 画面内の確認ダイアログ。window.confirm は iframe の sandbox などで常に false になることがあるため使わない */
-  function askConfirm(message, okLabel) {
-    return new Promise(resolve => {
-      const prev = document.activeElement;
-      const wrap = document.createElement("div");
-      wrap.className = "modal";
-      wrap.innerHTML = `<div class="modal-card" role="alertdialog" aria-modal="true" aria-labelledby="modal-msg">
-        <p id="modal-msg"></p><div class="btn-row" style="justify-content:flex-end">
-        <button class="btn" type="button" data-v="0">キャンセル</button>
-        <button class="btn primary" type="button" data-v="1"></button></div></div>`;
-      wrap.querySelector("#modal-msg").textContent = message;
-      wrap.querySelector('[data-v="1"]').textContent = okLabel || "OK";
-      const done = v => { document.removeEventListener("keydown", onKey, true); wrap.remove(); if (prev && prev.focus) prev.focus(); resolve(v); };
-      const onKey = e => {
-        if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(false); }
-        else if (e.key === "Tab") { /* フォーカスをダイアログ内に留める */
-          const bs = [...wrap.querySelectorAll("button")]; const i = bs.indexOf(document.activeElement);
-          e.preventDefault(); bs[(i + (e.shiftKey ? bs.length - 1 : 1)) % bs.length].focus();
-        } else e.stopPropagation();
-      };
-      wrap.addEventListener("click", e => { const b = e.target.closest("[data-v]"); if (b) done(b.dataset.v === "1"); else if (e.target === wrap) done(false); });
-      document.addEventListener("keydown", onKey, true);
-      document.body.appendChild(wrap);
-      wrap.querySelector('[data-v="1"]').focus();
-    });
-  }
   let toastT;
   function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2400); }
   const levelJa = c => GC.levels[c.level].ja;
@@ -493,9 +467,9 @@
     const on = (id, fn) => { const el = $("#" + id); if (el) el.addEventListener("click", fn); };
     on("submit", submit); on("next", next); on("prev", () => { S.i--; renderQ(); });
     on("flag", () => { it.flag = !it.flag; renderQ(); });
-    on("finish", async () => {
+    on("finish", () => {
       const blank = S.items.filter(x => !x.sel.length).length;
-      if (blank && !(await askConfirm(`未回答が ${blank} 問あります。採点しますか？`, "採点する"))) return;
+      if (blank && !confirm(`未回答が ${blank} 問あります。採点しますか？`)) return;
       if (session === S && !S.finished) finish();
     });
     app.querySelectorAll("[data-jump]").forEach(b => b.addEventListener("click", () => { S.i = Number(b.dataset.jump); renderQ(); }));
@@ -532,10 +506,9 @@
   function finish() {
     clearInterval(timerId);
     const S = session;
-    /* 時間切れと「採点する」が重なっても1回だけ採点する。開いている確認ダイアログは閉じる */
+    /* 時間切れと「採点する」が重なっても1回だけ採点する */
     if (!S || S.finished) return;
     S.finished = true;
-    document.querySelectorAll('.modal [data-v="0"]').forEach(b => b.click());
     if (S.isMock) S.items.forEach(it => { if (!it.done) { it.done = true; record(it.q.id, sameSet(it.sel, it.q.a)); } });
     const done = S.items.filter(it => it.done);
     const ok = done.filter(it => sameSet(it.sel, it.q.a)).length;
@@ -876,13 +849,7 @@
         <section class="card pad"><h2 style="margin:0 0 6px;font-size:16px">バックアップ</h2>
           <p class="small muted" style="margin:0 0 12px">回答履歴 ${n} 件・模試 ${st.mocks.length} 回。別の端末へ移すときは書き出して読み込みます。</p>
           <div class="btn-row"><button class="btn" id="exp" type="button">JSON を書き出す</button>
-            <label class="btn" for="imp">JSON を読み込む</label><input type="file" id="imp" accept="application/json,.json" class="sr">
-            <button class="btn ghost" id="exp-text" type="button">テキストで書き出す / 貼り付けて読み込む</button></div>
-          <div id="text-io" hidden style="margin-top:12px">
-            <p class="small muted" style="margin:0 0 6px">ファイルを保存・選択できない環境では、ここに表示される JSON をコピーして保管し、読み込むときは貼り付けてください。</p>
-            <textarea id="io-area" rows="8" spellcheck="false" aria-label="バックアップの JSON" style="width:100%;font:12px/1.5 ui-monospace,Menlo,monospace;padding:10px;border-radius:9px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text)"></textarea>
-            <div class="btn-row" style="margin-top:8px"><button class="btn sm" id="io-copy" type="button">コピー</button><button class="btn sm primary" id="io-load" type="button">貼り付けた内容を読み込む</button></div>
-          </div></section>
+            <label class="btn" for="imp">JSON を読み込む</label><input type="file" id="imp" accept="application/json,.json" class="sr"></div></section>
         <section class="card pad"><h2 style="margin:0 0 6px;font-size:16px">リセット</h2>
           <p class="small muted" style="margin:0 0 12px">すべての進捗（回答履歴・模試・ステータス・計画）を削除します。元に戻せません。</p>
           <button class="btn" id="reset" type="button" style="color:var(--ng);border-color:var(--ng)">すべての進捗を削除</button></section>
@@ -898,11 +865,11 @@
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
     /* 読み込み: 形式を確かめ、既知の項目だけを取り込んでから置き換える */
-    const importText = async t => {
+    const importText = t => {
       let d;
       try { d = JSON.parse(t); } catch (_) { toast("読み込めませんでした: JSON の形式ではありません"); return; }
       if (!isObj(d) || !isObj(d.ans) || !isObj(d.certs)) { toast("読み込めませんでした: くもみちのバックアップではありません"); return; }
-      if (!(await askConfirm("現在の進捗を、読み込んだ内容で置き換えます。よろしいですか？", "置き換える"))) return;
+      if (!confirm("現在の進捗を、読み込んだ内容で置き換えます。よろしいですか？")) return;
       st = sanitizeState(d); save(); applyTheme(); toast("読み込みました"); viewSettings();
     };
     $("#imp").addEventListener("change", e => {
@@ -910,18 +877,8 @@
       if (f.size > 5 * 1024 * 1024) { toast("ファイルが大きすぎます"); return; }
       f.text().then(importText, () => toast("ファイルを読めませんでした"));
     });
-    $("#exp-text").addEventListener("click", () => {
-      const box = $("#text-io"); box.hidden = !box.hidden;
-      if (!box.hidden) { $("#io-area").value = JSON.stringify(st); $("#io-area").select(); }
-    });
-    $("#io-copy").addEventListener("click", () => {
-      const t = $("#io-area"); t.select();
-      (navigator.clipboard ? navigator.clipboard.writeText(t.value) : Promise.reject())
-        .then(() => toast("コピーしました"), () => toast("選択した状態にしました。手動でコピーしてください"));
-    });
-    $("#io-load").addEventListener("click", () => importText($("#io-area").value));
-    $("#reset").addEventListener("click", async () => {
-      if (!(await askConfirm("すべての進捗を削除します。元に戻せません。よろしいですか？", "削除する"))) return;
+    $("#reset").addEventListener("click", () => {
+      if (!confirm("すべての進捗を削除します。元に戻せません。よろしいですか？")) return;
       st = blank(); save(); applyTheme(); toast("削除しました"); viewSettings();
     });
   }
