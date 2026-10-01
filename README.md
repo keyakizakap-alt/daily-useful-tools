@@ -102,6 +102,9 @@ Google Cloud の現行認定資格 15 種（Foundational 2 / Associate 3 / Profe
 - 演習問題: `gcp-cert/data/questions/*.js`（`{ id, c, d, q, o, a, e, m? }`）
 - 学習ノート: `gcp-cert/data/notes/*.js`（`{ id, c, d?, cat, t, s, b?, tbl?, pairs?, tip?, rel? }`。`c: "common"` は `rel` の資格にも表示）
   「頻出」は公式の出題範囲と一般的な学習資料からの推定で、実際の出題統計ではない。
+- セキュリティ: Content-Security-Policy で外部スクリプトと外部通信を禁止。保存データと読み込んだバックアップは、
+  既知の項目と妥当な値だけを取り込む（不正な値で画面が止まらない）。確認はブラウザの `confirm()` ではなく画面内のダイアログで行い、
+  ファイルを保存・選択できない環境向けに、テキストでの書き出し・貼り付け読み込みも用意している。
 - 整合性チェック: `node gcp-cert/tools/check-data.mjs`（ID 重複・正解インデックス・複数選択表記・配点合計・全ドメインの問題有無・ノートの形式・全資格×全カテゴリ・全ドメインのノートの有無など）
 
 ## おくるまえに — 送信前のメール点検 (`mail-check/`)
@@ -216,7 +219,9 @@ npm audit       # 依存監査（依存0件）
 
 ### 技術構成
 
-- 依存ライブラリなしの単一 HTML（HTML / CSS / vanilla JS）。グラフ・アイコンはすべてコード生成の inline SVG。
+- 依存ライブラリなしの HTML（`weather/index.html`）＋ スクリプト（`weather/app.js`）。グラフ・アイコンはすべてコード生成の inline SVG。
+- セキュリティ: Content-Security-Policy で、読み込むスクリプトを自サイトのものに、通信先を Open-Meteo と気象庁に限定。
+  検索結果や保存データの地点は形式（数値 ID・緯度経度の範囲・名前の長さ）を検証してから使い、画面に出す値はすべてエスケープする。
 - 内蔵地点の緯度経度・気象庁の府県予報区コードはファイル内に定義。
 
 ## デプロイ
