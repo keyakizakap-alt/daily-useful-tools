@@ -34,10 +34,46 @@
   /* ---------------- storage ---------------- */
   const KEY = "kumomichi.v1";
   const blank = () => ({ certs: {}, ans: {}, mocks: [], known: {}, plan: { hpw: 8, level: "std", start: "" }, theme: "auto" });
+  /* 保存データ・読み込んだバックアップは書き換えられている可能性があるため、
+     既知のキーと妥当な値だけを取り出す（不正な値で画面が止まらないように） */
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const okDate = v => typeof v === "string" && DATE_RE.test(v) && !isNaN(new Date(v + "T00:00:00")) ? v : "";
+  const okInt = (v, lo, hi, dflt) => Number.isInteger(v) && v >= lo && v <= hi ? v : dflt;
+  const isObj = v => !!v && typeof v === "object" && !Array.isArray(v);
+  const NOTE_IDS = new Set(NOTES.map(n => n.id));
+  function sanitizeState(d) {
+    const out = blank();
+    if (!isObj(d)) return out;
+    if (isObj(d.certs)) CERTS.forEach(c => {
+      const x = d.certs[c.id];
+      if (!isObj(x)) return;
+      out.certs[c.id] = { status: Object.prototype.hasOwnProperty.call(STATUS, x.status) ? x.status : "none",
+                          examDate: okDate(x.examDate), passedAt: okDate(x.passedAt) };
+    });
+    if (isObj(d.ans)) Object.keys(d.ans).forEach(id => {
+      const a = d.ans[id];
+      if (!Q_BY_ID[id] || !isObj(a)) return;
+      const n = okInt(a.n, 0, 1e6, 0);
+      out.ans[id] = { n, ok: Math.min(okInt(a.ok, 0, 1e6, 0), n), box: okInt(a.box, 0, BOX_DAYS.length - 1, 0),
+                      due: okDate(a.due), last: a.last === true ? true : a.last === false ? false : null };
+    });
+    if (Array.isArray(d.mocks)) out.mocks = d.mocks.filter(m => isObj(m) && BY_ID[m.c]).slice(-500).map(m => {
+      const total = okInt(m.total, 1, 1000, 0);
+      return { c: m.c, date: okDate(m.date), score: Math.min(okInt(m.score, 0, 1000, 0), total), total };
+    }).filter(m => m.total > 0);
+    if (isObj(d.known)) Object.keys(d.known).forEach(id => { if (NOTE_IDS.has(id) && d.known[id]) out.known[id] = okDate(d.known[id]) || ymd(new Date()); });
+    if (isObj(d.plan)) out.plan = {
+      hpw: okInt(d.plan.hpw, 1, 60, 8),
+      level: ["beginner", "std", "exp"].includes(d.plan.level) ? d.plan.level : "std",
+      start: okDate(d.plan.start)
+    };
+    if (["auto", "light", "dark"].includes(d.theme)) out.theme = d.theme;
+    return out;
+  }
   let st = blank();
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) st = Object.assign(blank(), JSON.parse(raw));
+    if (raw) st = sanitizeState(JSON.parse(raw));
   } catch (_) { /* 読めなければ初期状態で動かす */ }
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (_) { toast("この環境では進捗を保存できません"); }
@@ -434,7 +470,7 @@
     on("finish", () => {
       const blank = S.items.filter(x => !x.sel.length).length;
       if (blank && !confirm(`未回答が ${blank} 問あります。採点しますか？`)) return;
-      finish();
+      if (session === S && !S.finished) finish();
     });
     app.querySelectorAll("[data-jump]").forEach(b => b.addEventListener("click", () => { S.i = Number(b.dataset.jump); renderQ(); }));
     if (S.isMock) tick();
@@ -470,6 +506,9 @@
   function finish() {
     clearInterval(timerId);
     const S = session;
+    /* 時間切れと「採点する」が重なっても1回だけ採点する */
+    if (!S || S.finished) return;
+    S.finished = true;
     if (S.isMock) S.items.forEach(it => { if (!it.done) { it.done = true; record(it.q.id, sameSet(it.sel, it.q.a)); } });
     const done = S.items.filter(it => it.done);
     const ok = done.filter(it => sameSet(it.sel, it.q.a)).length;
@@ -825,14 +864,18 @@
       a.href = URL.createObjectURL(blob); a.download = "kumomichi-backup-" + todayStr() + ".json";
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
+    /* 読み込み: 形式を確かめ、既知の項目だけを取り込んでから置き換える */
+    const importText = t => {
+      let d;
+      try { d = JSON.parse(t); } catch (_) { toast("読み込めませんでした: JSON の形式ではありません"); return; }
+      if (!isObj(d) || !isObj(d.ans) || !isObj(d.certs)) { toast("読み込めませんでした: くもみちのバックアップではありません"); return; }
+      if (!confirm("現在の進捗を、読み込んだ内容で置き換えます。よろしいですか？")) return;
+      st = sanitizeState(d); save(); applyTheme(); toast("読み込みました"); viewSettings();
+    };
     $("#imp").addEventListener("change", e => {
       const f = e.target.files[0]; if (!f) return;
-      f.text().then(t => {
-        const d = JSON.parse(t);
-        if (!d || typeof d !== "object" || !d.ans || !d.certs) throw new Error("形式が違います");
-        if (!confirm("現在の進捗を、読み込んだ内容で置き換えます。よろしいですか？")) return;
-        st = Object.assign(blank(), d); save(); applyTheme(); toast("読み込みました"); viewSettings();
-      }).catch(err => toast("読み込めませんでした: " + err.message));
+      if (f.size > 5 * 1024 * 1024) { toast("ファイルが大きすぎます"); return; }
+      f.text().then(importText, () => toast("ファイルを読めませんでした"));
     });
     $("#reset").addEventListener("click", () => {
       if (!confirm("すべての進捗を削除します。元に戻せません。よろしいですか？")) return;
