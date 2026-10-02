@@ -1,9 +1,10 @@
 /* くもみち 移転案内（旧URL /gcp-cert/）
-   - 記録がない、または移転先と同じオリジン（GitHub Pages）なら、すぐ新しいURLへ転送する。
-   - 別オリジン（Vercel など）に記録が残っている場合だけ、書き出しボタンを出して転送しない。 */
+   - このブラウザに記録がなければ、すぐ新しいURLへ転送する。
+   - 記録が残っていれば、移転先はオリジンが違い記録を読めないため、転送せずに書き出しボタンを出す。
+     （移転先と同じオリジンで開かれた場合は記録をそのまま使えるので転送する） */
 (function () {
   "use strict";
-  const NEW_URL = "https://keyakizakap-alt.github.io/shikaku-apps/gcp-cert/";
+  const NEW_URL = "https://shikaku-apps.vercel.app/gcp-cert/";
   const KEY = "kumomichi.v1";
   const dest = NEW_URL + (/^#\/[\w-]*$/.test(location.hash) ? location.hash : "");
   document.getElementById("go").href = dest;

@@ -3,13 +3,14 @@
 ブラウザだけで動く小さなアプリ集。アプリごとに独立したフォルダに分かれていて、
 リポジトリ直下の `index.html` は各アプリへのリンクを並べたトップページ。
 資格対策アプリ（くもみち）は [shikaku-apps](https://github.com/keyakizakap-alt/shikaku-apps) に移設した。
-新しいURLは `https://keyakizakap-alt.github.io/shikaku-apps/gcp-cert/`。
+新しいURLは `https://shikaku-apps.vercel.app/gcp-cert/`。
 
 旧URL `/gcp-cert/` には移転案内ページ（`gcp-cert/index.html` と `gcp-cert/moved.js`）だけを残している。
-このページは、ブラウザに学習の記録がない場合、または移転先と同じオリジン（GitHub Pages）の場合は、すぐ新しいURLへ転送する。
-Vercel などオリジンが違う場所に記録が残っている場合だけ、転送せずに記録の書き出しボタンを表示する。
+このページは、ブラウザに学習の記録がなければ、すぐ新しいURLへ転送する。
+記録が残っている場合は、新しいURLとはオリジンが違い記録が引き継がれないため、転送せずに記録の書き出しボタンを表示する。
 書き出したファイルは、新しいくもみちの「設定 → JSON を読み込む」で取り込める。
 Root Directory を `gcp-cert` にした Vercel プロジェクトがある場合も同じ案内ページが表示される（`gcp-cert/vercel.json` は残している）。
+転送先を変えるときは `gcp-cert/moved.js` の `NEW_URL`・`gcp-cert/index.html`・トップページのリンクを書き換える。
 
 | アプリ | フォルダ | 内容 |
 |---|---|---|
