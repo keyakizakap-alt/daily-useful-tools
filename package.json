@@ -1,0 +1,13 @@
+{
+  "name": "daily-useful-tools",
+  "private": true,
+  "description": "毎日の小さな道具箱（配信はビルド不要の静的ファイル。ここにあるのは開発用の点検ツールだけ）",
+  "scripts": {
+    "check": "npm run typecheck && npm test --prefix mail-check",
+    "typecheck": "tsc -p jsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^7.0.2"
+  }
+}

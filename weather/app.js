@@ -100,7 +100,6 @@ function registerCity(c) {
   if (!CITY_BY_ID.has(c.id)) CITY_BY_ID.set(c.id, c);
   return CITY_BY_ID.get(c.id);
 }
-function isCustom(id) { return String(id).indexOf("geo:") === 0; }
 const DEFAULT_PINNED = CITIES.filter(c => c.pin).map(c => c.id);
 /** 既定で一覧に出す地点（主要9地点＋主要都市を少しだけ） */
 const DEFAULT_SELECTED = DEFAULT_PINNED.concat(["sendai", "yokohama", "kyoto", "hiroshima", "kagoshima"]);
@@ -254,21 +253,12 @@ function windDir(deg) {
 function parseLocal(s) {
   if (!s) return null;
   const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(String(s));
-  if (!m) { const d = new Date(s); return isNaN(d) ? null : d; }
+  if (!m) { const d = new Date(s); return isNaN(d.getTime()) ? null : d; }
   return new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0));
 }
 function fmtClock(s) {
   const d = parseLocal(s);
   return d ? String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") : "—";
-}
-function nowJstText() {
-  try {
-    return new Intl.DateTimeFormat("ja-JP", {
-      timeZone: JST, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"
-    }).format(new Date());
-  } catch (e) {
-    return new Date().toLocaleString("ja-JP");
-  }
 }
 function esc(s) {
   return String(s).replace(/[&<>"']/g, ch =>
@@ -1064,7 +1054,7 @@ function render() {
   $("#viewCards").setAttribute("aria-pressed", String(cards));
   $("#viewTable").setAttribute("aria-pressed", String(!cards));
   document.querySelectorAll('section[aria-labelledby="pinnedHead"], section[aria-labelledby="otherHead"]')
-    .forEach(el => { el.hidden = !cards; });
+    .forEach(el => { /** @type {HTMLElement} */ (el).hidden = !cards; });
   $("#tableSection").hidden = cards;
 
   if (cards) renderGrids(); else renderTable();
@@ -1515,7 +1505,8 @@ function applyTheme() {
 }
 
 document.addEventListener("click", ev => {
-  const pin = ev.target.closest("[data-pin]");
+  const target = /** @type {Element} */ (ev.target);
+  const pin = target.closest("[data-pin]");
   if (pin) {
     const id = pin.getAttribute("data-pin");
     const i = state.pinned.indexOf(id);
@@ -1523,22 +1514,22 @@ document.addEventListener("click", ev => {
     saveState(); render();
     return;
   }
-  const dayBtn = ev.target.closest("[data-day]");
+  const dayBtn = target.closest("[data-day]");
   if (dayBtn && state.openCity) {
     selectDay(state.openCity, parseInt(dayBtn.getAttribute("data-day"), 10));
     return;
   }
 
-  const open = ev.target.closest("[data-open]");
+  const open = target.closest("[data-open]");
   if (open) { openSheet(open.getAttribute("data-open")); return; }
 
-  const add = ev.target.closest("[data-add]");
+  const add = target.closest("[data-add]");
   if (add) { addSearchedCity(add); return; }
 
-  const rm = ev.target.closest("[data-remove]");
+  const rm = target.closest("[data-remove]");
   if (rm) { removeCustomCity(rm.getAttribute("data-remove")); return; }
 
-  const toggle = ev.target.closest("[data-toggle]");
+  const toggle = target.closest("[data-toggle]");
   if (toggle) {
     const id = toggle.getAttribute("data-toggle");
     const i = state.selected.indexOf(id);
@@ -1556,7 +1547,7 @@ document.addEventListener("click", ev => {
     return;
   }
 
-  const th = ev.target.closest("th.sortable");
+  const th = target.closest("th.sortable");
   if (th) {
     const key = th.getAttribute("data-sort");
     state.tableSort = state.tableSort.key === key
@@ -1565,14 +1556,15 @@ document.addEventListener("click", ev => {
     return;
   }
 
-  if (ev.target.closest("#retryBtn")) { refresh(true); return; }
-  if (ev.target.closest("#sheetClose") || ev.target.id === "overlay") closeSheet();
+  if (target.closest("#retryBtn")) { refresh(true); return; }
+  if (target.closest("#sheetClose") || target.id === "overlay") closeSheet();
 });
 
 document.addEventListener("keydown", ev => {
   if (ev.key === "Escape" && $("#overlay").hasAttribute("open")) closeSheet();
   if (ev.key === "Enter" || ev.key === " ") {
-    const row = ev.target.closest && ev.target.closest("tr[data-open]");
+    const t = /** @type {Element} */ (ev.target);
+    const row = t.closest && t.closest("tr[data-open]");
     if (row) { ev.preventDefault(); openSheet(row.getAttribute("data-open")); }
   }
 });

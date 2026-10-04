@@ -223,6 +223,20 @@ npm audit       # 依存監査（依存0件）
   検索結果や保存データの地点は形式（数値 ID・緯度経度の範囲・名前の長さ）を検証してから使い、画面に出す値はすべてエスケープする。
 - 内蔵地点の緯度経度・気象庁の府県予報区コードはファイル内に定義。
 
+## 開発
+
+配信はビルド不要の静的ファイルのまま。リポジトリ直下の `package.json` は、開発時の点検ツールのためだけにある。
+
+```bash
+npm ci          # 点検ツール（TypeScript・Node の型定義）を入れる
+npm run check   # 型チェック（jsconfig.json）＋ おくるまえにの単体テスト
+```
+
+- `jsconfig.json` … エディタ（VS Code など）と `npm run typecheck` が使う型チェックの設定。ブラウザ向けの素の JavaScript なので `strict` は無効にしている
+- `types/globals.d.ts` … `<script>` 間で共有するグローバル変数（`OkuruMae` など）の宣言
+- `.github/workflows/check.yml` … push と PR のたびに `npm run check` を実行する
+- 直下の `vercel.json` の `installCommand: ""` と `.vercelignore` で、Vercel ではこれらの開発用ファイルを使わない（インストールもビルドもしない）
+
 ## デプロイ
 
 静的サイトなのでビルド不要。GitHub Pages ではリポジトリ全体をそのまま配信し、
