@@ -3,10 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://api.open-meteo.com https://geocoding-api.open-meteo.com https://www.jma.go.jp; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.jma.go.jp https://cyberjapandata.gsj.jp; connect-src https://api.open-meteo.com https://air-quality-api.open-meteo.com https://geocoding-api.open-meteo.com https://www.jma.go.jp; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <title>そらならべ — 日本の天気を、ならべて見る</title>
 <meta name="description" content="名古屋・大阪・札幌・東京・長崎・福岡・那覇・神戸・熊本をはじめ、全国56地点＋任意の地点の天気予報・気象警報を、ひとつの画面に並べて比べられるダッシュボードです。">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#4a90e2">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="そらならべ">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -524,6 +530,96 @@ table.compare.hours th, table.compare.hours td { padding: 7px 10px; }
 table.compare.hours tbody tr { cursor: default; }
 .day-detail .table-wrap { background: var(--surface); margin-top: 6px; }
 
+/* ============================================================
+   radar
+   ============================================================ */
+.radar-sheet { max-width: 920px; }
+.radar-head {
+  display: flex; align-items: center; gap: 12px; padding: 15px 18px;
+  background: linear-gradient(135deg, var(--sky-1), var(--sky-2)); color: #fff;
+}
+.radar-head h2 { font-size: 18px; }
+.radar-sub { font-size: 12.5px; opacity: .92; }
+.radar-head .sheet-close { margin-left: auto; }
+.radar-map {
+  position: relative; height: 440px; overflow: hidden; background: var(--surface-sunk);
+  cursor: grab; touch-action: none; user-select: none;
+}
+.radar-map:active { cursor: grabbing; }
+.radar-layer { position: absolute; inset: 0; }
+.radar-layer img { position: absolute; width: 256px; height: 256px; image-rendering: auto; }
+#radarRain { opacity: .78; pointer-events: none; }
+.radar-pin {
+  position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px;
+  border: 2px solid #d23c2e; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,.9);
+  pointer-events: none;
+}
+.radar-pin::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px;
+  background: #d23c2e; border-radius: 50%;
+}
+.radar-zoom { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.radar-zoom button {
+  width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border-strong);
+  background: var(--surface); color: var(--text); font-size: 17px; font-weight: 700; line-height: 1;
+  box-shadow: var(--shadow-sm);
+}
+.radar-zoom button:hover { background: var(--surface-2); }
+.radar-msg {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 12px 16px; font-size: 13px; color: var(--text-2); box-shadow: var(--shadow-md); max-width: 80%;
+  text-align: center;
+}
+.radar-controls {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.radar-controls input[type="range"] { flex: 1; accent-color: var(--accent); min-width: 120px; }
+.radar-clock { font-size: 14px; font-weight: 700; white-space: nowrap; }
+.radar-clock .fc { color: var(--accent-text); font-size: 11px; font-weight: 600; margin-left: 4px; }
+.radar-legend {
+  display: flex; flex-wrap: wrap; gap: 0; padding: 10px 16px 2px; font-size: 10.5px; color: var(--text-3);
+}
+.radar-legend .lg { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 38px; }
+.radar-legend .sw { width: 100%; height: 10px; }
+.radar-legend .lg:first-child .sw { border-radius: 3px 0 0 3px; }
+.radar-legend .lg:last-child .sw { border-radius: 0 3px 3px 0; }
+.radar-note { padding: 8px 16px 16px; margin: 0; font-size: 11px; color: var(--text-3); line-height: 1.7; }
+
+/* ============================================================
+   life indices / air quality
+   ============================================================ */
+.idx-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 9px; }
+.idx-card {
+  background: var(--surface-2); border: 1px solid var(--border); border-left-width: 3px;
+  border-radius: var(--radius-sm); padding: 10px 12px;
+}
+.idx-card.lv-great { border-left-color: #3a9b6b; }
+.idx-card.lv-good  { border-left-color: #2f7fbf; }
+.idx-card.lv-soso  { border-left-color: #c9962b; }
+.idx-card.lv-bad   { border-left-color: #c2563f; }
+.idx-top { display: flex; align-items: center; gap: 7px; }
+.idx-emoji { font-size: 16px; line-height: 1; }
+.idx-cap { font-size: 10.5px; letter-spacing: .06em; color: var(--text-3); font-weight: 700; }
+.idx-val { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--text-2); }
+.idx-title { font-size: 14.5px; font-weight: 700; margin-top: 3px; }
+.idx-detail { font-size: 11.5px; color: var(--text-2); line-height: 1.65; margin-top: 3px; }
+
+.air-box { min-height: 40px; }
+.air-head {
+  display: flex; align-items: center; gap: 12px; padding: 11px 13px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2);
+  border-left-width: 3px;
+}
+.air-head.lv-great { border-left-color: #3a9b6b; }
+.air-head.lv-good  { border-left-color: #2f7fbf; }
+.air-head.lv-soso  { border-left-color: #c9962b; }
+.air-head.lv-bad   { border-left-color: #c2563f; }
+.air-aqi { font-size: 30px; font-weight: 700; line-height: 1; letter-spacing: -.02em; }
+.air-label { font-size: 14.5px; font-weight: 700; }
+.air-detail { font-size: 12px; color: var(--text-2); line-height: 1.6; }
+
 @media (max-width: 640px) {
   .wrap { padding: 0 14px; }
   .brand-sub { display: none; }
@@ -532,6 +628,8 @@ table.compare.hours tbody tr { cursor: default; }
   .sheet-head .now .t { font-size: 28px; }
   .sheet-body { padding: 15px 14px 20px; }
   .card-temp { font-size: 30px; }
+  .radar-map { height: 340px; }
+  .radar-controls { flex-wrap: wrap; }
 }
 </style>
 </head>
@@ -593,7 +691,20 @@ table.compare.hours tbody tr { cursor: default; }
         <option value="f">華氏 °F</option>
       </select>
     </div>
-    <button type="button" class="btn spacer" id="pickerBtn" aria-expanded="false" aria-controls="picker">
+    <button type="button" class="btn spacer" id="geoBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/>
+      </svg>
+      現在地の天気
+    </button>
+    <button type="button" class="btn" id="radarBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17.6 16.5H7.6a4 4 0 0 1-.4-7.98 5.4 5.4 0 0 1 10.1.9h.3a3.54 3.54 0 0 1 0 7.08Z"/>
+        <path d="M8.6 19.2l-.8 2.4M12.4 19.2l-.8 2.4M16.2 19.2l-.8 2.4"/>
+      </svg>
+      雨雲レーダー
+    </button>
+    <button type="button" class="btn" id="pickerBtn" aria-expanded="false" aria-controls="picker">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
       地点を追加・削除
     </button>
@@ -659,6 +770,44 @@ table.compare.hours tbody tr { cursor: default; }
     </div>
   </section>
 </main>
+
+<div class="overlay" id="radarOverlay" role="dialog" aria-modal="true" aria-labelledby="radarTitle">
+  <div class="sheet radar-sheet">
+    <div class="radar-head">
+      <div>
+        <h2 id="radarTitle">雨雲レーダー</h2>
+        <div class="radar-sub" id="radarSub"></div>
+      </div>
+      <button type="button" class="sheet-close" id="radarClose" aria-label="閉じる">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path d="M5 5l14 14M19 5L5 19"/></svg>
+      </button>
+    </div>
+    <div class="radar-map" id="radarMap" role="img" aria-label="雨雲の分布図">
+      <div class="radar-layer" id="radarBase"></div>
+      <div class="radar-layer" id="radarRain"></div>
+      <div class="radar-pin" id="radarPin" aria-hidden="true"></div>
+      <div class="radar-zoom">
+        <button type="button" id="radarIn" aria-label="拡大">＋</button>
+        <button type="button" id="radarOut" aria-label="縮小">−</button>
+      </div>
+      <div class="radar-msg" id="radarMsg" hidden></div>
+    </div>
+    <div class="radar-controls">
+      <button type="button" class="btn primary" id="radarPlay" aria-label="再生">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>
+        再生
+      </button>
+      <input type="range" id="radarTime" min="0" max="0" value="0" step="1" aria-label="時刻">
+      <span class="radar-clock tnum" id="radarClock">--:--</span>
+    </div>
+    <div class="radar-legend" id="radarLegend"></div>
+    <p class="radar-note">
+      降水強度: 気象庁 高解像度降水ナウキャスト（実況＋1時間先までの予測） ／ 地図: 国土地理院タイル。
+      いずれも気象庁・国土地理院が公式に API として提供しているものではないため、仕様変更で表示できなくなることがあります。
+    </p>
+  </div>
+</div>
 
 <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="sheet" id="sheet"></div>

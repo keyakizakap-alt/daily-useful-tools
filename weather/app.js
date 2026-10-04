@@ -101,6 +101,8 @@ function registerCity(c) {
   return CITY_BY_ID.get(c.id);
 }
 function isCustom(id) { return String(id).indexOf("geo:") === 0; }
+/** 現在地は専用の固定 ID を使い、取得のたびに座標を入れ替える */
+const CURRENT_LOCATION_ID = "geo:0";
 const DEFAULT_PINNED = CITIES.filter(c => c.pin).map(c => c.id);
 /** 既定で一覧に出す地点（主要9地点＋主要都市を少しだけ） */
 const DEFAULT_SELECTED = DEFAULT_PINNED.concat(["sendai", "yokohama", "kyoto", "hiroshima", "kagoshima"]);
@@ -283,15 +285,16 @@ function esc(s) {
  * ============================================================ */
 const API = "https://api.open-meteo.com/v1/forecast";
 const CURRENT_VARS = ["temperature_2m", "relative_humidity_2m", "apparent_temperature", "is_day",
-                      "precipitation", "weather_code", "wind_speed_10m", "wind_direction_10m"];
+                      "precipitation", "weather_code", "wind_speed_10m", "wind_direction_10m",
+                      "pressure_msl", "cloud_cover"];
 const HOURLY_VARS  = ["temperature_2m", "apparent_temperature", "relative_humidity_2m",
                       "precipitation_probability", "precipitation", "weather_code",
-                      "wind_speed_10m", "wind_direction_10m"];
+                      "wind_speed_10m", "wind_direction_10m", "pressure_msl", "cloud_cover"];
 const DAILY_VARS   = ["weather_code", "temperature_2m_max", "temperature_2m_min",
                       "apparent_temperature_max", "apparent_temperature_min",
                       "precipitation_probability_max", "precipitation_sum",
                       "sunrise", "sunset", "wind_speed_10m_max", "wind_direction_10m_dominant",
-                      "precipitation_hours", "uv_index_max"];
+                      "precipitation_hours", "uv_index_max", "sunshine_duration"];
 const FORECAST_DAYS = 16;   // Open-Meteo の上限（= 約2週間先まで）
 const CACHE_KEY = "soranarabe.cache.v1";
 const CACHE_TTL_MS = 3 * 60 * 60 * 1000;   // 3時間より古いキャッシュは表示しない
@@ -350,7 +353,8 @@ function normalize(city, raw) {
     wind: pick(daily.wind_speed_10m_max, i),
     windDeg: pick(daily.wind_direction_10m_dominant, i),
     precipHours: pick(daily.precipitation_hours, i),
-    uv: pick(daily.uv_index_max, i)
+    uv: pick(daily.uv_index_max, i),
+    sunshine: pick(daily.sunshine_duration, i)
   }));
 
   const hTime = hourly.time || [];
@@ -373,6 +377,8 @@ function normalize(city, raw) {
       code: cur.weather_code,
       wind: cur.wind_speed_10m,
       windDeg: cur.wind_direction_10m,
+      pressure: cur.pressure_msl,
+      cloud: cur.cloud_cover,
       isDay: cur.is_day,
       time: cur.time
     },
@@ -395,7 +401,9 @@ function normalizeHour(hourly, i) {
     precip: pick(hourly.precipitation, i),
     code: pick(hourly.weather_code, i),
     wind: pick(hourly.wind_speed_10m, i),
-    windDeg: pick(hourly.wind_direction_10m, i)
+    windDeg: pick(hourly.wind_direction_10m, i),
+    pressure: pick(hourly.pressure_msl, i),
+    cloud: pick(hourly.cloud_cover, i)
   };
 }
 
@@ -743,6 +751,176 @@ function clothingAdvice(day, now) {
 }
 
 /* ============================================================
+ * 5d. 生活指数
+ *   市販の天気アプリが載せている指数にあわせた目安。数値予報から機械的に
+ *   導いているだけで、気象庁や各社が発表している指数そのものではない。
+ * ============================================================ */
+
+/** 日中（6〜18時）の時間ごとの値の平均 */
+function dayMean(hours, key) {
+  const vals = (hours || []).filter(h => {
+    const t = parseLocal(h.time);
+    return t && t.getHours() >= 6 && t.getHours() < 18 && typeof h[key] === "number";
+  }).map(h => h[key]);
+  if (!vals.length) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+/** 夜間（18時〜翌6時）の時間ごとの値の平均 */
+function nightMean(hours, key) {
+  const vals = (hours || []).filter(h => {
+    const t = parseLocal(h.time);
+    return t && (t.getHours() >= 18 || t.getHours() < 6) && typeof h[key] === "number";
+  }).map(h => h[key]);
+  if (!vals.length) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+/** 洗濯指数 — 外干しで乾くか */
+function laundryIndex(day, hours) {
+  if (!day) return null;
+  const pop = typeof day.pop === "number" ? day.pop : 0;
+  const precip = typeof day.precip === "number" ? day.precip : 0;
+  if (pop >= 50 || precip >= 1) {
+    return { level: "bad", score: 1, title: "部屋干しで", detail: "日中に雨の可能性が高い見込みです。外に干すなら軒下などに。" };
+  }
+  const hum = dayMean(hours, "humidity");
+  const temp = typeof day.hi === "number" ? day.hi : 15;
+  const wind = typeof day.wind === "number" ? day.wind : 0;
+  // 気温が高い・湿度が低い・風がある ほど乾きやすい
+  let score = 0;
+  score += temp >= 25 ? 3 : temp >= 18 ? 2 : temp >= 10 ? 1 : 0;
+  score += hum === null ? 1 : hum <= 50 ? 3 : hum <= 65 ? 2 : hum <= 80 ? 1 : 0;
+  score += wind >= 20 ? 2 : wind >= 10 ? 1 : 0;
+  if (pop >= 30) score -= 1;
+  if (score >= 6) return { level: "great", score: 5, title: "よく乾く", detail: "気温・湿度・風のそろった洗濯日和です。厚手のものもおすすめ。" };
+  if (score >= 4) return { level: "good",  score: 4, title: "まあまあ乾く", detail: "ふつうに外干しできます。厚手のものは時間がかかるかもしれません。" };
+  if (score >= 2) return { level: "soso",  score: 3, title: "乾きにくい", detail: "乾きは遅めです。薄手のものを中心に、間隔をあけて干すと乾きやすくなります。" };
+  return { level: "bad", score: 2, title: "外干しは不向き", detail: "気温が低く湿りがちです。室内干しや乾燥機のほうが確実です。" };
+}
+
+/** 紫外線指数 — WHO の UV インデックス区分にあわせた対策の目安 */
+function uvIndex(day) {
+  if (!day || typeof day.uv !== "number") return null;
+  const uv = day.uv;
+  const band =
+    uv >= 11 ? { level: "bad",  title: "極端に強い", detail: "日中の外出は控えめに。日陰・長袖・帽子・日焼け止めをすべて。" } :
+    uv >= 8  ? { level: "bad",  title: "非常に強い", detail: "日焼け止めと帽子は必須。10〜14時の外出はできるだけ日陰で。" } :
+    uv >= 6  ? { level: "soso", title: "強い",       detail: "日焼け止めを。長時間の外出では帽子やサングラスもあると安心です。" } :
+    uv >= 3  ? { level: "good", title: "中程度",     detail: "長時間外にいるなら日焼け止めがあるとよい程度です。" } :
+               { level: "great", title: "弱い",      detail: "特別な対策は要りません。" };
+  return { level: band.level, title: band.title, detail: band.detail, value: uv.toFixed(1) };
+}
+
+/** 星空指数 — 夜間の雲量から */
+function starIndex(day, hours) {
+  const cloud = nightMean(hours, "cloud");
+  if (cloud === null) return null;
+  const pop = typeof day.pop === "number" ? day.pop : 0;
+  if (pop >= 50 || cloud >= 80) return { level: "bad",   title: "期待できない", detail: "夜は雲が広がる見込みです。", value: Math.round(cloud) + "%" };
+  if (cloud >= 55)              return { level: "soso",  title: "雲が多め",     detail: "雲の切れ間からなら見えるかもしれません。", value: Math.round(cloud) + "%" };
+  if (cloud >= 25)              return { level: "good",  title: "まずまず",     detail: "ところどころ雲はありますが、星は見えそうです。", value: Math.round(cloud) + "%" };
+  return { level: "great", title: "よく見える", detail: "夜はよく晴れる見込みです。明かりの少ない場所ならなお良く見えます。", value: Math.round(cloud) + "%" };
+}
+
+/**
+ * 熱中症の注意レベル — 体感温度と湿度からの目安。
+ * 環境省が発表する暑さ指数（WBGT）とは算出方法が異なるため、代用はできない。
+ */
+function heatIndex(day, hours) {
+  const feels = typeof day.feelsHi === "number" ? day.feelsHi : day.hi;
+  if (typeof feels !== "number" || feels < 24) return null;
+  const hum = dayMean(hours, "humidity");
+  const adj = feels + (hum !== null && hum >= 70 ? 1.5 : 0);
+  if (adj >= 35) return { level: "bad",  title: "危険",     detail: "運動は原則中止。外出はできるだけ避け、冷房のある室内で過ごしてください。", value: Math.round(feels) + "°" };
+  if (adj >= 31) return { level: "bad",  title: "厳重警戒", detail: "外出時は炎天下を避け、こまめに休憩と水分・塩分を。", value: Math.round(feels) + "°" };
+  if (adj >= 28) return { level: "soso", title: "警戒",     detail: "運動や作業では定期的に休憩を。のどが渇く前の水分補給を。", value: Math.round(feels) + "°" };
+  return { level: "good", title: "注意", detail: "激しい運動では水分補給を忘れずに。", value: Math.round(feels) + "°" };
+}
+
+/** 乾燥指数 — 湿度と気温から */
+function dryIndex(day, hours) {
+  const hum = dayMean(hours, "humidity");
+  if (hum === null) return null;
+  if (hum <= 35) return { level: "bad",  title: "とても乾燥", detail: "のどや肌が乾きやすく、火の取り扱いにも注意が必要です。加湿を。", value: Math.round(hum) + "%" };
+  if (hum <= 50) return { level: "soso", title: "やや乾燥",   detail: "加湿や保湿があると快適に過ごせます。", value: Math.round(hum) + "%" };
+  if (hum >= 85) return { level: "soso", title: "蒸し蒸し",   detail: "湿度が高く、洗濯物や食品の傷みに注意。", value: Math.round(hum) + "%" };
+  return { level: "great", title: "ちょうどよい", detail: "湿度は過ごしやすい範囲です。", value: Math.round(hum) + "%" };
+}
+
+/** その日の生活指数をまとめて返す */
+function lifeIndices(day, hours) {
+  return [
+    { key: "laundry", cap: "洗濯",   emoji: "👕", data: laundryIndex(day, hours) },
+    { key: "uv",      cap: "紫外線", emoji: "🧴", data: uvIndex(day) },
+    { key: "heat",    cap: "熱中症", emoji: "🥵", data: heatIndex(day, hours) },
+    { key: "dry",     cap: "乾燥",   emoji: "💧", data: dryIndex(day, hours) },
+    { key: "star",    cap: "星空",   emoji: "✨", data: starIndex(day, hours) }
+  ].filter(x => x.data);
+}
+
+/* ============================================================
+ * 5e. 大気質（Open-Meteo Air Quality API / APIキー不要）
+ *   PM2.5・PM10・オゾン・二酸化窒素・黄砂（dust）と US AQI を取得する。
+ *   花粉は CAMS のヨーロッパ域のみの提供で、日本のスギ・ヒノキは対象外のため
+ *   意図的に扱わない（表示すると誤った情報になる）。
+ * ============================================================ */
+const AIR_API = "https://air-quality-api.open-meteo.com/v1/air-quality";
+const AIR_VARS = ["pm2_5", "pm10", "ozone", "nitrogen_dioxide", "sulphur_dioxide",
+                  "carbon_monoxide", "dust", "us_aqi"];
+const airCache = new Map();     // cityId -> { at, data }
+const AIR_TTL_MS = 60 * 60 * 1000;
+
+/** US AQI を区分に落とす（米国 EPA の基準） */
+function aqiBand(aqi) {
+  if (typeof aqi !== "number") return null;
+  if (aqi <= 50)  return { level: "great", label: "良い",             detail: "大気の状態は良好です。" };
+  if (aqi <= 100) return { level: "good",  label: "普通",             detail: "ごく一部の敏感な人は注意してください。" };
+  if (aqi <= 150) return { level: "soso",  label: "敏感な人に不健康", detail: "呼吸器が弱い方・子ども・高齢者は長時間の屋外活動を控えめに。" };
+  if (aqi <= 200) return { level: "bad",   label: "健康に良くない",   detail: "屋外での激しい運動は避け、換気の方法に気をつけてください。" };
+  if (aqi <= 300) return { level: "bad",   label: "非常に不健康",     detail: "屋外活動は控えてください。マスクや空気清浄機の使用を。" };
+  return { level: "bad", label: "危険", detail: "屋外活動は避けてください。" };
+}
+
+/** PM2.5 の濃度を日本の環境基準（日平均 35μg/m³）と見比べた目安 */
+function pm25Band(v) {
+  if (typeof v !== "number") return null;
+  if (v <= 15) return { level: "great", label: "少ない" };
+  if (v <= 35) return { level: "good",  label: "やや多い" };
+  if (v <= 70) return { level: "soso",  label: "多い" };
+  return { level: "bad", label: "非常に多い" };
+}
+
+async function fetchAirQuality(city) {
+  const hit = airCache.get(city.id);
+  if (hit && Date.now() - hit.at < AIR_TTL_MS) return hit.data;
+  const p = new URLSearchParams();
+  p.set("latitude", String(city.lat));
+  p.set("longitude", String(city.lon));
+  p.set("current", AIR_VARS.join(","));
+  p.set("hourly", "pm2_5");
+  p.set("timezone", JST);
+  p.set("forecast_days", "2");
+  const raw = await getJson(AIR_API + "?" + p.toString(), 15000);
+  const json = Array.isArray(raw) ? raw[0] : raw;
+  const cur = (json && json.current) || {};
+  const hourly = (json && json.hourly) || {};
+  const data = {
+    time: cur.time,
+    pm25: cur.pm2_5,
+    pm10: cur.pm10,
+    ozone: cur.ozone,
+    no2: cur.nitrogen_dioxide,
+    so2: cur.sulphur_dioxide,
+    co: cur.carbon_monoxide,
+    dust: cur.dust,
+    aqi: cur.us_aqi,
+    series: (hourly.time || []).map((t, i) => ({ time: t, pm25: pick(hourly.pm2_5, i) }))
+  };
+  airCache.set(city.id, { at: Date.now(), data: data });
+  return data;
+}
+
+/* ============================================================
  * 6. 描画
  * ============================================================ */
 function $(sel, root) { return (root || document).querySelector(sel); }
@@ -769,7 +947,11 @@ function orderedCities() {
     case "pop-desc":  return cities.slice().sort((a, b) => cmpNum(a, b, "pop", -1));
     case "name":      return cities.slice().sort((a, b) => a.name.localeCompare(b.name, "ja"));
     default: {
-      const rank = c => { const i = CITIES.indexOf(c); return i < 0 ? CITIES.length + state.custom.findIndex(x => x.id === c.id) : i; };
+      const rank = c => {
+        if (c.id === CURRENT_LOCATION_ID) return -1;   // 現在地は常に先頭
+        const i = CITIES.indexOf(c);
+        return i < 0 ? CITIES.length + state.custom.findIndex(x => x.id === c.id) : i;
+      };
       return cities.slice().sort((a, b) => rank(a) - rank(b));
     }
   }
@@ -1028,6 +1210,91 @@ function addSearchedCity(btn) {
   $("#searchMsg").textContent = city.name + " を追加しました。";
   render();
   refresh(false);
+}
+
+/* ---- 現在地の天気（Geolocation API）---- */
+
+/** 2点間のおおよその距離（km） */
+function distanceKm(aLat, aLon, bLat, bLon) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(bLat - aLat), dLon = toRad(bLon - aLon);
+  const x = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+    + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+/** 内蔵地点のうち最も近いものを返す（地名の表示と府県予報区の特定に使う） */
+function nearestCity(lat, lon) {
+  let best = null, bestKm = Infinity;
+  CITIES.forEach(c => {
+    const km = distanceKm(lat, lon, c.lat, c.lon);
+    if (km < bestKm) { bestKm = km; best = c; }
+  });
+  return { city: best, km: bestKm };
+}
+
+function geoStatus(msg) {
+  const el = $("#searchMsg");
+  if (!el) return;
+  $("#picker").hidden = false;
+  $("#pickerBtn").setAttribute("aria-expanded", "true");
+  el.hidden = false;
+  el.textContent = msg;
+}
+
+/** 現在地を取得して一覧に加える */
+function requestCurrentLocation() {
+  if (!navigator.geolocation) {
+    geoStatus("このブラウザは現在地の取得に対応していません。地点を検索して追加してください。");
+    return;
+  }
+  const btn = $("#geoBtn");
+  btn.disabled = true;
+  btn.setAttribute("aria-busy", "true");
+  geoStatus("現在地を取得しています…");
+
+  navigator.geolocation.getCurrentPosition(pos => {
+    btn.disabled = false;
+    btn.removeAttribute("aria-busy");
+    const lat = Math.round(pos.coords.latitude * 10000) / 10000;
+    const lon = Math.round(pos.coords.longitude * 10000) / 10000;
+    const near = nearestCity(lat, lon);
+    // 近くに内蔵地点があるときだけ、その府県予報区の警報を引く
+    const useJma = near.city && near.km <= 100;
+    const city = {
+      id: CURRENT_LOCATION_ID,
+      name: "現在地",
+      sub: near.city ? (near.km < 15 ? near.city.name + "付近" : near.city.name + "から約" + Math.round(near.km) + "km") : "",
+      region: "追加した地点",
+      lat: lat, lon: lon,
+      jma: useJma ? near.city.jma : null,
+      jmaArea: useJma ? near.city.jmaArea : null,
+      nearName: near.city ? near.city.name : "",
+      isCurrent: true
+    };
+    if (!isValidCustomCity(city)) {
+      geoStatus("現在地の座標を取得できませんでした。");
+      return;
+    }
+    // 位置が変わっている場合もあるので、常に最新の座標で置き換える
+    CITY_BY_ID.set(city.id, city);
+    state.custom = state.custom.filter(c => c.id !== city.id).concat([city]);
+    if (state.selected.indexOf(city.id) < 0) state.selected.unshift(city.id);
+    if (state.pinned.indexOf(city.id) < 0) state.pinned.unshift(city.id);
+    state.data.delete(city.id);
+    state.errors.delete(city.id);
+    saveState();
+    geoStatus("現在地（" + (city.sub || (lat + ", " + lon)) + "）を追加しました。");
+    render();
+    refresh(false);
+  }, err => {
+    btn.disabled = false;
+    btn.removeAttribute("aria-busy");
+    geoStatus(
+      err && err.code === 1 ? "位置情報の利用が許可されませんでした。ブラウザの設定で許可するか、地点を検索して追加してください。"
+      : err && err.code === 3 ? "現在地の取得がタイムアウトしました。もう一度お試しください。"
+      : "現在地を取得できませんでした。地点を検索して追加してください。");
+  }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60 * 1000 });
 }
 
 function removeCustomCity(id) {
@@ -1380,6 +1647,21 @@ function openSheet(cityId, dayIndex) {
       html += '</div>';
     }
 
+    // --- 生活指数 ---
+    const idx = lifeIndices(t, d.hours);
+    if (idx.length) {
+      html += '<h3 class="sheet-h3">生活指数</h3><div class="idx-grid">'
+        + idx.map(x =>
+            '<div class="idx-card lv-' + x.data.level + '">'
+            + '<div class="idx-top"><span class="idx-emoji">' + x.emoji + '</span>'
+            + '<span class="idx-cap">' + esc(x.cap) + '</span>'
+            + (x.data.value ? '<span class="idx-val tnum">' + esc(x.data.value) + '</span>' : "") + '</div>'
+            + '<div class="idx-title">' + esc(x.data.title) + '</div>'
+            + '<div class="idx-detail">' + esc(x.data.detail) + '</div></div>').join("")
+        + '</div>'
+        + '<p class="alert-note">数値予報から機械的に求めた目安です。気象庁や各社が発表している指数そのものではありません。</p>';
+    }
+
     html += '<h3 class="sheet-h3">現在の状況</h3><dl class="stats tnum">'
       + stat("体感温度", fmtTemp(d.now.feels, 1) + unitLabel())
       + stat("湿度", fmtNum(d.now.humidity, "%"))
@@ -1416,7 +1698,22 @@ function openSheet(cityId, dayIndex) {
         + '<div class="chart-legend"><span><i style="background:var(--accent)"></i>気温 (' + unitLabel() + ')</span>'
         + '<span><i style="background:#7fb4dd"></i>降水確率 (%)</span></div>'
         + '<div class="chart">' + hourlyChart(d.hours) + '</div>';
+
+      const pressures = d.hours.filter(h => typeof h.pressure === "number");
+      if (pressures.length > 2) {
+        html += '<h3 class="sheet-h3">気圧の変化（48時間）</h3>'
+          + '<div class="chart">' + pressureChart(d.hours) + '</div>'
+          + '<p class="alert-note">' + esc(pressureComment(d.hours)) + '</p>';
+      }
     }
+
+    // --- 大気質（開いたときに別 API から取得する）---
+    html += '<h3 class="sheet-h3">大気の状態</h3><div id="airBox" class="air-box">'
+      + '<span style="color:var(--text-3);font-size:12.5px">大気質を読み込んでいます…</span></div>';
+
+    html += '<h3 class="sheet-h3">雨雲の様子</h3>'
+      + '<button type="button" class="btn primary" data-radar="' + esc(city.id) + '">'
+      + '雨雲レーダーで' + esc(city.name) + '周辺を見る</button>';
 
     html += '<p style="margin:18px 0 0;font-size:11.5px;color:var(--text-3);line-height:1.7">'
       + '標高 ' + (d.elevation == null ? "—" : Math.round(d.elevation) + " m")
@@ -1434,6 +1731,7 @@ function openSheet(cityId, dayIndex) {
   const day = Math.min(Math.max(dayIndex || 0, 0), d && d.days.length ? d.days.length - 1 : 0);
   state.openDay = day;
   if (d && d.days.length) selectDay(cityId, day);
+  if (d) loadAirBox(city);
   const close = $("#sheetClose");
   if (close) close.focus();
 }
@@ -1447,6 +1745,104 @@ function closeSheet() {
   $("#overlay").removeAttribute("open");
   document.body.style.overflow = "";
   if (lastFocused && lastFocused.focus) lastFocused.focus();
+}
+
+/** 気圧の折れ線（48時間）。既存の気温グラフと同じ作図規則にそろえる。 */
+function pressureChart(hours) {
+  const pts = (hours || []).filter(h => typeof h.pressure === "number");
+  if (pts.length < 3) return "";
+  const W = 720, H = 150, padL = 42, padR = 12, padT = 12, padB = 26;
+  const vals = pts.map(p => p.pressure);
+  let min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+  const margin = Math.max((max - min) * 0.2, 2);
+  min -= margin; max += margin;
+  const x = i => padL + (i / (pts.length - 1)) * (W - padL - padR);
+  const y = v => padT + (1 - (v - min) / (max - min)) * (H - padT - padB);
+
+  let axis = "";
+  for (let k = 0; k <= 3; k++) {
+    const v = min + (max - min) * (k / 3);
+    axis += '<text x="' + (padL - 6) + '" y="' + (y(v) + 3.5).toFixed(1) + '" text-anchor="end" font-size="10" '
+      + 'fill="var(--text-3)">' + v.toFixed(0) + '</text>'
+      + '<line x1="' + padL + '" y1="' + y(v).toFixed(1) + '" x2="' + (W - padR) + '" y2="' + y(v).toFixed(1)
+      + '" stroke="var(--border)" stroke-width="1" stroke-opacity=".6"/>';
+  }
+  let ticks = "";
+  pts.forEach((p, i) => {
+    const dt = parseLocal(p.time);
+    if (!dt || dt.getHours() % 6 !== 0) return;
+    const midnight = dt.getHours() === 0;
+    ticks += '<line x1="' + x(i).toFixed(1) + '" y1="' + padT + '" x2="' + x(i).toFixed(1) + '" y2="' + (H - padB)
+      + '" stroke="var(--border)" stroke-width="1"' + (midnight ? '' : ' stroke-dasharray="2 4"') + '/>'
+      + '<text x="' + x(i).toFixed(1) + '" y="' + (H - padB + 14) + '" text-anchor="middle" font-size="10" '
+      + 'fill="var(--text-3)">' + (midnight ? (dt.getMonth() + 1) + "/" + dt.getDate() : dt.getHours() + "時") + '</text>';
+  });
+  const line = pts.map((p, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p.pressure).toFixed(1)).join(" ");
+  // 標準気圧 1013hPa の目安線（範囲内のときだけ）
+  const std = (1013 >= min && 1013 <= max)
+    ? '<line x1="' + padL + '" y1="' + y(1013).toFixed(1) + '" x2="' + (W - padR) + '" y2="' + y(1013).toFixed(1)
+      + '" stroke="var(--text-3)" stroke-width="1" stroke-dasharray="5 4" stroke-opacity=".7"/>'
+      + '<text x="' + (W - padR) + '" y="' + (y(1013) - 4).toFixed(1) + '" text-anchor="end" font-size="9.5" fill="var(--text-3)">1013 hPa</text>'
+    : "";
+
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="48時間の気圧の推移">'
+    + axis + ticks + std
+    + '<path d="' + line + '" fill="none" stroke="#8a63c9" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>'
+    + '</svg>';
+}
+
+/** 気圧の下がり方から一言添える（気象病の目安として市販アプリが載せているもの） */
+function pressureComment(hours) {
+  const pts = (hours || []).filter(h => typeof h.pressure === "number");
+  if (pts.length < 7) return "気圧の推移です。単位は hPa（海面気圧）。";
+  let worst = 0, worstAt = null;
+  for (let i = 0; i + 6 < pts.length; i++) {
+    const drop = pts[i].pressure - pts[i + 6].pressure;   // 6時間での変化
+    if (drop > worst) { worst = drop; worstAt = pts[i].time; }
+  }
+  const when = worstAt ? fmtClock(worstAt) + "ごろから" : "";
+  if (worst >= 6) return "6時間で " + worst.toFixed(1) + " hPa 下がる時間帯があります（" + when + "）。気圧の変化に敏感な方は体調に注意してください。";
+  if (worst >= 3) return "6時間で " + worst.toFixed(1) + " hPa ほど下がる時間帯があります（" + when + "）。人によっては頭痛やだるさが出やすい変化幅です。";
+  return "大きな気圧の低下はない見込みです。単位は hPa（海面気圧）。";
+}
+
+/** 大気質を取得して詳細パネルに差し込む */
+async function loadAirBox(city) {
+  const render = html => {
+    const box = document.getElementById("airBox");
+    // 取得中に別の地点を開いていたら書き込まない
+    if (box && state.openCity === city.id) box.innerHTML = html;
+  };
+  let air;
+  try {
+    air = await fetchAirQuality(city);
+  } catch (e) {
+    render('<span style="color:var(--text-3);font-size:12.5px">大気質のデータを取得できませんでした。</span>');
+    return;
+  }
+  const band = aqiBand(air.aqi);
+  const pm = pm25Band(air.pm25);
+  const num = (v, unit, digits) => (typeof v === "number" ? v.toFixed(digits === undefined ? 1 : digits) + unit : "—");
+
+  render(
+    (band
+      ? '<div class="air-head lv-' + band.level + '">'
+        + '<span class="air-aqi tnum">' + Math.round(air.aqi) + '</span>'
+        + '<div><div class="air-label">' + esc(band.label) + '</div>'
+        + '<div class="air-detail">' + esc(band.detail) + '</div></div></div>'
+      : "")
+    + '<dl class="stats tnum" style="margin-top:10px">'
+    + stat("PM2.5", num(air.pm25, " μg/m³") + (pm ? "（" + pm.label + "）" : ""))
+    + stat("PM10", num(air.pm10, " μg/m³"))
+    + stat("黄砂・ダスト", num(air.dust, " μg/m³"))
+    + stat("オゾン", num(air.ozone, " μg/m³", 0))
+    + stat("二酸化窒素", num(air.no2, " μg/m³", 0))
+    + stat("二酸化硫黄", num(air.so2, " μg/m³", 0))
+    + '</dl>'
+    + '<p class="alert-note">出典: Open-Meteo Air Quality API（欧州 CAMS の全球モデル）。'
+    + '指数は米国 EPA の AQI、PM2.5 の区分は日本の環境基準（日平均 35μg/m³）を目安にしています。'
+    + '実測値ではなくモデルによる推計です。'
+    + '花粉は CAMS がヨーロッパのみの提供でスギ・ヒノキを対象としていないため、表示していません。</p>');
 }
 
 /** 気温の折れ線 + 降水確率の棒グラフ（48時間） */
@@ -1503,6 +1899,236 @@ function hourlyChart(hours) {
     + axis + ticks + bars
     + '<path d="' + line + '" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>'
     + '</svg>';
+}
+
+/* ============================================================
+ * 7b. 雨雲レーダー
+ *   背景: 国土地理院の淡色地図タイル
+ *   降水: 気象庁 高解像度降水ナウキャスト（hrpns）のタイル
+ *     https://www.jma.go.jp/bosai/jmatile/data/nowc/{basetime}/none/{validtime}/surf/hrpns/{z}/{x}/{y}.png
+ *     実況は basetime == validtime、予測は basetime を固定して validtime を 5 分刻みで進める。
+ *   いずれも公式に API として提供されているものではないため、取得に失敗しても
+ *   地図とメッセージだけは必ず出す。依存ライブラリは使わず自前でタイルを並べる。
+ * ============================================================ */
+const GSI_TILE = "https://cyberjapandata.gsj.jp/xyz/pale/{z}/{x}/{y}.png";
+const NOWC_BASE = "https://www.jma.go.jp/bosai/jmatile/data/nowc/";
+const TILE = 256;
+const RADAR_ZOOM_MIN = 4, RADAR_ZOOM_MAX = 10;
+/** 気象庁の降水強度の配色（凡例用） */
+const RAIN_LEGEND = [
+  { c: "#C0E0FF", t: "1" }, { c: "#A0D2FF", t: "5" }, { c: "#218CFF", t: "10" },
+  { c: "#0041FF", t: "20" }, { c: "#FAF500", t: "30" }, { c: "#FF9900", t: "50" },
+  { c: "#FF2800", t: "80" }, { c: "#B40068", t: "mm/h" }
+];
+
+const radar = {
+  open: false, zoom: 8, centerX: 0, centerY: 0,   // centerX/Y はズーム z でのピクセル座標
+  times: [], index: 0, playing: false, timer: null, cityId: null, failed: 0, loaded: 0
+};
+
+function lon2px(lon, z) { return (lon + 180) / 360 * TILE * Math.pow(2, z); }
+function lat2px(lat, z) {
+  const r = Math.max(-85.05, Math.min(85.05, lat)) * Math.PI / 180;
+  return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * TILE * Math.pow(2, z);
+}
+
+/** "20261004T045000" (UTC) → Date */
+function parseJmaTime(s) {
+  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/.exec(String(s || ""));
+  if (!m) return null;
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
+}
+function jstClock(date) {
+  if (!date) return "--:--";
+  try {
+    return new Intl.DateTimeFormat("ja-JP", { timeZone: JST, hour: "2-digit", minute: "2-digit" }).format(date);
+  } catch (e) { return "--:--"; }
+}
+
+/** 実況（N1）と予測（N2）の時刻一覧をまとめて取り出す */
+async function loadRadarTimes() {
+  const grab = async (file, kind) => {
+    try {
+      const arr = await getJson(NOWC_BASE + file, 12000);
+      return (Array.isArray(arr) ? arr : [])
+        .filter(e => e && e.basetime && e.validtime)
+        .map(e => ({ basetime: String(e.basetime), validtime: String(e.validtime), kind: kind }));
+    } catch (e) { return []; }
+  };
+  const [obs, fc] = await Promise.all([grab("targetTimes_N1.json", "obs"), grab("targetTimes_N2.json", "fc")]);
+  const seen = new Set();
+  const all = obs.concat(fc).filter(e => {
+    if (seen.has(e.validtime)) return false;
+    seen.add(e.validtime);
+    return true;
+  });
+  all.sort((a, b) => a.validtime < b.validtime ? -1 : a.validtime > b.validtime ? 1 : 0);
+  // 直近 1 時間の実況＋予測に絞る（多すぎるとスライダーが細かくなりすぎる）
+  return all.slice(-25);
+}
+
+function radarTileRange() {
+  const map = $("#radarMap");
+  const w = map.clientWidth || 640, h = map.clientHeight || 440;
+  const left = radar.centerX - w / 2, top = radar.centerY - h / 2;
+  return {
+    w: w, h: h, left: left, top: top,
+    x0: Math.floor(left / TILE), x1: Math.floor((left + w) / TILE),
+    y0: Math.floor(top / TILE),  y1: Math.floor((top + h) / TILE)
+  };
+}
+
+/** 1 レイヤー分のタイルを並べる */
+function paintLayer(el, urlFor, onDone) {
+  const r = radarTileRange();
+  const max = Math.pow(2, radar.zoom);
+  const frag = document.createDocumentFragment();
+  let pending = 0, failed = 0;
+  for (let y = r.y0; y <= r.y1; y++) {
+    if (y < 0 || y >= max) continue;
+    for (let x = r.x0; x <= r.x1; x++) {
+      const tx = ((x % max) + max) % max;    // 経度方向は巡回させる
+      const url = urlFor(radar.zoom, tx, y);
+      if (!url) continue;
+      const img = document.createElement("img");
+      img.alt = "";
+      img.loading = "eager";
+      img.decoding = "async";
+      img.style.left = (x * TILE - r.left) + "px";
+      img.style.top = (y * TILE - r.top) + "px";
+      pending++;
+      img.addEventListener("load", () => { pending--; if (onDone && !pending) onDone(failed); });
+      img.addEventListener("error", () => { pending--; failed++; img.style.visibility = "hidden"; if (onDone && !pending) onDone(failed); });
+      img.src = url;
+      frag.appendChild(img);
+    }
+  }
+  el.innerHTML = "";
+  el.appendChild(frag);
+  if (onDone && !pending) onDone(failed);
+}
+
+function paintRadar() {
+  if (!radar.open) return;
+  paintLayer($("#radarBase"), (z, x, y) =>
+    GSI_TILE.replace("{z}", z).replace("{x}", x).replace("{y}", y));
+
+  const t = radar.times[radar.index];
+  if (!t) {
+    $("#radarRain").innerHTML = "";
+    showRadarMsg("雨雲の観測データを取得できませんでした。地図のみ表示しています。");
+    return;
+  }
+  paintLayer($("#radarRain"), (z, x, y) =>
+    NOWC_BASE + t.basetime + "/none/" + t.validtime + "/surf/hrpns/" + z + "/" + x + "/" + y + ".png",
+    failed => {
+      // 全タイルが落ちた＝提供が止まっている可能性
+      const r = radarTileRange();
+      const total = (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1);
+      if (failed >= total && total > 0) showRadarMsg("雨雲のタイルを取得できませんでした。気象庁側の仕様変更の可能性があります。");
+      else hideRadarMsg();
+    });
+
+  const d = parseJmaTime(t.validtime);
+  $("#radarClock").innerHTML = esc(jstClock(d)) + (t.kind === "fc" ? '<span class="fc">予測</span>' : "");
+  $("#radarTime").value = String(radar.index);
+}
+
+function showRadarMsg(msg) { const el = $("#radarMsg"); el.hidden = false; el.textContent = msg; }
+function hideRadarMsg() { $("#radarMsg").hidden = true; }
+
+function radarLegendHtml() {
+  return RAIN_LEGEND.map(l =>
+    '<span class="lg"><span class="sw" style="background:' + l.c + '"></span><span>' + esc(l.t) + '</span></span>').join("");
+}
+
+async function openRadar(cityId) {
+  const city = CITY_BY_ID.get(cityId) || CITY_BY_ID.get(state.pinned[0]) || CITIES[0];
+  radar.open = true;
+  radar.cityId = city.id;
+  radar.zoom = 8;
+  radar.centerX = lon2px(city.lon, radar.zoom);
+  radar.centerY = lat2px(city.lat, radar.zoom);
+  $("#radarSub").textContent = city.name + (city.sub ? "（" + city.sub + "）" : "") + " 付近";
+  $("#radarLegend").innerHTML = radarLegendHtml();
+  $("#radarOverlay").setAttribute("open", "");
+  document.body.style.overflow = "hidden";
+  showRadarMsg("雨雲の観測時刻を読み込んでいます…");
+  paintLayer($("#radarBase"), (z, x, y) => GSI_TILE.replace("{z}", z).replace("{x}", x).replace("{y}", y));
+
+  radar.times = await loadRadarTimes();
+  if (!radar.open) return;
+  const slider = $("#radarTime");
+  slider.max = String(Math.max(0, radar.times.length - 1));
+  // 既定は最新の実況（予測の手前）
+  const lastObs = radar.times.map(t => t.kind).lastIndexOf("obs");
+  radar.index = lastObs >= 0 ? lastObs : Math.max(0, radar.times.length - 1);
+  slider.value = String(radar.index);
+  hideRadarMsg();
+  paintRadar();
+}
+
+function closeRadar() {
+  stopRadarPlay();
+  radar.open = false;
+  $("#radarOverlay").removeAttribute("open");
+  document.body.style.overflow = "";
+  $("#radarBase").innerHTML = "";
+  $("#radarRain").innerHTML = "";
+}
+
+function stopRadarPlay() {
+  radar.playing = false;
+  if (radar.timer) { clearInterval(radar.timer); radar.timer = null; }
+  const b = $("#radarPlay");
+  if (b) b.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg> 再生';
+}
+function startRadarPlay() {
+  if (!radar.times.length) return;
+  radar.playing = true;
+  $("#radarPlay").innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg> 停止';
+  radar.timer = setInterval(() => {
+    radar.index = (radar.index + 1) % radar.times.length;
+    paintRadar();
+  }, 700);
+}
+
+/** 地図のドラッグ操作 */
+function bindRadarDrag() {
+  const map = $("#radarMap");
+  let dragging = false, lastX = 0, lastY = 0, moved = 0;
+  map.addEventListener("pointerdown", ev => {
+    if (ev.target.closest(".radar-zoom")) return;
+    dragging = true; moved = 0;
+    lastX = ev.clientX; lastY = ev.clientY;
+    map.setPointerCapture(ev.pointerId);
+  });
+  map.addEventListener("pointermove", ev => {
+    if (!dragging) return;
+    const dx = ev.clientX - lastX, dy = ev.clientY - lastY;
+    lastX = ev.clientX; lastY = ev.clientY;
+    moved += Math.abs(dx) + Math.abs(dy);
+    radar.centerX -= dx;
+    radar.centerY -= dy;
+    paintRadar();
+  });
+  const end = ev => {
+    if (!dragging) return;
+    dragging = false;
+    try { map.releasePointerCapture(ev.pointerId); } catch (e) { /* 解放済みなら無視 */ }
+  };
+  map.addEventListener("pointerup", end);
+  map.addEventListener("pointercancel", end);
+}
+
+function radarZoomBy(delta) {
+  const next = Math.max(RADAR_ZOOM_MIN, Math.min(RADAR_ZOOM_MAX, radar.zoom + delta));
+  if (next === radar.zoom) return;
+  const scale = Math.pow(2, next - radar.zoom);
+  radar.centerX *= scale;
+  radar.centerY *= scale;
+  radar.zoom = next;
+  paintRadar();
 }
 
 /* ============================================================
@@ -1566,10 +2192,14 @@ document.addEventListener("click", ev => {
   }
 
   if (ev.target.closest("#retryBtn")) { refresh(true); return; }
+
+  const radarOpen = ev.target.closest("[data-radar]");
+  if (radarOpen) { closeSheet(); openRadar(radarOpen.getAttribute("data-radar")); return; }
   if (ev.target.closest("#sheetClose") || ev.target.id === "overlay") closeSheet();
 });
 
 document.addEventListener("keydown", ev => {
+  if (ev.key === "Escape" && $("#radarOverlay").hasAttribute("open")) { closeRadar(); return; }
   if (ev.key === "Escape" && $("#overlay").hasAttribute("open")) closeSheet();
   if (ev.key === "Enter" || ev.key === " ") {
     const row = ev.target.closest && ev.target.closest("tr[data-open]");
@@ -1597,6 +2227,20 @@ $("#themeBtn").addEventListener("click", () => {
   state.theme = state.theme === "auto" ? "light" : state.theme === "light" ? "dark" : "auto";
   saveState(); applyTheme();
 });
+$("#geoBtn").addEventListener("click", requestCurrentLocation);
+$("#radarBtn").addEventListener("click", () => openRadar(state.pinned[0] || state.selected[0]));
+$("#radarClose").addEventListener("click", closeRadar);
+$("#radarOverlay").addEventListener("click", ev => { if (ev.target.id === "radarOverlay") closeRadar(); });
+$("#radarPlay").addEventListener("click", () => { radar.playing ? stopRadarPlay() : startRadarPlay(); });
+$("#radarTime").addEventListener("input", e => {
+  stopRadarPlay();
+  radar.index = parseInt(e.target.value, 10) || 0;
+  paintRadar();
+});
+$("#radarIn").addEventListener("click", () => radarZoomBy(1));
+$("#radarOut").addEventListener("click", () => radarZoomBy(-1));
+bindRadarDrag();
+
 $("#pickerBtn").addEventListener("click", () => {
   const p = $("#picker");
   p.hidden = !p.hidden;
@@ -1614,6 +2258,20 @@ $("#unitSel").value = state.unit;
 loadCache();          // 直近のキャッシュがあれば即座に表示（オフラインでも中身が見える）
 render();
 refresh(false);
+
+let radarResizeTimer = null;
+window.addEventListener("resize", () => {
+  if (!radar.open) return;
+  clearTimeout(radarResizeTimer);
+  radarResizeTimer = setTimeout(paintRadar, 150);
+});
+
+// ホーム画面に追加して、オフラインでも開けるようにする（file:// では登録しない）
+if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => { /* 登録できなくても通常動作する */ });
+  });
+}
 
 setInterval(() => { if (!document.hidden) refresh(false); }, AUTO_REFRESH_MS);
 document.addEventListener("visibilitychange", () => {
