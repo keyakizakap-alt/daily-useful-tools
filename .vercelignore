@@ -9,3 +9,10 @@
 /mail-check/tests
 /mail-check/package.json
 /mail-check/package-lock.json
+# 開発用の点検ツール（型チェック・CI）。配信には使わない。
+/package.json
+/package-lock.json
+/node_modules
+/jsconfig.json
+/types
+/.github

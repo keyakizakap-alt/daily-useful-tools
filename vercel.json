@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "",
   "cleanUrls": true,
   "trailingSlash": true,
   "headers": [

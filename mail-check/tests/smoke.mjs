@@ -77,7 +77,7 @@ try {
   // 1件置換
   const beforeFix = await page.inputValue('#body');
   await page.click('#findings .finding button.apply');
-  await page.waitForFunction((prev) => document.getElementById('body').value !== prev, beforeFix);
+  await page.waitForFunction((prev) => /** @type {HTMLTextAreaElement} */ (document.getElementById('body')).value !== prev, beforeFix);
   ok('置換で本文が書き換わる', (await page.inputValue('#body')) !== beforeFix);
 
   // 一括適用
@@ -89,7 +89,7 @@ try {
       (li) => li.querySelector('button.apply')
     ).length,
     score: Number(document.getElementById('score').textContent),
-    body: document.getElementById('body').value
+    body: /** @type {HTMLTextAreaElement} */ (document.getElementById('body')).value
   }));
   ok('一括適用で修正候補が残らない', afterAll.fixable === 0, '残り: ' + afterAll.fixable);
   ok('一括適用で「各位様」が直る', !afterAll.body.includes('各位様'));
@@ -121,7 +121,7 @@ try {
   // XSS: 本文の HTML が実行されない
   await page.fill('#body', '<img src=x onerror="window.__xss=1"> 了解しました。');
   await page.waitForTimeout(400);
-  ok('本文の HTML が実行されない', await page.evaluate(() => window.__xss === undefined));
+  ok('本文の HTML が実行されない', await page.evaluate(() => /** @type {any} */ (window).__xss === undefined));
   ok('ハイライトは文字として表示される',
     (await page.evaluate(() => document.getElementById('preview').textContent)).includes('<img src=x'));
 
@@ -141,7 +141,7 @@ try {
   const storage = await page.evaluate(() => {
     const keys = [];
     for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
-    return { checked: document.getElementById('opt-save').checked, keys: keys };
+    return { checked: /** @type {HTMLInputElement} */ (document.getElementById('opt-save')).checked, keys: keys };
   });
   ok('下書き保存は既定で無効', storage.checked === false);
   ok('保存が無効なら下書きを端末に残さない',

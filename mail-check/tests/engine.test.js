@@ -457,7 +457,7 @@ test('本文に HTML が含まれても、描画用の文字列はエスケー�
 
 test('不正な入力でも例外を投げない', () => {
   for (const input of [undefined, null, 0, {}, []]) {
-    const result = E.check(input);
+    const result = E.check(/** @type {any} */ (input));
     assert.equal(result.findings.length >= 0, true);
     assert.equal(typeof result.score, 'number');
   }
