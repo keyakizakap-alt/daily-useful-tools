@@ -7,7 +7,7 @@
   const NEW_URL = "https://shikaku-apps.vercel.app/gcp-cert/";
   const KEY = "kumomichi.v1";
   const dest = NEW_URL + (/^#\/[\w-]*$/.test(location.hash) ? location.hash : "");
-  document.getElementById("go").href = dest;
+  /** @type {HTMLAnchorElement} */ (document.getElementById("go")).href = dest;
 
   let raw = null;
   try { raw = localStorage.getItem(KEY); } catch (_) { /* 保存領域が使えない環境 */ }
