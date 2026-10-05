@@ -103,6 +103,8 @@ function registerCity(c) {
 function isCustom(id) { return String(id).indexOf("geo:") === 0; }
 /** 現在地は専用の固定 ID を使い、取得のたびに座標を入れ替える */
 const CURRENT_LOCATION_ID = "geo:0";
+/** 画面下部のタブ */
+const TABS = ["radar", "weather", "region", "news", "menu"];
 const DEFAULT_PINNED = CITIES.filter(c => c.pin).map(c => c.id);
 /** 既定で一覧に出す地点（主要9地点＋主要都市を少しだけ） */
 const DEFAULT_SELECTED = DEFAULT_PINNED.concat(["sendai", "yokohama", "kyoto", "hiroshima", "kagoshima"]);
@@ -179,8 +181,12 @@ const state = {
   theme: "auto",
   tableSort: { key: null, dir: 1 },
   custom: [],           // ユーザーが検索して追加した地点
-  openCity: null,       // 詳細パネルで開いている地点
-  openDay: 0,           // 詳細パネルで選んでいる日
+  openCity: null,       // 「天気」タブで表示している地点
+  openDay: 0,           // 「天気」タブで選んでいる日
+  tab: "radar",         // radar / weather / region / news / menu
+  weatherCity: null,    // 「天気」タブで最後に見ていた地点
+  radarCity: null,      // 雨雲レーダーの中心にしている地点
+  radarBase: "photo",   // レーダーの背景地図 photo / std / pale
   data: new Map(),      // cityId -> normalized forecast
   errors: new Map(),    // cityId -> message
   alerts: new Map(),    // 府県予報区コード -> 気象庁の警報・注意報
@@ -200,6 +206,8 @@ function loadState() {
       s.custom.filter(isValidCustomCity).slice(0, 50).forEach(c => {
         const city = { id: c.id, name: c.name, sub: c.sub || "", region: "追加した地点", lat: c.lat, lon: c.lon, jma: null,
                        country: typeof c.country === "string" ? c.country.slice(0, 2) : "" };
+        // 現在地は保存データの府県予報区を信用せず、座標から最寄りの内蔵地点を引き直す
+        if (city.id === CURRENT_LOCATION_ID) Object.assign(city, currentLocationMeta(city.lat, city.lon));
         if (registerCity(city)) state.custom.push(city);
       });
     }
@@ -210,6 +218,10 @@ function loadState() {
     if (s.view === "cards" || s.view === "table") state.view = s.view;
     if (typeof s.sort === "string") state.sort = s.sort;
     if (["auto", "light", "dark"].includes(s.theme)) state.theme = s.theme;
+    if (TABS.includes(s.tab)) state.tab = s.tab;
+    if (["photo", "std", "pale"].includes(s.radarBase)) state.radarBase = s.radarBase;
+    if (valid(s.weatherCity)) state.weatherCity = s.weatherCity;
+    if (valid(s.radarCity)) state.radarCity = s.radarCity;
     if (!state.selected.length) state.selected = DEFAULT_SELECTED.slice();
     // ピン留めは必ず表示対象に含める
     state.pinned.forEach(id => { if (!state.selected.includes(id)) state.selected.push(id); });
@@ -219,7 +231,8 @@ function saveState() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify({
       selected: state.selected, pinned: state.pinned, custom: state.custom,
-      unit: state.unit, view: state.view, sort: state.sort, theme: state.theme
+      unit: state.unit, view: state.view, sort: state.sort, theme: state.theme,
+      tab: state.tab, weatherCity: state.weatherCity, radarCity: state.radarCity, radarBase: state.radarBase
     }));
   } catch (e) { /* プライベートモード等で保存できなくても動作は継続 */ }
 }
@@ -1242,38 +1255,45 @@ function geoStatus(msg) {
   el.textContent = msg;
 }
 
-/** 現在地を取得して一覧に加える */
-function requestCurrentLocation() {
+/** 現在地の座標から、表示名と気象警報に使う府県予報区を決める */
+function currentLocationMeta(lat, lon) {
+  const near = nearestCity(lat, lon);
+  // 近くに内蔵地点があるときだけ、その府県予報区の警報を引く
+  const useJma = !!near.city && near.km <= 100;
+  return {
+    name: "現在地",
+    sub: near.city ? (near.km < 15 ? near.city.name + "付近" : near.city.name + "から約" + Math.round(near.km) + "km") : "",
+    jma: useJma ? near.city.jma : null,
+    jmaArea: useJma ? near.city.jmaArea : null,
+    nearName: near.city ? near.city.name : "",
+    isCurrent: true
+  };
+}
+
+/**
+ * 現在地を取得して一覧に加える。
+ * opts.status(msg) で進捗の出し先を、opts.done(city) で取得後の処理を差し替えられる。
+ */
+function requestCurrentLocation(opts) {
+  const o = opts || {};
+  const status = o.status || geoStatus;
   if (!navigator.geolocation) {
-    geoStatus("このブラウザは現在地の取得に対応していません。地点を検索して追加してください。");
+    status("このブラウザは現在地の取得に対応していません。地点を検索して追加してください。");
     return;
   }
-  const btn = $("#geoBtn");
-  btn.disabled = true;
-  btn.setAttribute("aria-busy", "true");
-  geoStatus("現在地を取得しています…");
+  const btns = document.querySelectorAll("[data-geo]");
+  const busy = on => btns.forEach(b => { b.disabled = on; if (on) b.setAttribute("aria-busy", "true"); else b.removeAttribute("aria-busy"); });
+  busy(true);
+  status("現在地を取得しています…");
 
   navigator.geolocation.getCurrentPosition(pos => {
-    btn.disabled = false;
-    btn.removeAttribute("aria-busy");
+    busy(false);
     const lat = Math.round(pos.coords.latitude * 10000) / 10000;
     const lon = Math.round(pos.coords.longitude * 10000) / 10000;
-    const near = nearestCity(lat, lon);
-    // 近くに内蔵地点があるときだけ、その府県予報区の警報を引く
-    const useJma = near.city && near.km <= 100;
-    const city = {
-      id: CURRENT_LOCATION_ID,
-      name: "現在地",
-      sub: near.city ? (near.km < 15 ? near.city.name + "付近" : near.city.name + "から約" + Math.round(near.km) + "km") : "",
-      region: "追加した地点",
-      lat: lat, lon: lon,
-      jma: useJma ? near.city.jma : null,
-      jmaArea: useJma ? near.city.jmaArea : null,
-      nearName: near.city ? near.city.name : "",
-      isCurrent: true
-    };
+    const city = Object.assign({ id: CURRENT_LOCATION_ID, region: "追加した地点", lat: lat, lon: lon },
+                               currentLocationMeta(lat, lon));
     if (!isValidCustomCity(city)) {
-      geoStatus("現在地の座標を取得できませんでした。");
+      status("現在地の座標を取得できませんでした。");
       return;
     }
     // 位置が変わっている場合もあるので、常に最新の座標で置き換える
@@ -1284,13 +1304,13 @@ function requestCurrentLocation() {
     state.data.delete(city.id);
     state.errors.delete(city.id);
     saveState();
-    geoStatus("現在地（" + (city.sub || (lat + ", " + lon)) + "）を追加しました。");
+    status("現在地（" + (city.sub || (lat + ", " + lon)) + "）を追加しました。");
     render();
     refresh(false);
+    if (o.done) o.done(city);
   }, err => {
-    btn.disabled = false;
-    btn.removeAttribute("aria-busy");
-    geoStatus(
+    busy(false);
+    status(
       err && err.code === 1 ? "位置情報の利用が許可されませんでした。ブラウザの設定で許可するか、地点を検索して追加してください。"
       : err && err.code === 3 ? "現在地の取得がタイムアウトしました。もう一度お試しください。"
       : "現在地を取得できませんでした。地点を検索して追加してください。");
@@ -1338,6 +1358,18 @@ function render() {
   renderPicker();
 
   syncOpenSheet();
+  if (radar.active) {
+    const rc = CITY_BY_ID.get(radar.cityId);
+    if (rc && radar.series && radar.series.source === "model") {
+      const ms = modelSeries(rc);
+      if (ms) { ms.key = radar.series.key; ms.headline = makeHeadline(ms); radar.series = ms; }
+    } else if (rc && !radar.series) {
+      updateRadarSeries();
+    }
+    renderRadarPanel();
+  }
+  if (state.tab === "news") renderNews();
+  updateNewsBadge();
 
   const u = $("#updated");
   if (state.loading) u.textContent = "更新中…";
@@ -1346,10 +1378,12 @@ function render() {
 }
 /** 詳細パネルを開いたまま取得が完了したら、中身を描き直す */
 function syncOpenSheet() {
-  if (!state.openCity || !$("#overlay").hasAttribute("open")) return;
+  if (state.tab !== "weather" || !state.openCity) return;
   const sheet = $("#sheet");
   if (state.data.has(state.openCity) && sheet.dataset.hasData !== "1") {
-    openSheet(state.openCity, state.openDay);
+    openSheet(state.openCity, state.openDay, { keepScroll: true });
+  } else {
+    renderCitySwitch();
   }
 }
 
@@ -1562,13 +1596,13 @@ async function selectDay(cityId, index) {
 /* ============================================================
  * 7. 詳細パネル（週間予報 + 48時間の推移）
  * ============================================================ */
-let lastFocused = null;
 
-function openSheet(cityId, dayIndex) {
+function openSheet(cityId, dayIndex, opts) {
   const city = CITY_BY_ID.get(cityId);
   const d = state.data.get(cityId);
   if (!city) return;
-  if (!$("#overlay").hasAttribute("open")) lastFocused = document.activeElement;
+  const keepScroll = opts && opts.keepScroll;
+  if (state.tab !== "weather") setTab("weather", { silent: true });
 
   const w = d ? wmo(d.now.code) : WMO_UNKNOWN;
   let html =
@@ -1582,9 +1616,7 @@ function openSheet(cityId, dayIndex) {
     html += '<div class="now"><div class="t tnum">' + fmtTemp(d.now.temp, 1) + unitLabel() + '</div>'
       + '<div class="d">' + esc(w.label) + ' ・ 体感 ' + fmtTemp(d.now.feels) + '°</div></div>';
   }
-  html += '<button type="button" class="sheet-close" id="sheetClose" aria-label="閉じる">'
-    + '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">'
-    + '<path d="M5 5l14 14M19 5L5 19"/></svg></button></div><div class="sheet-body">';
+  html += '</div><div class="sheet-body">';
 
   if (!d) {
     const err = state.errors.get(cityId);
@@ -1724,27 +1756,43 @@ function openSheet(cityId, dayIndex) {
 
   const sheet = $("#sheet");
   sheet.innerHTML = html;
-  $("#overlay").setAttribute("open", "");
-  document.body.style.overflow = "hidden";
   state.openCity = cityId;
+  if (state.weatherCity !== cityId) { state.weatherCity = cityId; saveState(); }
   sheet.dataset.hasData = d ? "1" : "0";
   const day = Math.min(Math.max(dayIndex || 0, 0), d && d.days.length ? d.days.length - 1 : 0);
   state.openDay = day;
   if (d && d.days.length) selectDay(cityId, day);
   if (d) loadAirBox(city);
-  const close = $("#sheetClose");
-  if (close) close.focus();
+  renderCitySwitch();
+  if (!keepScroll) window.scrollTo(0, 0);
+}
+
+/** 「天気」タブ上部の地点切り替え */
+function renderCitySwitch() {
+  const box = document.getElementById("citySwitch");
+  if (!box) return;
+  box.innerHTML = orderedCities().map(c => {
+    const d = state.data.get(c.id);
+    const w = d ? wmo(d.now.code) : null;
+    const on = c.id === state.openCity;
+    return '<button type="button" class="cs-chip' + (on ? " on" : "") + '" data-open="' + esc(c.id) + '"'
+      + (on ? ' aria-current="true"' : "") + '>'
+      + (w ? icon(w.icon, 18) : "")
+      + '<span class="cs-name">' + esc(c.name) + '</span>'
+      + (d ? '<span class="cs-temp tnum">' + fmtTemp(d.now.temp) + '°</span>' : "")
+      + '</button>';
+  }).join("");
+  const cur = box.querySelector(".on");
+  if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: "nearest", inline: "center" });
 }
 
 function stat(label, value) {
   return '<div class="stat"><dt>' + esc(label) + '</dt><dd>' + esc(value) + '</dd></div>';
 }
 
+/** 「天気」タブから一覧に戻る */
 function closeSheet() {
-  state.openCity = null;
-  $("#overlay").removeAttribute("open");
-  document.body.style.overflow = "";
-  if (lastFocused && lastFocused.focus) lastFocused.focus();
+  setTab("region");
 }
 
 /** 気圧の折れ線（48時間）。既存の気温グラフと同じ作図規則にそろえる。 */
@@ -1902,34 +1950,223 @@ function hourlyChart(hours) {
 }
 
 /* ============================================================
- * 7b. 雨雲レーダー
- *   背景: 国土地理院の淡色地図タイル
+ * 7a. 画面（タブ）の切り替え
+ *   雨雲レーダー / 天気 / 地域の天気 / お知らせ / メニュー の5画面。
+ *   URL の #radar などと連動させ、ブラウザの戻る操作でも行き来できるようにする。
+ * ============================================================ */
+const TAB_TITLES = { radar: "雨雲レーダー", weather: "天気", region: "地域の天気", news: "お知らせ", menu: "メニュー" };
+
+function setTab(tab, opts) {
+  if (TABS.indexOf(tab) < 0) tab = "region";
+  const o = opts || {};
+  const prev = state.tab;
+  state.tab = tab;
+  document.body.setAttribute("data-tab", tab);
+  TABS.forEach(t => {
+    const page = document.getElementById("page-" + t);
+    if (page) page.hidden = t !== tab;
+  });
+  document.querySelectorAll(".tabbar [data-tab]").forEach(b => {
+    const on = b.getAttribute("data-tab") === tab;
+    b.classList.toggle("on", on);
+    if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+  });
+  const title = document.getElementById("pageTitle");
+  if (title) title.textContent = TAB_TITLES[tab];
+  if (location.hash !== "#" + tab) {
+    try { history.replaceState(null, "", "#" + tab); } catch (e) { /* file:// などでは無視 */ }
+  }
+  if (prev === "radar" && tab !== "radar") leaveRadar();
+  saveState();
+  if (o.silent) return;
+
+  if (tab === "radar") enterRadar(o.cityId);
+  else if (tab === "weather") {
+    const id = o.cityId || state.weatherCity || state.pinned[0] || state.selected[0];
+    if (id) openSheet(id, o.cityId ? 0 : state.openDay, { keepScroll: false });
+  } else if (tab === "news") renderNews();
+  else if (tab === "menu") renderMenu();
+  if (tab !== "radar") window.scrollTo(0, 0);
+}
+
+/* ---- お知らせ ---- */
+function newsItems() {
+  const warn = [], pressure = [];
+  orderedCities().forEach(c => {
+    const a = alertsFor(c.id);
+    if (a && a.severity && (a.source === "jma" || a.severity >= 2)) warn.push({ city: c, alert: a });
+    const d = state.data.get(c.id);
+    if (d) {
+      const pts = d.hours.filter(h => typeof h.pressure === "number");
+      let worst = 0, at = null;
+      for (let i = 0; i + 6 < pts.length; i++) {
+        const drop = pts[i].pressure - pts[i + 6].pressure;
+        if (drop > worst) { worst = drop; at = pts[i].time; }
+      }
+      if (worst >= 6) pressure.push({ city: c, drop: worst, at: at });
+    }
+  });
+  warn.sort((a, b) => b.alert.severity - a.alert.severity);
+  pressure.sort((a, b) => b.drop - a.drop);
+  return { warn: warn, pressure: pressure };
+}
+
+/** タブのバッジ（お知らせの赤い点）を更新する */
+function updateNewsBadge() {
+  const items = newsItems();
+  const rain = radar.series && radar.series.headline && radar.series.headline.notify;
+  const dot = document.getElementById("newsDot");
+  if (dot) dot.hidden = !(items.warn.length || items.pressure.length || rain);
+}
+
+function renderNews() {
+  const box = document.getElementById("newsBody");
+  if (!box) return;
+  const items = newsItems();
+  let html = "";
+
+  // 雨の見通し（レーダーの地点）
+  const rc = CITY_BY_ID.get(radar.cityId || state.radarCity || state.pinned[0]);
+  if (radar.series && radar.series.headline && rc) {
+    const h = radar.series.headline;
+    html += '<section class="news-card">'
+      + '<div class="news-cap">雨の見通し — ' + esc(rc.name) + '</div>'
+      + '<div class="news-head ' + (h.notify ? "warn" : "") + '">' + esc(h.title) + '</div>'
+      + '<p class="news-text">' + esc(h.advice) + '</p>'
+      + '<button type="button" class="btn" data-goto="radar">雨雲レーダーを見る</button></section>';
+  }
+
+  html += '<h3 class="sheet-h3">気象警報・注意報</h3>';
+  if (!items.warn.length) {
+    html += '<div class="news-empty">表示中の地点に、発表中の警報・注意報はありません。</div>';
+  } else {
+    html += items.warn.map(x => {
+      const st = SEVERITY_STYLE[x.alert.severity];
+      return '<button type="button" class="news-row" data-open="' + esc(x.city.id) + '">'
+        + '<span class="news-sev ' + st.cls + '">' + esc(st.label) + '</span>'
+        + '<span class="news-main"><span class="news-city">' + esc(x.city.name) + '</span>'
+        + '<span class="news-tags">' + esc(uniqueAlertNames(x.alert).join("・")) + '</span></span>'
+        + '<span class="news-src">' + (x.alert.source === "jma" ? "気象庁" : "目安") + '</span></button>';
+    }).join("");
+  }
+
+  html += '<h3 class="sheet-h3">気圧の大きな低下（48時間以内）</h3>';
+  if (!items.pressure.length) {
+    html += '<div class="news-empty">6時間で 6 hPa 以上下がる見込みの地点はありません。</div>';
+  } else {
+    html += items.pressure.map(x =>
+      '<button type="button" class="news-row" data-open="' + esc(x.city.id) + '">'
+      + '<span class="news-sev sev-1">気圧</span>'
+      + '<span class="news-main"><span class="news-city">' + esc(x.city.name) + '</span>'
+      + '<span class="news-tags">' + esc(fmtClock(x.at)) + 'ごろから6時間で ' + x.drop.toFixed(1) + ' hPa 低下</span></span>'
+      + '</button>').join("");
+  }
+  html += '<p class="alert-note">「目安」は気象庁の情報を取得できなかった地点で、予報値から判定したアプリ独自の注意喚起です。'
+    + '防災上の判断は必ず気象庁の公式情報をご確認ください。</p>';
+  box.innerHTML = html;
+}
+
+/* ---- メニュー ---- */
+let installPrompt = null;
+window.addEventListener("beforeinstallprompt", ev => { ev.preventDefault(); installPrompt = ev; if (state.tab === "menu") renderMenu(); });
+
+function renderMenu() {
+  const box = document.getElementById("menuSettings");
+  if (!box) return;
+  const seg = (name, cur, opts) => '<div class="seg menu-seg" role="group">' + opts.map(o =>
+    '<button type="button" data-set="' + name + '" data-val="' + o[0] + '" aria-pressed="' + (cur === o[0]) + '">'
+    + esc(o[1]) + '</button>').join("") + '</div>';
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const standalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+  box.innerHTML =
+    '<div class="menu-group"><div class="menu-cap">表示</div>'
+    + '<div class="menu-row"><span>気温の単位</span>' + seg("unit", state.unit, [["c", "°C"], ["f", "°F"]]) + '</div>'
+    + '<div class="menu-row"><span>テーマ</span>' + seg("theme", state.theme, [["auto", "自動"], ["light", "ライト"], ["dark", "ダーク"]]) + '</div>'
+    + '<div class="menu-row"><span>地域の天気の表示</span>' + seg("view", state.view, [["cards", "カード"], ["table", "比較表"]]) + '</div>'
+    + '<div class="menu-row"><span>雨雲レーダーの地図</span>' + seg("base", state.radarBase, [["photo", "航空写真"], ["std", "地図"], ["pale", "淡色"]]) + '</div>'
+    + '</div>'
+    + '<div class="menu-group"><div class="menu-cap">地点</div>'
+    + '<button type="button" class="menu-link" data-geo data-geo-menu>現在地の天気を追加</button>'
+    + '<button type="button" class="menu-link" data-goto="region" data-picker>地点を追加・削除</button>'
+    + '<div class="search-msg" id="menuMsg" hidden></div>'
+    + '</div>'
+    + '<div class="menu-group"><div class="menu-cap">アプリ</div>'
+    + (standalone ? '<div class="menu-note">ホーム画面から起動しています。</div>'
+       : installPrompt ? '<button type="button" class="menu-link" id="installBtn">ホーム画面に追加</button>'
+       : '<div class="menu-note">' + (ios
+           ? "Safari の共有ボタンから「ホーム画面に追加」を選ぶと、アプリのように起動できます。"
+           : "ブラウザのメニューから「アプリをインストール」または「ホーム画面に追加」を選ぶと、アプリのように起動できます。") + '</div>')
+    + '</div>';
+}
+
+/* ============================================================
+ * 7b. 雨雲レーダー（全画面）
+ *   背景: 国土地理院タイル（航空写真 / 標準地図 / 淡色地図）
+ *     https://cyberjapandata.gsi.go.jp/xyz/{layer}/{z}/{x}/{y}.{png|jpg}
+ *     航空写真が提供されていないズームでは、タイルごとに標準地図へ切り替える。
  *   降水: 気象庁 高解像度降水ナウキャスト（hrpns）のタイル
  *     https://www.jma.go.jp/bosai/jmatile/data/nowc/{basetime}/none/{validtime}/surf/hrpns/{z}/{x}/{y}.png
  *     実況は basetime == validtime、予測は basetime を固定して validtime を 5 分刻みで進める。
- *   いずれも公式に API として提供されているものではないため、取得に失敗しても
- *   地図とメッセージだけは必ず出す。依存ライブラリは使わず自前でタイルを並べる。
+ *   地点の「10分後・30分後・60分後」は、そのタイルの該当ピクセルの色を読み取って求める。
+ *   色を読み取れない（CORS などで拒否された）場合は、Open-Meteo の1時間値に切り替えて、その旨を表示する。
+ *   いずれも公式に API として提供されているものではないため、失敗しても画面は必ず出す。
  * ============================================================ */
-const GSI_TILE = "https://cyberjapandata.gsj.jp/xyz/pale/{z}/{x}/{y}.png";
+const GSI = "https://cyberjapandata.gsi.go.jp/xyz/";
+const BASEMAPS = {
+  photo: { url: GSI + "seamlessphoto/{z}/{x}/{y}.jpg", fb: GSI + "std/{z}/{x}/{y}.png", label: "航空写真", dark: true },
+  std:   { url: GSI + "std/{z}/{x}/{y}.png", fb: null, label: "地図", dark: false },
+  pale:  { url: GSI + "pale/{z}/{x}/{y}.png", fb: GSI + "std/{z}/{x}/{y}.png", label: "淡色地図", dark: false }
+};
 const NOWC_BASE = "https://www.jma.go.jp/bosai/jmatile/data/nowc/";
 const TILE = 256;
-const RADAR_ZOOM_MIN = 4, RADAR_ZOOM_MAX = 10;
-/** 気象庁の降水強度の配色（凡例用） */
-const RAIN_LEGEND = [
-  { c: "#C0E0FF", t: "1" }, { c: "#A0D2FF", t: "5" }, { c: "#218CFF", t: "10" },
-  { c: "#0041FF", t: "20" }, { c: "#FAF500", t: "30" }, { c: "#FF9900", t: "50" },
-  { c: "#FF2800", t: "80" }, { c: "#B40068", t: "mm/h" }
+const RADAR_ZOOM_MIN = 5, RADAR_ZOOM_MAX = 10, SAMPLE_ZOOM = 8;
+
+/** 雨の強さの区分。用語は気象庁の予報用語、色はナウキャストの配色にあわせる。 */
+const RAIN_LEVELS = [
+  { rgb: null,            label: "雨なし",         range: "0mm/h",      color: "#9aa7b8" },
+  { rgb: [242, 242, 255], label: "弱い雨",         range: "1mm/h未満",  color: "#F2F2FF" },
+  { rgb: [160, 210, 255], label: "弱い雨",         range: "1〜5mm/h",   color: "#A0D2FF" },
+  { rgb: [33, 140, 255],  label: "雨",             range: "5〜10mm/h",  color: "#218CFF" },
+  { rgb: [0, 65, 255],    label: "やや強い雨",     range: "10〜20mm/h", color: "#0041FF" },
+  { rgb: [250, 245, 0],   label: "強い雨",         range: "20〜30mm/h", color: "#FAF500" },
+  { rgb: [255, 153, 0],   label: "激しい雨",       range: "30〜50mm/h", color: "#FF9900" },
+  { rgb: [255, 40, 0],    label: "非常に激しい雨", range: "50〜80mm/h", color: "#FF2800" },
+  { rgb: [180, 0, 104],   label: "猛烈な雨",       range: "80mm/h以上", color: "#B40068" }
+];
+
+/** 地図に出す地名（内蔵地点に加えて、位置の手がかりになる主な市） */
+const MAP_LABELS = [
+  ["小樽", 43.1907, 140.9947], ["苫小牧", 42.6340, 141.6055], ["帯広", 42.9236, 143.1966], ["北見", 43.8030, 143.8947],
+  ["室蘭", 42.3152, 140.9738], ["八戸", 40.5123, 141.4884], ["弘前", 40.6031, 140.4641], ["石巻", 38.4344, 141.3029],
+  ["郡山", 37.4005, 140.3597], ["いわき", 37.0505, 140.8877], ["つくば", 36.0835, 140.0764], ["高崎", 36.3220, 139.0033],
+  ["八王子", 35.6664, 139.3160], ["川崎", 35.5309, 139.7029], ["相模原", 35.5714, 139.3734], ["船橋", 35.6946, 139.9826],
+  ["上越", 37.1478, 138.2360], ["松本", 36.2380, 137.9720], ["高山", 36.1461, 137.2522], ["沼津", 35.0956, 138.8634],
+  ["浜松", 34.7108, 137.7261], ["豊田", 35.0826, 137.1560], ["岡崎", 34.9548, 137.1744], ["四日市", 34.9651, 136.6244],
+  ["舞鶴", 35.4747, 135.3858], ["堺", 34.5733, 135.4830], ["東大阪", 34.6795, 135.6008], ["西宮", 34.7376, 135.3416],
+  ["米子", 35.4281, 133.3310], ["倉敷", 34.5850, 133.7720], ["福山", 34.4858, 133.3623], ["呉", 34.2489, 132.5658],
+  ["下関", 33.9575, 130.9414], ["今治", 34.0662, 132.9978], ["久留米", 33.3192, 130.5083], ["唐津", 33.4500, 129.9683],
+  ["佐世保", 33.1799, 129.7151], ["平戸", 33.3681, 129.5539], ["諫早", 32.8433, 130.0533], ["大村", 32.9000, 129.9583],
+  ["島原", 32.7881, 130.3697], ["五島", 32.6953, 128.8411], ["天草", 32.4586, 130.1931], ["八代", 32.5075, 130.6017],
+  ["別府", 33.2846, 131.4914], ["延岡", 32.5822, 131.6650], ["都城", 31.7196, 131.0617], ["霧島", 31.7408, 130.7631],
+  ["名護", 26.5916, 127.9775], ["沖縄", 26.3343, 127.8056]
 ];
 
 const radar = {
-  open: false, zoom: 8, centerX: 0, centerY: 0,   // centerX/Y はズーム z でのピクセル座標
-  times: [], index: 0, playing: false, timer: null, cityId: null, failed: 0, loaded: 0
+  active: false, inited: false, zoom: 8, centerX: 0, centerY: 0,
+  times: [], index: 0, lastObs: -1, issued: null, timesAt: 0, loadingTimes: false,
+  playing: false, timer: null, refreshTimer: null, cityId: null,
+  baseStore: new Map(), baseKind: null, frames: new Map(),
+  series: null, seriesBusy: false, sampleFailed: null, toastTimer: null
 };
 
 function lon2px(lon, z) { return (lon + 180) / 360 * TILE * Math.pow(2, z); }
 function lat2px(lat, z) {
   const r = Math.max(-85.05, Math.min(85.05, lat)) * Math.PI / 180;
   return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * TILE * Math.pow(2, z);
+}
+function px2lat(py, z) {
+  const n = Math.PI - 2 * Math.PI * py / (TILE * Math.pow(2, z));
+  return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
 }
 
 /** "20261004T045000" (UTC) → Date */
@@ -1944,32 +2181,37 @@ function jstClock(date) {
     return new Intl.DateTimeFormat("ja-JP", { timeZone: JST, hour: "2-digit", minute: "2-digit" }).format(date);
   } catch (e) { return "--:--"; }
 }
+function tpl(url, z, x, y) { return url.replace("{z}", z).replace("{x}", x).replace("{y}", y); }
+function nowcUrl(t, z, x, y) {
+  return NOWC_BASE + t.basetime + "/none/" + t.validtime + "/surf/hrpns/" + z + "/" + x + "/" + y + ".png";
+}
 
-/** 実況（N1）と予測（N2）の時刻一覧をまとめて取り出す */
+/** 実況（N1）の直近1時間と、予測（N2）の1時間先までを時系列に並べる */
 async function loadRadarTimes() {
   const grab = async (file, kind) => {
     try {
       const arr = await getJson(NOWC_BASE + file, 12000);
       return (Array.isArray(arr) ? arr : [])
-        .filter(e => e && e.basetime && e.validtime)
+        .filter(e => e && /^\d{8}T\d{6}$/.test(String(e.basetime)) && /^\d{8}T\d{6}$/.test(String(e.validtime)))
         .map(e => ({ basetime: String(e.basetime), validtime: String(e.validtime), kind: kind }));
     } catch (e) { return []; }
   };
   const [obs, fc] = await Promise.all([grab("targetTimes_N1.json", "obs"), grab("targetTimes_N2.json", "fc")]);
-  const seen = new Set();
-  const all = obs.concat(fc).filter(e => {
-    if (seen.has(e.validtime)) return false;
-    seen.add(e.validtime);
-    return true;
-  });
-  all.sort((a, b) => a.validtime < b.validtime ? -1 : a.validtime > b.validtime ? 1 : 0);
-  // 直近 1 時間の実況＋予測に絞る（多すぎるとスライダーが細かくなりすぎる）
-  return all.slice(-25);
+  const byTime = (a, b) => a.validtime < b.validtime ? -1 : a.validtime > b.validtime ? 1 : 0;
+  obs.sort(byTime);
+  const lastObs = obs[obs.length - 1];
+  // 予測は最新の実況より先のものだけ、同じ基準時刻のものを使う
+  const fcAfter = fc.filter(t => !lastObs || t.validtime > lastObs.validtime).sort(byTime);
+  const issued = fcAfter.length ? fcAfter[0].basetime : (lastObs ? lastObs.basetime : null);
+  const sameBase = fcAfter.filter(t => t.basetime === issued);
+  const PAST = 4;   // 現在＋15分前まで
+  const times = obs.slice(-PAST).concat(sameBase.slice(0, 12));
+  return { times: times, lastObs: obs.length ? Math.min(obs.length, PAST) - 1 : -1, issued: issued };
 }
 
-function radarTileRange() {
+function radarView() {
   const map = $("#radarMap");
-  const w = map.clientWidth || 640, h = map.clientHeight || 440;
+  const w = map.clientWidth || 640, h = map.clientHeight || 640;
   const left = radar.centerX - w / 2, top = radar.centerY - h / 2;
   return {
     w: w, h: h, left: left, top: top,
@@ -1978,157 +2220,636 @@ function radarTileRange() {
   };
 }
 
-/** 1 レイヤー分のタイルを並べる */
-function paintLayer(el, urlFor, onDone) {
-  const r = radarTileRange();
-  const max = Math.pow(2, radar.zoom);
-  const frag = document.createDocumentFragment();
-  let pending = 0, failed = 0;
-  for (let y = r.y0; y <= r.y1; y++) {
+/**
+ * レイヤーのタイルを差分で並べ直す。既にあるタイルは位置だけ動かすので、
+ * ドラッグ中もちらつかず、読み込み直しも起きない。
+ */
+function syncTiles(layer, store, urlFor, fbFor, stats) {
+  const v = radarView();
+  const z = radar.zoom, max = Math.pow(2, z);
+  const want = new Set();
+  for (let y = v.y0; y <= v.y1; y++) {
     if (y < 0 || y >= max) continue;
-    for (let x = r.x0; x <= r.x1; x++) {
+    for (let x = v.x0; x <= v.x1; x++) {
       const tx = ((x % max) + max) % max;    // 経度方向は巡回させる
-      const url = urlFor(radar.zoom, tx, y);
-      if (!url) continue;
-      const img = document.createElement("img");
-      img.alt = "";
-      img.loading = "eager";
-      img.decoding = "async";
-      img.style.left = (x * TILE - r.left) + "px";
-      img.style.top = (y * TILE - r.top) + "px";
-      pending++;
-      img.addEventListener("load", () => { pending--; if (onDone && !pending) onDone(failed); });
-      img.addEventListener("error", () => { pending--; failed++; img.style.visibility = "hidden"; if (onDone && !pending) onDone(failed); });
-      img.src = url;
-      frag.appendChild(img);
+      const key = z + "/" + x + "/" + y;
+      want.add(key);
+      let img = store.get(key);
+      if (!img) {
+        img = document.createElement("img");
+        img.alt = "";
+        img.decoding = "async";
+        img.draggable = false;
+        if (stats) stats.total++;
+        img.addEventListener("load", () => { if (stats) { stats.loaded++; stats.onChange && stats.onChange(); } });
+        img.addEventListener("error", () => {
+          const fb = fbFor ? fbFor(z, tx, y) : null;
+          if (fb && !img.dataset.fb) { img.dataset.fb = "1"; img.src = fb; return; }
+          img.style.visibility = "hidden";
+          if (stats) { stats.failed++; stats.onChange && stats.onChange(); }
+        });
+        img.src = urlFor(z, tx, y);
+        store.set(key, img);
+        layer.appendChild(img);
+      }
+      img.style.left = (x * TILE - v.left) + "px";
+      img.style.top = (y * TILE - v.top) + "px";
     }
   }
-  el.innerHTML = "";
-  el.appendChild(frag);
-  if (onDone && !pending) onDone(failed);
+  store.forEach((img, key) => {
+    if (!want.has(key)) { img.remove(); store.delete(key); }
+  });
+}
+
+function paintBase() {
+  const kind = BASEMAPS[state.radarBase] ? state.radarBase : "photo";
+  const bm = BASEMAPS[kind];
+  const layer = $("#radarBase");
+  if (radar.baseKind !== kind) {
+    radar.baseStore.forEach(img => img.remove());
+    radar.baseStore.clear();
+    radar.baseKind = kind;
+    $("#page-radar").classList.toggle("is-photo", !!bm.dark);
+  }
+  syncTiles(layer, radar.baseStore, (z, x, y) => tpl(bm.url, z, x, y), bm.fb ? (z, x, y) => tpl(bm.fb, z, x, y) : null);
+}
+
+/** 時刻ごとに降水レイヤーを持ち、表示を切り替えるだけで再生できるようにする */
+function frameFor(i) {
+  const t = radar.times[i];
+  if (!t) return null;
+  let f = radar.frames.get(t.validtime);
+  if (!f) {
+    const el = document.createElement("div");
+    el.className = "radar-layer rain-frame";
+    el.hidden = true;
+    $("#radarRain").appendChild(el);
+    f = { el: el, store: new Map(), stats: { total: 0, loaded: 0, failed: 0 }, t: t };
+    f.stats.onChange = () => { if (radar.times[radar.index] === t) checkRainFailure(f); };
+    radar.frames.set(t.validtime, f);
+  }
+  return f;
+}
+function syncFrame(f) {
+  syncTiles(f.el, f.store, (z, x, y) => nowcUrl(f.t, z, x, y), null, f.stats);
+}
+function checkRainFailure(f) {
+  if (f.stats.total > 0 && f.stats.failed >= f.stats.total) {
+    showRadarMsg("雨雲のタイルを取得できませんでした。気象庁側の仕様変更の可能性があります。地図のみ表示しています。");
+  } else if (f.stats.loaded > 0) {
+    hideRadarMsg();
+  }
+}
+
+function paintRain() {
+  const cur = frameFor(radar.index);
+  radar.frames.forEach(f => { f.el.hidden = f !== cur; });
+  if (!cur) return;
+  syncFrame(cur);
+  // 再生中は次のコマを先読みしておく
+  if (radar.playing) {
+    const next = frameFor((radar.index + 1) % radar.times.length);
+    if (next && next !== cur) syncFrame(next);
+  }
+}
+
+/** 地名・選択中の地点・縮尺 */
+function paintOverlay() {
+  const v = radarView();
+  const z = radar.zoom;
+  const target = CITY_BY_ID.get(radar.cityId);
+  const items = [];
+  CITIES.forEach(c => items.push({ id: c.id, name: c.name, lat: c.lat, lon: c.lon, rank: c.pin ? 0 : 1 }));
+  state.custom.forEach(c => { if (c.id !== CURRENT_LOCATION_ID) items.push({ id: c.id, name: c.name, lat: c.lat, lon: c.lon, rank: 1 }); });
+  MAP_LABELS.forEach(l => items.push({ id: null, name: l[0], lat: l[1], lon: l[2], rank: 2 }));
+  const maxRank = z <= 6 ? 0 : z <= 7 ? 1 : 2;
+
+  const boxes = [];
+  const overlaps = b => boxes.some(o => b.x1 < o.x2 && b.x2 > o.x1 && b.y1 < o.y2 && b.y2 > o.y1);
+  const mr = $("#radarMap").getBoundingClientRect();
+  document.querySelectorAll("#page-radar .rv-now, #page-radar .rv-legend, #page-radar .rv-tools, #page-radar .rv-cards, #page-radar .rv-timeline")
+    .forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.width && r.height) boxes.push({ x1: r.left - mr.left - 4, x2: r.right - mr.left + 4, y1: r.top - mr.top - 4, y2: r.bottom - mr.top + 4 });
+    });
+  let tx = null, ty = null;
+  if (target) {
+    tx = lon2px(target.lon, z) - v.left;
+    ty = lat2px(target.lat, z) - v.top;
+    const tw = placeName(target).length * 17 + 30;
+    boxes.push({ x1: tx - tw / 2, x2: tx + tw / 2, y1: ty - 14, y2: ty + 40 });
+  }
+  let html = "";
+  items.sort((a, b) => a.rank - b.rank).forEach(it => {
+    if (it.rank > maxRank || (target && it.id === target.id)) return;
+    const x = lon2px(it.lon, z) - v.left, y = lat2px(it.lat, z) - v.top;
+    if (x < -40 || y < -20 || x > v.w + 40 || y > v.h + 20) return;
+    const w = it.name.length * (it.rank === 0 ? 15 : 13) + 18;
+    const b = { x1: x - 7, x2: x - 7 + w, y1: y - 11, y2: y + 11 };
+    if (b.x1 < 2 || b.x2 > v.w - 2 || b.y1 < 2 || b.y2 > v.h - 2 || overlaps(b)) return;
+    boxes.push(b);
+    const tag = it.id ? "button" : "span";
+    html += '<' + tag + (it.id ? ' type="button" data-rcity="' + esc(it.id) + '"' : "")
+      + ' class="rv-label r' + it.rank + '" style="left:' + x.toFixed(1) + 'px;top:' + y.toFixed(1) + 'px">'
+      + '<i></i>' + esc(it.name) + '</' + tag + '>';
+  });
+  $("#radarLabels").innerHTML = html;
+
+  const me = $("#radarMe");
+  if (target && tx !== null) {
+    me.hidden = false;
+    me.style.left = tx.toFixed(1) + "px";
+    me.style.top = ty.toFixed(1) + "px";
+    me.querySelector(".name").textContent = placeName(target);
+  } else {
+    me.hidden = true;
+  }
+  paintScale(v);
+}
+
+function paintScale(v) {
+  const lat = px2lat(radar.centerY, radar.zoom);
+  const mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, radar.zoom);
+  const target = mpp * 90;
+  const nice = [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
+  let d = nice[0];
+  nice.forEach(n => { if (n <= target) d = n; });
+  const el = $("#rvScale");
+  el.querySelector(".bar").style.width = Math.round(d / mpp) + "px";
+  el.querySelector(".txt").textContent = d >= 1000 ? (d / 1000) + " km" : d + " m";
 }
 
 function paintRadar() {
-  if (!radar.open) return;
-  paintLayer($("#radarBase"), (z, x, y) =>
-    GSI_TILE.replace("{z}", z).replace("{x}", x).replace("{y}", y));
+  if (!radar.active) return;
+  layoutRadarTools();
+  paintBase();
+  paintRain();
+  paintOverlay();
+  updateTimeline();
+}
 
-  const t = radar.times[radar.index];
-  if (!t) {
-    $("#radarRain").innerHTML = "";
-    showRadarMsg("雨雲の観測データを取得できませんでした。地図のみ表示しています。");
-    return;
+/**
+ * 右側のボタン群を、上のカードと下のパネルのあいだに収める。
+ * 背の低い画面では小さい版に切り替えて、カードと重ならないようにする。
+ */
+function layoutRadarTools() {
+  const page = $("#page-radar");
+  if (page.hidden) return;
+  const pr = page.getBoundingClientRect();
+  const top = $("#rvNow").getBoundingClientRect().bottom - pr.top;
+  const bottom = $("#rvScale").getBoundingClientRect().top - pr.top;
+  const tools = $("#page-radar .rv-tools");
+  page.classList.remove("tools-compact");
+  let h = tools.offsetHeight;
+  if (bottom - top < h + 24) {
+    page.classList.add("tools-compact");
+    h = tools.offsetHeight;
   }
-  paintLayer($("#radarRain"), (z, x, y) =>
-    NOWC_BASE + t.basetime + "/none/" + t.validtime + "/surf/hrpns/" + z + "/" + x + "/" + y + ".png",
-    failed => {
-      // 全タイルが落ちた＝提供が止まっている可能性
-      const r = radarTileRange();
-      const total = (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1);
-      if (failed >= total && total > 0) showRadarMsg("雨雲のタイルを取得できませんでした。気象庁側の仕様変更の可能性があります。");
-      else hideRadarMsg();
-    });
-
-  const d = parseJmaTime(t.validtime);
-  $("#radarClock").innerHTML = esc(jstClock(d)) + (t.kind === "fc" ? '<span class="fc">予測</span>' : "");
-  $("#radarTime").value = String(radar.index);
+  const room = bottom - top - h;
+  tools.style.top = Math.round(top + Math.max(8, room / 2)) + "px";
 }
 
 function showRadarMsg(msg) { const el = $("#radarMsg"); el.hidden = false; el.textContent = msg; }
 function hideRadarMsg() { $("#radarMsg").hidden = true; }
-
-function radarLegendHtml() {
-  return RAIN_LEGEND.map(l =>
-    '<span class="lg"><span class="sw" style="background:' + l.c + '"></span><span>' + esc(l.t) + '</span></span>').join("");
+function radarToast(msg) {
+  const el = $("#rvToast");
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(radar.toastTimer);
+  radar.toastTimer = setTimeout(() => { el.hidden = true; }, 4000);
 }
 
-async function openRadar(cityId) {
-  const city = CITY_BY_ID.get(cityId) || CITY_BY_ID.get(state.pinned[0]) || CITIES[0];
-  radar.open = true;
-  radar.cityId = city.id;
-  radar.zoom = 8;
-  radar.centerX = lon2px(city.lon, radar.zoom);
-  radar.centerY = lat2px(city.lat, radar.zoom);
-  $("#radarSub").textContent = city.name + (city.sub ? "（" + city.sub + "）" : "") + " 付近";
-  $("#radarLegend").innerHTML = radarLegendHtml();
-  $("#radarOverlay").setAttribute("open", "");
-  document.body.style.overflow = "hidden";
-  showRadarMsg("雨雲の観測時刻を読み込んでいます…");
-  paintLayer($("#radarBase"), (z, x, y) => GSI_TILE.replace("{z}", z).replace("{x}", x).replace("{y}", y));
-
-  radar.times = await loadRadarTimes();
-  if (!radar.open) return;
+/* ---- 時刻スライダー ---- */
+function minutesFromNow(i) {
+  const t = radar.times[i], t0 = radar.times[radar.lastObs];
+  if (!t || !t0) return 0;
+  return Math.round((parseJmaTime(t.validtime) - parseJmaTime(t0.validtime)) / 60000);
+}
+function buildTicks() {
+  const n = radar.times.length;
   const slider = $("#radarTime");
-  slider.max = String(Math.max(0, radar.times.length - 1));
-  // 既定は最新の実況（予測の手前）
-  const lastObs = radar.times.map(t => t.kind).lastIndexOf("obs");
-  radar.index = lastObs >= 0 ? lastObs : Math.max(0, radar.times.length - 1);
+  slider.max = String(Math.max(0, n - 1));
+  let html = "";
+  if (n > 1 && radar.lastObs >= 0) {
+    [0, 15, 30, 45, 60].forEach(m => {
+      const i = radar.times.findIndex((t, k) => k >= radar.lastObs && minutesFromNow(k) === m);
+      if (i < 0) return;
+      html += '<span class="rv-tick' + (m === 0 ? " now" : "") + '" style="left:' + (i / (n - 1) * 100).toFixed(2) + '%">'
+        + (m === 0 ? "現在" : m + "分後") + '</span>';
+    });
+  }
+  $("#rvTicks").innerHTML = html;
+  $("#rvIssued").textContent = radar.issued ? jstClock(parseJmaTime(radar.issued)) + " 発表" : "";
+}
+function updateTimeline() {
+  const n = radar.times.length;
+  const slider = $("#radarTime");
   slider.value = String(radar.index);
-  hideRadarMsg();
-  paintRadar();
+  slider.style.setProperty("--p", (n > 1 ? radar.index / (n - 1) * 100 : 0) + "%");
+  const t = radar.times[radar.index];
+  const clock = $("#radarClock");
+  if (!t) { clock.textContent = ""; return; }
+  const m = minutesFromNow(radar.index);
+  clock.textContent = jstClock(parseJmaTime(t.validtime))
+    + (m === 0 ? "（現在）" : m > 0 ? "（" + m + "分後の予測）" : "（" + (-m) + "分前）");
 }
 
-function closeRadar() {
-  stopRadarPlay();
-  radar.open = false;
-  $("#radarOverlay").removeAttribute("open");
-  document.body.style.overflow = "";
-  $("#radarBase").innerHTML = "";
-  $("#radarRain").innerHTML = "";
+async function reloadRadarTimes() {
+  if (radar.loadingTimes) return;
+  radar.loadingTimes = true;
+  const keep = radar.times[radar.index] && radar.index !== radar.lastObs ? radar.times[radar.index].validtime : null;
+  try {
+    const r = await loadRadarTimes();
+    radar.timesAt = Date.now();
+    if (!r.times.length) {
+      radar.times = []; radar.lastObs = -1; radar.issued = null;
+      showRadarMsg("雨雲の観測時刻を取得できませんでした。地図のみ表示しています。");
+    } else {
+      radar.times = r.times; radar.lastObs = r.lastObs; radar.issued = r.issued;
+      const kept = keep ? radar.times.findIndex(t => t.validtime === keep) : -1;
+      radar.index = kept >= 0 ? kept : Math.max(0, radar.lastObs);
+      // 使わなくなった時刻のレイヤーを捨てる
+      const live = new Set(radar.times.map(t => t.validtime));
+      radar.frames.forEach((f, k) => { if (!live.has(k)) { f.el.remove(); radar.frames.delete(k); } });
+      hideRadarMsg();
+    }
+  } finally {
+    radar.loadingTimes = false;
+  }
+  buildTicks();
+  paintRadar();
+  radar.series = null;
+  updateRadarSeries();
 }
 
 function stopRadarPlay() {
   radar.playing = false;
   if (radar.timer) { clearInterval(radar.timer); radar.timer = null; }
   const b = $("#radarPlay");
-  if (b) b.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg> 再生';
+  if (b) {
+    b.setAttribute("aria-label", "再生");
+    b.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>';
+  }
 }
 function startRadarPlay() {
-  if (!radar.times.length) return;
+  if (radar.times.length < 2) return;
   radar.playing = true;
-  $("#radarPlay").innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg> 停止';
+  const b = $("#radarPlay");
+  b.setAttribute("aria-label", "停止");
+  b.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3.6v14H7zM13.4 5H17v14h-3.6z"/></svg>';
   radar.timer = setInterval(() => {
     radar.index = (radar.index + 1) % radar.times.length;
-    paintRadar();
-  }, 700);
+    paintRain();
+    updateTimeline();
+  }, 650);
 }
 
-/** 地図のドラッグ操作 */
-function bindRadarDrag() {
+/* ---- 地点の雨の見通し（ナウキャストの色を読み取る）---- */
+let sampleCanvas = null;
+const sampleCache = new Map();
+
+function nearestLevel(r, g, b) {
+  let best = 0, bestD = Infinity;
+  for (let i = 1; i < RAIN_LEVELS.length; i++) {
+    const c = RAIN_LEVELS[i].rgb;
+    const d = (r - c[0]) * (r - c[0]) + (g - c[1]) * (g - c[1]) + (b - c[2]) * (b - c[2]);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+
+async function sampleLevel(t, lat, lon) {
+  const z = SAMPLE_ZOOM;
+  const px = lon2px(lon, z), py = lat2px(lat, z);
+  const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
+  const ix = Math.floor(px - tx * TILE), iy = Math.floor(py - ty * TILE);
+  const url = nowcUrl(t, z, tx, ty);
+  const key = url + "|" + ix + "|" + iy;
+  if (sampleCache.has(key)) return sampleCache.get(key);
+
+  const res = await fetch(url, { mode: "cors" });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const bmp = await createImageBitmap(await res.blob());
+  if (!sampleCanvas) {
+    sampleCanvas = document.createElement("canvas");
+    sampleCanvas.width = TILE; sampleCanvas.height = TILE;
+  }
+  const ctx = sampleCanvas.getContext("2d", { willReadFrequently: true });
+  ctx.clearRect(0, 0, TILE, TILE);
+  ctx.drawImage(bmp, 0, 0, TILE, TILE);   // 寸法が違うタイルでも位置がずれないよう 256px に合わせる
+  // 地点のまわり 5×5 ピクセル（約 3km 四方）でいちばん強い雨を採る
+  const x0 = Math.max(0, Math.min(TILE - 5, ix - 2)), y0 = Math.max(0, Math.min(TILE - 5, iy - 2));
+  const data = ctx.getImageData(x0, y0, 5, 5).data;
+  let level = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 40) continue;
+    level = Math.max(level, nearestLevel(data[i], data[i + 1], data[i + 2]));
+  }
+  if (sampleCache.size > 400) sampleCache.clear();
+  sampleCache.set(key, level);
+  return level;
+}
+
+function levelFromMm(mm) {
+  if (typeof mm !== "number" || mm <= 0) return 0;
+  return mm < 1 ? 1 : mm < 5 ? 2 : mm < 10 ? 3 : mm < 20 ? 4 : mm < 30 ? 5 : mm < 50 ? 6 : mm < 80 ? 7 : 8;
+}
+
+/** ナウキャストが使えないときの代わり（Open-Meteo の1時間値。前1時間の降水量なので、次の正時の値を使う） */
+function modelSeries(city) {
+  const d = state.data.get(city.id);
+  if (!d || !d.hours.length) return null;
+  const now = Date.now();
+  const i = d.hours.findIndex(h => { const t = parseLocal(h.time); return t && t.getTime() > now; });
+  if (i < 0) return null;
+  const a = levelFromMm(d.hours[i].precip), b = levelFromMm(d.hours[i + 1] ? d.hours[i + 1].precip : null);
+  return {
+    forCity: city.id, source: "model", at: new Date(now),
+    points: [{ min: 0, level: a }, { min: 10, level: a }, { min: 30, level: a }, { min: 60, level: b }]
+  };
+}
+
+function makeHeadline(series) {
+  const p = series.points;
+  const cur = p[0].level;
+  const later = fn => p.find((x, i) => i > 0 && fn(x));
+  let title, advice, notify = false;
+  if (cur === 0) {
+    const start = later(x => x.level >= 2);
+    if (start) {
+      title = start.min + "分後に雨が降り出します";
+      advice = start.level >= 5 ? "強い雨のおそれ。外出の際は雨具をご準備ください。" : "外出の際は、雨具をご準備ください。";
+      notify = true;
+    } else if (later(x => x.level === 1)) {
+      title = "弱い雨がぱらつく程度です";
+      advice = "念のため折りたたみ傘があると安心です。";
+    } else {
+      title = "この先1時間は雨の心配はありません";
+      advice = "傘はなくても大丈夫そうです。";
+    }
+  } else {
+    const up = later(x => x.level > cur && x.level >= 3);
+    const stopAt = p.findIndex((x, i) => i > 0 && x.level === 0 && p.slice(i).every(y => y.level === 0));
+    if (up) {
+      title = up.min + "分後に雨が強まります";
+      advice = up.level >= 5 ? "強い雨のおそれ。外出の際は雨具をご準備ください。" : "外出の際は、雨具をご準備ください。";
+      notify = true;
+    } else if (stopAt > 0) {
+      title = p[stopAt].min + "分後に雨がやむ見込みです";
+      advice = "それまでは傘をお持ちください。";
+    } else {
+      title = "この先1時間は雨が続く見込みです";
+      advice = "外出の際は傘をお持ちください。";
+      notify = cur >= 4;
+    }
+  }
+  return { title: title, advice: advice, notify: notify };
+}
+
+async function updateRadarSeries() {
+  const city = CITY_BY_ID.get(radar.cityId);
+  if (!city) return;
+  const t0 = radar.times[radar.lastObs];
+  const key = city.id + "|" + (t0 ? t0.validtime : "none");
+  if (radar.series && radar.series.key === key && radar.series.source === "nowcast") { renderRadarPanel(); return; }
+  if (radar.seriesBusy === key) return;
+  radar.seriesBusy = key;
+
+  let series = null;
+  // 同じ時刻で一度読み取りに失敗していたら、時刻一覧が更新されるまで再試行しない
+  const sampleKey = t0 ? t0.validtime : null;
+  if (t0 && radar.sampleFailed !== sampleKey) {
+    const list = radar.times.slice(radar.lastObs);
+    try {
+      const base = parseJmaTime(t0.validtime);
+      const points = await Promise.all(list.map(async t => ({
+        min: Math.round((parseJmaTime(t.validtime) - base) / 60000),
+        level: await sampleLevel(t, city.lat, city.lon)
+      })));
+      series = { forCity: city.id, source: "nowcast", at: base, points: points };
+    } catch (e) {
+      series = null;   // 色を読み取れない → 数値予報の1時間値に切り替える
+      radar.sampleFailed = sampleKey;
+    }
+  }
+  if (!series) series = modelSeries(city);
+  if (series) { series.key = key; series.headline = makeHeadline(series); }
+  if (radar.seriesBusy === key) radar.seriesBusy = false;
+  if (radar.cityId !== city.id) return;     // 待っている間に地点が変わった
+  radar.series = series;
+  renderRadarPanel();
+  updateNewsBadge();
+}
+
+/* ---- 画面上のカード ---- */
+const ALERT_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#e5484d"/>'
+  + '<path d="M12 6.5v7" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="17.3" r="1.6" fill="#fff"/></svg>';
+const OK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#2f9e6a"/>'
+  + '<path d="M7 12.4l3.2 3.2L17 8.8" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/** 実況で雨が無いときに、数値予報の雨・雪のコードを「くもり」に読み替える */
+function dryCode(code) {
+  return typeof code === "number" && code >= 51 ? 3 : code;
+}
+
+function levelIcon(level, fallbackCode) {
+  if (level <= 0) return wmo(fallbackCode === null || fallbackCode === undefined ? 1 : dryCode(fallbackCode)).icon;
+  if (level === 1) return "drizzle";
+  if (level <= 3) return "rain";
+  return "shower";
+}
+
+function rainMeter(level) {
+  let html = '<span class="rv-meter" aria-hidden="true">';
+  for (let i = 1; i < RAIN_LEVELS.length; i++) {
+    html += '<i style="' + (i <= level ? "background:" + RAIN_LEVELS[i].color : "") + '"></i>';
+  }
+  return html + '</span>';
+}
+
+/** 現在地は「現在地」ではなく最寄りの地名で見せる（位置アイコンで現在地だと分かる） */
+function placeName(city) {
+  return city && city.isCurrent && city.nearName ? city.nearName : city ? city.name : "";
+}
+
+function renderRadarPanel() {
+  const city = CITY_BY_ID.get(radar.cityId);
+  if (!city) return;
+  const d = state.data.get(city.id);
+  const s = radar.series && radar.series.forCity === city.id ? radar.series : null;
+  const curLevel = s ? s.points[0].level : 0;
+  const code = d ? d.now.code : null;
+  const cond = s && curLevel > 0 ? RAIN_LEVELS[curLevel].label
+    : d ? wmo(s && s.source === "nowcast" ? dryCode(code) : code).label : "—";
+  const when = s ? jstClock(s.at) : d && d.now.time ? fmtClock(d.now.time) : "--:--";
+  const h = s ? s.headline : null;
+
+  $("#rvNow").innerHTML =
+    '<span class="rv-now-left">'
+    + '<span class="rv-now-icon">' + icon(levelIcon(curLevel, code), 64) + '</span>'
+    + '<span class="rv-now-text">'
+    +   '<span class="rv-place">' + (city.isCurrent
+          ? '<svg viewBox="0 0 24 24" aria-label="現在地"><path d="M20.5 3.5 3.8 10.6l7 2.4 2.4 7z" fill="currentColor"/></svg>'
+          : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.4 7-12a7 7 0 1 0-14 0c0 5.6 7 12 7 12z" fill="currentColor"/><circle cx="12" cy="10" r="2.6" fill="#16233c"/></svg>')
+    +     esc(placeName(city)) + '</span>'
+    +   '<span class="rv-when">' + esc(when) + ' 現在</span>'
+    +   '<span class="rv-temp"><b class="tnum">' + (d ? fmtTemp(d.now.temp) : "—") + '</b><small>' + unitLabel() + '</small>'
+    +     '<em>' + esc(cond) + '</em></span>'
+    + '</span></span>'
+    + '<span class="rv-now-right">'
+    +   '<span class="rv-head">' + esc(h ? h.title : "雨の見通しを計算しています…") + '</span>'
+    +   (h ? '<span class="rv-advice">' + (h.notify ? ALERT_SVG : OK_SVG) + '<span>' + esc(h.advice) + '</span></span>' : "")
+    +   (s && s.source === "model" ? '<span class="rv-src">数値予報（1時間値）による目安</span>' : "")
+    + '</span>'
+    + '<svg class="rv-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  $("#rvNow").setAttribute("aria-label", city.name + "の天気を開く");
+
+  $("#rvCards").innerHTML = [10, 30, 60].map(m => {
+    let pt = null;
+    if (s) s.points.forEach(p => { if (p.min <= m + 2 && (!pt || p.min > pt.min)) pt = p; });
+    const lv = pt ? pt.level : null;
+    return '<div class="rv-card">'
+      + '<div class="rv-card-when">' + m + '分後</div>'
+      + '<div class="rv-card-body">'
+      +   '<span class="rv-card-icon">' + icon(lv === null ? "cloud" : levelIcon(lv, code), 46) + '</span>'
+      +   '<span><span class="rv-card-lv">' + (lv === null ? "—" : esc(RAIN_LEVELS[lv].label)) + '</span>'
+      +   '<span class="rv-card-mm tnum">' + (lv === null ? "" : esc(RAIN_LEVELS[lv].range)) + '</span></span>'
+      + '</div>' + rainMeter(lv || 0) + '</div>';
+  }).join("");
+}
+
+function buildLegend() {
+  const segs = RAIN_LEVELS.slice(1).map(l => '<i style="background:' + l.color + '"></i>').join("");
+  $("#rvLegend").innerHTML = '<div class="rv-legend-cap">降水の強さ</div>'
+    + '<div class="rv-legend-bar">' + segs + '</div>'
+    + '<div class="rv-legend-lbl"><span>弱い雨</span><span>やや強い雨</span><span>強い雨</span><span>非常に激しい雨</span></div>';
+}
+
+/* ---- 地点の選択・画面の出入り ---- */
+function setRadarCity(id, recenter) {
+  const city = CITY_BY_ID.get(id);
+  if (!city) return;
+  radar.cityId = id;
+  if (state.radarCity !== id) { state.radarCity = id; saveState(); }
+  if (recenter) {
+    radar.centerX = lon2px(city.lon, radar.zoom);
+    radar.centerY = lat2px(city.lat, radar.zoom);
+  }
+  radar.series = null;
+  if (!state.data.has(id) && !state.errors.has(id)) {
+    fetchCities([city]).then(() => { if (radar.cityId === id) { renderRadarPanel(); updateRadarSeries(); } });
+  }
+  paintRadar();
+  renderRadarPanel();
+  updateRadarSeries();
+}
+
+function defaultRadarCity() {
+  if (state.custom.some(c => c.id === CURRENT_LOCATION_ID)) return CURRENT_LOCATION_ID;
+  return state.radarCity && CITY_BY_ID.has(state.radarCity) ? state.radarCity
+    : (state.pinned[0] || state.selected[0] || CITIES[0].id);
+}
+
+function enterRadar(cityId) {
+  radar.active = true;
+  if (!radar.inited) {
+    buildLegend();
+    radar.inited = true;
+    setRadarCity(cityId || defaultRadarCity(), true);
+  } else if (cityId) {
+    setRadarCity(cityId, true);
+  } else {
+    paintRadar();
+    renderRadarPanel();
+  }
+  if (!radar.times.length || Date.now() - radar.timesAt > 4 * 60 * 1000) reloadRadarTimes();
+  if (!radar.refreshTimer) {
+    radar.refreshTimer = setInterval(() => { if (!document.hidden && radar.active) reloadRadarTimes(); }, 5 * 60 * 1000);
+  }
+}
+
+function leaveRadar() {
+  stopRadarPlay();
+  radar.active = false;
+  if (radar.refreshTimer) { clearInterval(radar.refreshTimer); radar.refreshTimer = null; }
+  $("#rvLayers").hidden = true;
+}
+
+/* ---- 操作（ドラッグ・ピンチ・ホイール・ダブルクリック）---- */
+function radarZoomAt(delta, cx, cy) {
+  const next = Math.max(RADAR_ZOOM_MIN, Math.min(RADAR_ZOOM_MAX, radar.zoom + delta));
+  if (next === radar.zoom) return;
+  const v = radarView();
+  const ax = cx === undefined ? v.w / 2 : cx, ay = cy === undefined ? v.h / 2 : cy;
+  const scale = Math.pow(2, next - radar.zoom);
+  const wx = v.left + ax, wy = v.top + ay;
+  radar.centerX = wx * scale - ax + v.w / 2;
+  radar.centerY = wy * scale - ay + v.h / 2;
+  radar.zoom = next;
+  paintRadar();
+}
+
+function bindRadarGestures() {
   const map = $("#radarMap");
-  let dragging = false, lastX = 0, lastY = 0, moved = 0;
+  const pts = new Map();
+  let lastX = 0, lastY = 0, moved = 0, captured = false, pinchBase = 0;
+  const dist = () => { const a = Array.from(pts.values()); return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); };
+
   map.addEventListener("pointerdown", ev => {
-    if (ev.target.closest(".radar-zoom")) return;
-    dragging = true; moved = 0;
-    lastX = ev.clientX; lastY = ev.clientY;
-    map.setPointerCapture(ev.pointerId);
+    pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (pts.size === 1) { lastX = ev.clientX; lastY = ev.clientY; moved = 0; captured = false; }
+    if (pts.size === 2) pinchBase = dist();
   });
   map.addEventListener("pointermove", ev => {
-    if (!dragging) return;
+    if (!pts.has(ev.pointerId)) return;
+    pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (pts.size === 2) {
+      const d = dist(), r = map.getBoundingClientRect();
+      const a = Array.from(pts.values());
+      const mx = (a[0].x + a[1].x) / 2 - r.left, my = (a[0].y + a[1].y) / 2 - r.top;
+      if (pinchBase && d / pinchBase > 1.45) { radarZoomAt(1, mx, my); pinchBase = d; }
+      else if (pinchBase && d / pinchBase < 0.69) { radarZoomAt(-1, mx, my); pinchBase = d; }
+      return;
+    }
     const dx = ev.clientX - lastX, dy = ev.clientY - lastY;
     lastX = ev.clientX; lastY = ev.clientY;
     moved += Math.abs(dx) + Math.abs(dy);
+    // 少し動いてからつかむ（そのまま離せば地名のタップとして扱える）
+    if (!captured && moved > 5) {
+      captured = true;
+      try { map.setPointerCapture(ev.pointerId); } catch (e) { /* 取れなくても動作する */ }
+      map.classList.add("dragging");
+    }
+    if (!captured) return;
     radar.centerX -= dx;
     radar.centerY -= dy;
-    paintRadar();
+    paintBase();
+    paintRain();
+    paintOverlay();
   });
   const end = ev => {
-    if (!dragging) return;
-    dragging = false;
+    pts.delete(ev.pointerId);
+    if (pts.size < 2) pinchBase = 0;
+    if (!pts.size) map.classList.remove("dragging");
     try { map.releasePointerCapture(ev.pointerId); } catch (e) { /* 解放済みなら無視 */ }
   };
   map.addEventListener("pointerup", end);
   map.addEventListener("pointercancel", end);
-}
 
-function radarZoomBy(delta) {
-  const next = Math.max(RADAR_ZOOM_MIN, Math.min(RADAR_ZOOM_MAX, radar.zoom + delta));
-  if (next === radar.zoom) return;
-  const scale = Math.pow(2, next - radar.zoom);
-  radar.centerX *= scale;
-  radar.centerY *= scale;
-  radar.zoom = next;
-  paintRadar();
+  let wheelAcc = 0, wheelAt = 0;
+  map.addEventListener("wheel", ev => {
+    ev.preventDefault();
+    wheelAcc += ev.deltaY;
+    const now = Date.now();
+    if (Math.abs(wheelAcc) < 60 || now - wheelAt < 220) return;
+    const r = map.getBoundingClientRect();
+    radarZoomAt(wheelAcc < 0 ? 1 : -1, ev.clientX - r.left, ev.clientY - r.top);
+    wheelAcc = 0; wheelAt = now;
+  }, { passive: false });
+  map.addEventListener("dblclick", ev => {
+    const r = map.getBoundingClientRect();
+    radarZoomAt(1, ev.clientX - r.left, ev.clientY - r.top);
+  });
 }
 
 /* ============================================================
@@ -2194,13 +2915,86 @@ document.addEventListener("click", ev => {
   if (ev.target.closest("#retryBtn")) { refresh(true); return; }
 
   const radarOpen = ev.target.closest("[data-radar]");
-  if (radarOpen) { closeSheet(); openRadar(radarOpen.getAttribute("data-radar")); return; }
-  if (ev.target.closest("#sheetClose") || ev.target.id === "overlay") closeSheet();
+  if (radarOpen) { setTab("radar", { cityId: radarOpen.getAttribute("data-radar") }); return; }
+
+  const rcity = ev.target.closest("[data-rcity]");
+  if (rcity) { setRadarCity(rcity.getAttribute("data-rcity"), false); return; }
+
+  const tabBtn = ev.target.closest(".tabbar [data-tab]");
+  if (tabBtn) { setTab(tabBtn.getAttribute("data-tab")); return; }
+
+  const go = ev.target.closest("[data-goto]");
+  if (go) {
+    setTab(go.getAttribute("data-goto"));
+    if (go.hasAttribute("data-picker")) openPicker();
+    return;
+  }
+
+  const geo = ev.target.closest("[data-geo]");
+  if (geo && geo.id !== "rvLocate") {   // レーダーの現在地ボタンは専用の処理がある
+    const inMenu = geo.hasAttribute("data-geo-menu");
+    requestCurrentLocation(inMenu ? { status: msg => { const m = $("#menuMsg"); if (m) { m.hidden = false; m.textContent = msg; } } } : undefined);
+    return;
+  }
+
+  const set = ev.target.closest("[data-set]");
+  if (set) { applySetting(set.getAttribute("data-set"), set.getAttribute("data-val")); return; }
+
+  if (ev.target.closest("#installBtn") && installPrompt) {
+    installPrompt.prompt();
+    installPrompt.userChoice.finally(() => { installPrompt = null; renderMenu(); });
+    return;
+  }
 });
 
+/** メニュー・レーダーの各設定を反映する */
+function applySetting(name, val) {
+  if (name === "unit" && (val === "c" || val === "f")) {
+    state.unit = val;
+    $("#unitSel").value = val;
+    render();
+    if (state.tab === "weather" && state.openCity) openSheet(state.openCity, state.openDay, { keepScroll: true });
+  } else if (name === "theme" && ["auto", "light", "dark"].includes(val)) {
+    state.theme = val;
+    applyTheme();
+  } else if (name === "view" && (val === "cards" || val === "table")) {
+    state.view = val;
+    render();
+  } else if (name === "base" && BASEMAPS[val]) {
+    state.radarBase = val;
+    $("#rvLayers").hidden = true;
+    if (radar.active) paintRadar();
+  } else {
+    return;
+  }
+  saveState();
+  if (state.tab === "menu") renderMenu();
+  document.querySelectorAll('#rvLayers [data-set="base"]').forEach(b =>
+    b.setAttribute("aria-pressed", String(b.getAttribute("data-val") === state.radarBase)));
+}
+
+function openPicker() {
+  const p = $("#picker");
+  p.hidden = false;
+  $("#pickerBtn").setAttribute("aria-expanded", "true");
+  p.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
 document.addEventListener("keydown", ev => {
-  if (ev.key === "Escape" && $("#radarOverlay").hasAttribute("open")) { closeRadar(); return; }
-  if (ev.key === "Escape" && $("#overlay").hasAttribute("open")) closeSheet();
+  const typing = ev.target && /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName) && ev.target.type !== "range";
+  if (state.tab === "radar" && !typing && !ev.metaKey && !ev.ctrlKey && !ev.altKey) {
+    const pan = { ArrowLeft: [-80, 0], ArrowRight: [80, 0], ArrowUp: [0, -80], ArrowDown: [0, 80] }[ev.key];
+    if (pan && ev.target.type !== "range") {
+      ev.preventDefault();
+      radar.centerX += pan[0]; radar.centerY += pan[1];
+      paintRadar();
+      return;
+    }
+    if (ev.key === "+" || ev.key === "=") { ev.preventDefault(); radarZoomAt(1); return; }
+    if (ev.key === "-") { ev.preventDefault(); radarZoomAt(-1); return; }
+    if (ev.key === " " && ev.target === document.body) { ev.preventDefault(); radar.playing ? stopRadarPlay() : startRadarPlay(); return; }
+    if (ev.key === "Escape") { $("#rvLayers").hidden = true; return; }
+  }
   if (ev.key === "Enter" || ev.key === " ") {
     const row = ev.target.closest && ev.target.closest("tr[data-open]");
     if (row) { ev.preventDefault(); openSheet(row.getAttribute("data-open")); }
@@ -2217,29 +3011,33 @@ $("#refreshBtn").addEventListener("click", () => refresh(true));
 $("#viewCards").addEventListener("click", () => { state.view = "cards"; saveState(); render(); });
 $("#viewTable").addEventListener("click", () => { state.view = "table"; saveState(); render(); });
 $("#sortSel").addEventListener("change", e => { state.sort = e.target.value; saveState(); render(); });
-$("#unitSel").addEventListener("change", e => {
-  state.unit = e.target.value;
-  saveState();
-  render();
-  if (state.openCity && $("#overlay").hasAttribute("open")) openSheet(state.openCity, state.openDay);
-});
-$("#themeBtn").addEventListener("click", () => {
-  state.theme = state.theme === "auto" ? "light" : state.theme === "light" ? "dark" : "auto";
-  saveState(); applyTheme();
-});
-$("#geoBtn").addEventListener("click", requestCurrentLocation);
-$("#radarBtn").addEventListener("click", () => openRadar(state.pinned[0] || state.selected[0]));
-$("#radarClose").addEventListener("click", closeRadar);
-$("#radarOverlay").addEventListener("click", ev => { if (ev.target.id === "radarOverlay") closeRadar(); });
+$("#unitSel").addEventListener("change", e => applySetting("unit", e.target.value));
+$("#themeBtn").addEventListener("click", () =>
+  applySetting("theme", state.theme === "auto" ? "light" : state.theme === "light" ? "dark" : "auto"));
+$("#radarBtn").addEventListener("click", () => setTab("radar"));
 $("#radarPlay").addEventListener("click", () => { radar.playing ? stopRadarPlay() : startRadarPlay(); });
 $("#radarTime").addEventListener("input", e => {
   stopRadarPlay();
   radar.index = parseInt(e.target.value, 10) || 0;
-  paintRadar();
+  paintRain();
+  updateTimeline();
 });
-$("#radarIn").addEventListener("click", () => radarZoomBy(1));
-$("#radarOut").addEventListener("click", () => radarZoomBy(-1));
-bindRadarDrag();
+$("#radarIn").addEventListener("click", () => radarZoomAt(1));
+$("#radarOut").addEventListener("click", () => radarZoomAt(-1));
+$("#rvLocate").addEventListener("click", () => {
+  const cur = CITY_BY_ID.get(CURRENT_LOCATION_ID);
+  if (cur) setRadarCity(CURRENT_LOCATION_ID, true);
+  requestCurrentLocation({ status: radarToast, done: city => setRadarCity(city.id, true) });
+});
+$("#rvLayerBtn").addEventListener("click", ev => {
+  ev.stopPropagation();
+  const box = $("#rvLayers");
+  box.hidden = !box.hidden;
+  box.querySelectorAll('[data-set="base"]').forEach(b =>
+    b.setAttribute("aria-pressed", String(b.getAttribute("data-val") === state.radarBase)));
+});
+$("#rvNow").addEventListener("click", () => { if (radar.cityId) setTab("weather", { cityId: radar.cityId }); });
+bindRadarGestures();
 
 $("#pickerBtn").addEventListener("click", () => {
   const p = $("#picker");
@@ -2257,11 +3055,18 @@ $("#sortSel").value = state.sort;
 $("#unitSel").value = state.unit;
 loadCache();          // 直近のキャッシュがあれば即座に表示（オフラインでも中身が見える）
 render();
+const hashTab = (location.hash || "").slice(1);
+setTab(TABS.indexOf(hashTab) >= 0 ? hashTab : state.tab);
 refresh(false);
+
+window.addEventListener("hashchange", () => {
+  const t = (location.hash || "").slice(1);
+  if (TABS.indexOf(t) >= 0 && t !== state.tab) setTab(t);
+});
 
 let radarResizeTimer = null;
 window.addEventListener("resize", () => {
-  if (!radar.open) return;
+  if (!radar.active) return;
   clearTimeout(radarResizeTimer);
   radarResizeTimer = setTimeout(paintRadar, 150);
 });

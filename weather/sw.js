@@ -3,7 +3,7 @@
  *   天気・警報・タイルなどの外部 API は一切キャッシュしない。
  *   予報の中身は app.js 側が localStorage に 3 時間だけ持つ。
  */
-const CACHE = "soranarabe-shell-v1";
+const CACHE = "soranarabe-shell-v2";
 const SHELL = ["./", "./index.html", "./app.js", "./manifest.webmanifest",
                "./icon-192.png", "./icon-512.png"];
 

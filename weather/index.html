@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.jma.go.jp https://cyberjapandata.gsj.jp; connect-src https://api.open-meteo.com https://air-quality-api.open-meteo.com https://geocoding-api.open-meteo.com https://www.jma.go.jp; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://www.jma.go.jp https://cyberjapandata.gsi.go.jp; connect-src https://api.open-meteo.com https://air-quality-api.open-meteo.com https://geocoding-api.open-meteo.com https://www.jma.go.jp; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <title>そらならべ — 日本の天気を、ならべて見る</title>
 <meta name="description" content="名古屋・大阪・札幌・東京・長崎・福岡・那覇・神戸・熊本をはじめ、全国56地点＋任意の地点の天気予報・気象警報を、ひとつの画面に並べて比べられるダッシュボードです。">
 <meta name="color-scheme" content="light dark">
@@ -531,63 +531,6 @@ table.compare.hours tbody tr { cursor: default; }
 .day-detail .table-wrap { background: var(--surface); margin-top: 6px; }
 
 /* ============================================================
-   radar
-   ============================================================ */
-.radar-sheet { max-width: 920px; }
-.radar-head {
-  display: flex; align-items: center; gap: 12px; padding: 15px 18px;
-  background: linear-gradient(135deg, var(--sky-1), var(--sky-2)); color: #fff;
-}
-.radar-head h2 { font-size: 18px; }
-.radar-sub { font-size: 12.5px; opacity: .92; }
-.radar-head .sheet-close { margin-left: auto; }
-.radar-map {
-  position: relative; height: 440px; overflow: hidden; background: var(--surface-sunk);
-  cursor: grab; touch-action: none; user-select: none;
-}
-.radar-map:active { cursor: grabbing; }
-.radar-layer { position: absolute; inset: 0; }
-.radar-layer img { position: absolute; width: 256px; height: 256px; image-rendering: auto; }
-#radarRain { opacity: .78; pointer-events: none; }
-.radar-pin {
-  position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px;
-  border: 2px solid #d23c2e; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,.9);
-  pointer-events: none;
-}
-.radar-pin::after {
-  content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px;
-  background: #d23c2e; border-radius: 50%;
-}
-.radar-zoom { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 4px; }
-.radar-zoom button {
-  width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border-strong);
-  background: var(--surface); color: var(--text); font-size: 17px; font-weight: 700; line-height: 1;
-  box-shadow: var(--shadow-sm);
-}
-.radar-zoom button:hover { background: var(--surface-2); }
-.radar-msg {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 12px 16px; font-size: 13px; color: var(--text-2); box-shadow: var(--shadow-md); max-width: 80%;
-  text-align: center;
-}
-.radar-controls {
-  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
-  border-bottom: 1px solid var(--border); background: var(--surface);
-}
-.radar-controls input[type="range"] { flex: 1; accent-color: var(--accent); min-width: 120px; }
-.radar-clock { font-size: 14px; font-weight: 700; white-space: nowrap; }
-.radar-clock .fc { color: var(--accent-text); font-size: 11px; font-weight: 600; margin-left: 4px; }
-.radar-legend {
-  display: flex; flex-wrap: wrap; gap: 0; padding: 10px 16px 2px; font-size: 10.5px; color: var(--text-3);
-}
-.radar-legend .lg { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 38px; }
-.radar-legend .sw { width: 100%; height: 10px; }
-.radar-legend .lg:first-child .sw { border-radius: 3px 0 0 3px; }
-.radar-legend .lg:last-child .sw { border-radius: 0 3px 3px 0; }
-.radar-note { padding: 8px 16px 16px; margin: 0; font-size: 11px; color: var(--text-3); line-height: 1.7; }
-
-/* ============================================================
    life indices / air quality
    ============================================================ */
 .idx-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 9px; }
@@ -620,21 +563,361 @@ table.compare.hours tbody tr { cursor: default; }
 .air-label { font-size: 14.5px; font-weight: 700; }
 .air-detail { font-size: 12px; color: var(--text-2); line-height: 1.6; }
 
+/* ============================================================
+   app shell — 画面下部のタブで切り替えるアプリ型のレイアウト
+   ============================================================ */
+:root { --tabbar-h: 64px; }
+body { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
+.tab-page[hidden] { display: none !important; }
+body[data-tab="radar"] { overflow: hidden; }
+body[data-tab="radar"] .site-header { display: none; }
+body:not([data-tab="region"]) .site-footer { display: none; }
+body:not([data-tab="region"]) .header-actions .seg { display: none; }
+.wrap.page-pad { padding-top: 16px; padding-bottom: 28px; }
+
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: color-mix(in srgb, var(--surface) 95%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 18px rgba(20, 32, 52, .06);
+}
+.tabbar button {
+  position: relative; border: 0; background: none; color: var(--text-3);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: .02em; padding: 6px 2px 4px; min-width: 0;
+}
+.tabbar button > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tabbar svg { width: 28px; height: 28px; }
+.tabbar svg .stroke, .tabbar svg .fill { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.tabbar button.on { color: var(--accent); }
+@media (max-width: 360px) { .tabbar button { font-size: 9.5px; letter-spacing: 0; } }
+.tabbar button.on svg .fill { fill: currentColor; }
+.tabbar button:focus-visible { outline-offset: -4px; }
+.tab-dot {
+  position: absolute; top: 7px; left: calc(50% + 7px); width: 9px; height: 9px; border-radius: 50%;
+  background: #e5484d; box-shadow: 0 0 0 2px var(--surface);
+}
+.tab-dot[hidden] { display: none; }
+
+/* ---- 天気タブ ---- */
+.city-switch { display: flex; gap: 8px; overflow-x: auto; padding: 12px 2px 6px; scrollbar-width: none; }
+.city-switch::-webkit-scrollbar { display: none; }
+.cs-chip {
+  flex: none; display: flex; align-items: center; gap: 6px; padding: 6px 13px 6px 9px;
+  border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface);
+  color: var(--text-2); font-size: 13px; font-weight: 600; white-space: nowrap;
+}
+.cs-chip svg { width: 20px; height: 20px; }
+.cs-chip .cs-temp { color: var(--text-3); font-weight: 700; }
+.cs-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cs-chip.on .cs-temp { color: rgba(255,255,255,.85); }
+.page-sheet { margin: 8px auto 24px; }
+
+/* ---- お知らせ ---- */
+.news-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px; box-shadow: var(--shadow-sm); margin-bottom: 6px;
+}
+.news-cap { font-size: 11.5px; color: var(--text-3); font-weight: 700; letter-spacing: .04em; }
+.news-head { font-size: 18px; font-weight: 800; margin-top: 4px; }
+.news-head.warn { color: #d13b30; }
+.news-text { margin: 4px 0 10px; font-size: 13px; color: var(--text-2); }
+.news-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 12px 14px; margin-bottom: 8px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm); font: inherit; color: inherit;
+}
+.news-row:hover { border-color: var(--accent); }
+.news-sev { flex: none; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; border: 1px solid currentColor; }
+.news-sev.sev-1 { color: #8a6012; }
+.news-sev.sev-2 { color: #c0391b; }
+.news-sev.sev-3 { color: #fff; background: #7a1533; border-color: #7a1533; }
+:root[data-theme="dark"] .news-sev.sev-1 { color: #f3c96a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .news-sev.sev-1 { color: #f3c96a; } }
+:root[data-theme="dark"] .news-sev.sev-2 { color: #f5a37f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .news-sev.sev-2 { color: #f5a37f; } }
+.news-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.news-city { font-weight: 700; font-size: 14.5px; }
+.news-tags { font-size: 12.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.news-src { flex: none; font-size: 11px; color: var(--text-3); }
+.news-empty {
+  padding: 16px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm);
+  color: var(--text-3); font-size: 13px; background: var(--surface-2);
+}
+
+/* ---- メニュー ---- */
+.menu-group {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 4px 16px 12px; margin-bottom: 14px; box-shadow: var(--shadow-sm);
+}
+.menu-cap { font-size: 11.5px; font-weight: 700; color: var(--text-3); letter-spacing: .06em; padding: 10px 0 4px; }
+.menu-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px 12px; flex-wrap: wrap;
+  padding: 10px 0; border-top: 1px solid var(--border); font-size: 14px;
+}
+.menu-cap + .menu-row { border-top: 0; }
+.menu-seg button { padding: 6px 12px; }
+.menu-link {
+  display: block; width: 100%; text-align: left; border: 0; border-top: 1px solid var(--border); background: none;
+  padding: 12px 0; font: inherit; font-size: 14px; font-weight: 600; color: var(--accent-text);
+}
+.menu-cap + .menu-link { border-top: 0; }
+.menu-link[aria-busy="true"] { opacity: .6; }
+.menu-note { font-size: 12.5px; color: var(--text-2); line-height: 1.75; margin: 6px 0 2px; }
+.menu-list { margin: 4px 0; padding-left: 18px; font-size: 12.5px; color: var(--text-2); line-height: 1.8; }
+.menu-list a { color: var(--accent-text); }
+.menu-ver { text-align: center; font-size: 12px; color: var(--text-3); margin-top: 18px; }
+
+/* ============================================================
+   雨雲レーダー（全画面）
+   ============================================================ */
+.radar-page {
+  position: fixed; inset: 0 0 calc(var(--tabbar-h) + env(safe-area-inset-bottom)) 0; z-index: 10;
+  overflow: hidden; background: #0d1a2e; color: #fff;
+}
+.radar-map {
+  position: absolute; inset: 0; overflow: hidden; background: #0d1a2e;
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.radar-map.dragging { cursor: grabbing; }
+.radar-layer { position: absolute; inset: 0; }
+.radar-layer[hidden] { display: none; }
+.radar-layer img { position: absolute; width: 256px; height: 256px; max-width: none; pointer-events: none; user-select: none; }
+.radar-page.is-photo #radarBase { filter: brightness(.8) saturate(.9) contrast(1.06); }
+.radar-tint { position: absolute; inset: 0; pointer-events: none; background: rgba(8, 26, 60, .2); }
+.radar-page:not(.is-photo) .radar-tint { display: none; }
+#radarRain { opacity: .86; pointer-events: none; }
+
+.radar-labels { position: absolute; inset: 0; pointer-events: none; }
+.rv-label {
+  position: absolute; transform: translate(-4px, -50%); display: flex; align-items: center; gap: 5px;
+  white-space: nowrap; font: inherit; font-size: 13px; font-weight: 700; letter-spacing: .02em; color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.9), 0 0 6px rgba(0,0,0,.55);
+  background: none; border: 0; padding: 0; pointer-events: auto; cursor: pointer;
+}
+span.rv-label { pointer-events: none; cursor: default; }
+.rv-label i { width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px rgba(0,0,0,.5); flex: none; }
+.rv-label.r0 { font-size: 15px; }
+.rv-label.r2 { font-size: 12px; font-weight: 600; }
+.rv-label:hover { text-decoration: underline; }
+.radar-page:not(.is-photo) .rv-label { color: #1b2433; text-shadow: 0 0 3px #fff, 0 0 6px #fff, 0 0 2px #fff; }
+.radar-page:not(.is-photo) .rv-label i { background: #1b2433; box-shadow: 0 0 0 1.5px #fff; }
+
+.rv-me { position: absolute; width: 0; height: 0; pointer-events: none; }
+.rv-me[hidden] { display: none; }
+.rv-me .dot {
+  position: absolute; left: -12px; top: -12px; width: 24px; height: 24px; box-sizing: border-box;
+  border-radius: 50%; background: #2f80ff; border: 4px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.45);
+}
+.rv-me .pulse {
+  position: absolute; left: -26px; top: -26px; width: 52px; height: 52px; border-radius: 50%;
+  background: rgba(47, 128, 255, .32); animation: rv-pulse 2.4s ease-out infinite;
+}
+@keyframes rv-pulse { 0% { transform: scale(.35); opacity: .95; } 100% { transform: scale(1.35); opacity: 0; } }
+.rv-me .name {
+  position: absolute; left: 0; top: 17px; transform: translateX(-50%); white-space: nowrap;
+  font-size: 22px; font-weight: 800; letter-spacing: .03em; color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.9), 0 0 10px rgba(0,0,0,.55);
+}
+.radar-page:not(.is-photo) .rv-me .name { color: #10213f; text-shadow: 0 0 4px #fff, 0 0 8px #fff; }
+
+.glass {
+  background: rgba(18, 33, 60, .62); color: #fff;
+  -webkit-backdrop-filter: blur(18px) saturate(150%); backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, .18); border-radius: 18px; box-shadow: 0 10px 30px rgba(0, 0, 0, .28);
+}
+
+.rv-top {
+  position: absolute; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 3;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px; pointer-events: none;
+}
+.rv-top > * { pointer-events: auto; }
+.rv-now {
+  width: 100%; max-width: 640px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: center;
+  padding: 14px 8px 14px 14px; text-align: left; font: inherit; color: #fff; cursor: pointer;
+}
+.rv-now:hover { background: rgba(24, 42, 74, .7); }
+.rv-now-left { display: flex; align-items: center; gap: 8px; padding-right: 12px; border-right: 1px solid rgba(255,255,255,.24); min-width: 0; }
+.rv-now-icon { flex: none; }
+.rv-now-icon svg { width: 62px; height: 62px; display: block; }
+.rv-now-text { display: flex; flex-direction: column; min-width: 0; }
+.rv-place { display: flex; align-items: center; gap: 4px; font-size: 19px; font-weight: 800; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-place svg { width: 17px; height: 17px; flex: none; color: #fff; }
+.rv-when { font-size: 12.5px; opacity: .85; }
+.rv-temp { display: flex; align-items: baseline; gap: 2px; margin-top: 3px; flex-wrap: wrap; }
+.rv-temp b { font-size: 38px; font-weight: 700; line-height: 1; letter-spacing: -.02em; }
+.rv-temp small { font-size: 18px; font-weight: 600; }
+.rv-temp em { font-style: normal; font-size: 14px; font-weight: 700; margin-left: 8px; }
+.rv-now-right { display: flex; flex-direction: column; gap: 7px; padding-left: 14px; min-width: 0; }
+.rv-head { font-size: 17px; font-weight: 800; line-height: 1.35; text-wrap: balance; }
+.rv-advice { display: flex; gap: 7px; align-items: flex-start; font-size: 12.5px; line-height: 1.5; opacity: .95; text-wrap: pretty; }
+.rv-advice svg { width: 22px; height: 22px; flex: none; }
+.rv-src { font-size: 10.5px; opacity: .75; }
+.rv-chev { width: 22px; height: 22px; opacity: .85; margin-left: 2px; }
+
+.rv-legend { padding: 10px 14px 9px; width: min(320px, 68%); }
+.rv-legend-cap { font-size: 12.5px; font-weight: 700; margin-bottom: 6px; }
+.rv-legend-bar { display: flex; height: 11px; border-radius: 6px; overflow: hidden; }
+.rv-legend-bar i { flex: 1; }
+.rv-legend-lbl { display: flex; justify-content: space-between; font-size: 10.5px; margin-top: 4px; opacity: .92; white-space: nowrap; gap: 4px; }
+
+.rv-tools {
+  position: absolute; right: 12px; top: 40%; z-index: 4;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
+}
+.tools-compact .rv-tools { gap: 7px; }
+.tools-compact .rv-fab { width: 38px; height: 38px; }
+.tools-compact .rv-fab svg { width: 20px; height: 20px; }
+.tools-compact .rv-fab-group .rv-fab { height: 38px; }
+.rv-fab {
+  width: 48px; height: 48px; border-radius: 50%; border: 0; background: #fff; color: #1d2a44;
+  display: grid; place-items: center; box-shadow: 0 4px 14px rgba(0, 0, 0, .3);
+}
+.rv-fab svg { width: 24px; height: 24px; }
+.rv-fab:hover { background: #f1f4f9; }
+.rv-fab[aria-busy="true"] { opacity: .6; }
+.rv-fab-group { display: flex; flex-direction: column; background: #fff; border-radius: 24px; box-shadow: 0 4px 14px rgba(0,0,0,.3); overflow: hidden; }
+.rv-fab-group .rv-fab { box-shadow: none; border-radius: 0; height: 52px; }
+.rv-fab-group .rv-fab + .rv-fab { border-top: 1px solid #e3e8ef; }
+.rv-layers { position: absolute; right: 60px; bottom: 0; padding: 10px; display: flex; flex-direction: column; gap: 3px; min-width: 150px; }
+.rv-layers[hidden] { display: none; }
+.rv-layers-cap { font-size: 11px; opacity: .8; padding: 0 8px 4px; }
+.rv-layers button { border: 0; background: transparent; color: #fff; text-align: left; padding: 8px 10px; border-radius: 10px; font: inherit; font-size: 13.5px; font-weight: 600; }
+.rv-layers button:hover { background: rgba(255,255,255,.1); }
+.rv-layers button[aria-pressed="true"] { background: rgba(255,255,255,.2); }
+.rv-layers button[aria-pressed="true"]::after { content: "　✓"; }
+
+.rv-msg, .rv-toast { position: absolute; left: 50%; z-index: 5; max-width: 84%; text-align: center; font-size: 13px; padding: 11px 16px; line-height: 1.6;
+  background: rgba(18, 33, 60, .78); color: #fff; border: 1px solid rgba(255,255,255,.18); border-radius: 14px;
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+.rv-msg { top: 50%; transform: translate(-50%, -50%); }
+.rv-toast { top: 40%; transform: translateX(-50%); }
+.rv-msg[hidden], .rv-toast[hidden] { display: none; }
+
+.rv-bottom {
+  position: absolute; left: 12px; right: 12px; bottom: 10px; z-index: 3;
+  display: flex; flex-direction: column; gap: 9px; pointer-events: none;
+}
+.rv-bottom > * { pointer-events: auto; }
+.rv-scale {
+  align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; margin-right: 6px;
+  font-size: 11.5px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.85); pointer-events: none !important;
+}
+.rv-scale .bar { height: 6px; border: 2px solid #fff; border-top: 0; box-shadow: 0 1px 2px rgba(0,0,0,.5); }
+.radar-page:not(.is-photo) .rv-scale { color: #1b2433; text-shadow: 0 0 3px #fff; }
+.radar-page:not(.is-photo) .rv-scale .bar { border-color: #1b2433; box-shadow: none; }
+.rv-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.rv-card {
+  min-width: 0; padding: 10px 12px 11px; color: #fff; border-radius: 16px;
+  background: rgba(18, 33, 60, .62); border: 1px solid rgba(255, 255, 255, .18);
+  -webkit-backdrop-filter: blur(18px) saturate(150%); backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .25);
+}
+.rv-card-when { font-size: 13px; font-weight: 700; }
+.rv-card-body { display: flex; align-items: center; gap: 8px; margin-top: 4px; min-width: 0; }
+.rv-card-body > span:last-child { min-width: 0; }
+.rv-card-icon { flex: none; }
+.rv-card-icon svg { width: 44px; height: 44px; display: block; }
+.rv-card-lv { display: block; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-card-mm { display: block; font-size: 13px; font-weight: 600; opacity: .92; white-space: nowrap; letter-spacing: -.01em; }
+.rv-meter { display: flex; gap: 3px; margin-top: 8px; justify-content: flex-end; }
+.rv-meter i { width: 7px; height: 14px; border-radius: 2px; background: rgba(255, 255, 255, .22); }
+
+.rv-timeline { padding: 7px 16px 4px 12px; }
+.rv-tl-head { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; opacity: .92; padding-left: 64px; min-height: 16px; }
+.rv-clock { font-weight: 700; }
+.rv-tl-row { display: flex; align-items: center; gap: 14px; }
+.rv-play {
+  width: 50px; height: 50px; border-radius: 50%; border: 0; background: #fff; color: #1d2a44; flex: none;
+  display: grid; place-items: center; box-shadow: 0 3px 10px rgba(0, 0, 0, .25);
+}
+.rv-play svg { width: 24px; height: 24px; }
+.rv-track { position: relative; flex: 1; min-width: 0; padding-bottom: 22px; }
+.rv-track input[type="range"] {
+  -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 30px; margin: 0;
+  background: transparent; cursor: pointer;
+}
+.rv-track input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, #4aa8ff 0, #2f80ff var(--p, 0%), rgba(255,255,255,.28) var(--p, 0%), rgba(255,255,255,.28) 100%);
+}
+.rv-track input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 26px; height: 26px; margin-top: -10px; border-radius: 50%;
+  background: #fff; border: 0; box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
+}
+.rv-track input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,.28); }
+.rv-track input[type="range"]::-moz-range-progress { height: 6px; border-radius: 3px; background: #2f80ff; }
+.rv-track input[type="range"]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+.rv-track input[type="range"]:focus-visible { outline: 2px solid #fff; outline-offset: 2px; border-radius: 8px; }
+.rv-ticks { position: absolute; left: 13px; right: 13px; bottom: 0; height: 22px; pointer-events: none; }
+.rv-tick { position: absolute; top: 3px; transform: translateX(-50%); font-size: 12px; white-space: nowrap; opacity: .9; }
+.rv-tick::before { content: ""; position: absolute; left: 50%; top: -9px; width: 1.5px; height: 6px; background: rgba(255,255,255,.6); }
+.rv-tick.now { font-weight: 800; opacity: 1; }
+.rv-attrib { align-self: flex-end; font-size: 9.5px; opacity: .75; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.8); pointer-events: none !important; }
+.radar-page:not(.is-photo) .rv-attrib { color: #1b2433; text-shadow: 0 0 3px #fff; }
+
+@media (min-width: 900px) {
+  .rv-top { right: auto; width: 640px; }
+  .rv-bottom { right: auto; width: 720px; }
+}
+@media (max-width: 520px) {
+  .rv-top { left: 8px; right: 8px; top: calc(8px + env(safe-area-inset-top)); gap: 8px; }
+  .rv-now { padding: 11px 4px 11px 10px; }
+  .rv-now-icon svg { width: 46px; height: 46px; }
+  .rv-place { font-size: 16px; }
+  .rv-when { font-size: 11px; }
+  .rv-temp b { font-size: 30px; }
+  .rv-temp small { font-size: 15px; }
+  .rv-temp em { font-size: 12px; margin-left: 4px; }
+  .rv-now-right { padding-left: 10px; gap: 5px; }
+  .rv-head { font-size: 14px; }
+  .rv-advice { font-size: 11px; }
+  .rv-advice svg { width: 18px; height: 18px; }
+  .rv-legend { padding: 8px 11px 7px; }
+  .rv-legend-lbl { font-size: 9.5px; }
+  .rv-tools { right: 8px; gap: 10px; }
+  .rv-fab { width: 44px; height: 44px; }
+  .rv-fab-group .rv-fab { height: 46px; }
+  .rv-bottom { left: 8px; right: 8px; bottom: 8px; gap: 7px; }
+  .rv-cards { gap: 6px; }
+  .rv-card { padding: 8px 9px 9px; border-radius: 14px; }
+  .rv-card-when { font-size: 12px; }
+  .rv-card-icon svg { width: 30px; height: 30px; }
+  .rv-card-body { gap: 5px; }
+  .rv-card-lv { font-size: 12px; }
+  .rv-card-mm { font-size: 11px; }
+  .rv-meter { gap: 2px; margin-top: 6px; }
+  .rv-meter i { width: 5px; height: 11px; }
+  .rv-play { width: 44px; height: 44px; }
+  .rv-tl-row { gap: 10px; }
+  .rv-tl-head { padding-left: 54px; font-size: 10.5px; }
+  .rv-tick { font-size: 10.5px; }
+}
+
 @media (max-width: 640px) {
   .wrap { padding: 0 14px; }
-  .brand-sub { display: none; }
-  .updated { width: 100%; order: 9; }
+  /* スマホではアプリのヘッダーのように1段にまとめる */
+  .header-inner { flex-wrap: nowrap; gap: 10px; padding-block: 8px; }
+  .brand-mark { width: 32px; height: 32px; border-radius: 9px; }
+  .brand-mark svg { width: 20px; height: 20px; }
+  .brand-name { font-size: 15px; }
+  .brand-sub { font-size: 11px; }
+  .header-actions { flex-wrap: nowrap; gap: 6px; }
+  .header-actions .btn { padding: 7px; }
+  .btn-label { display: none; }
+  .updated { display: none; }
   .sheet-head { flex-wrap: wrap; padding: 15px 16px; }
   .sheet-head .now .t { font-size: 28px; }
   .sheet-body { padding: 15px 14px 20px; }
   .card-temp { font-size: 30px; }
-  .radar-map { height: 340px; }
-  .radar-controls { flex-wrap: wrap; }
 }
 </style>
 </head>
 <body>
-
 <header class="site-header">
   <div class="wrap header-inner">
     <div class="brand">
@@ -646,7 +929,7 @@ table.compare.hours tbody tr { cursor: default; }
       </span>
       <span class="brand-text">
         <span class="brand-name">そらならべ</span>
-        <span class="brand-sub">ぜんぶの空を、ならべて見る。</span>
+        <span class="brand-sub" id="pageTitle">地域の天気</span>
       </span>
     </div>
     <div class="header-actions">
@@ -660,17 +943,84 @@ table.compare.hours tbody tr { cursor: default; }
           <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>
         </svg>
       </button>
-      <button type="button" class="btn primary" id="refreshBtn">
+      <button type="button" class="btn primary" id="refreshBtn" aria-label="更新">
         <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>
         </svg>
-        更新
+        <span class="btn-label">更新</span>
       </button>
     </div>
   </div>
 </header>
 
-<main class="wrap">
+<section class="tab-page radar-page" id="page-radar" hidden aria-label="雨雲レーダー">
+  <div class="radar-map" id="radarMap" role="application" aria-label="雨雲レーダーの地図。ドラッグで移動、ホイールやピンチで拡大縮小できます。">
+    <div class="radar-layer" id="radarBase"></div>
+    <div class="radar-tint" aria-hidden="true"></div>
+    <div class="radar-layer" id="radarRain"></div>
+    <div class="radar-labels" id="radarLabels"></div>
+    <div class="rv-me" id="radarMe" hidden aria-hidden="true"><span class="pulse"></span><span class="dot"></span><span class="name"></span></div>
+  </div>
+
+  <div class="rv-top">
+    <button type="button" class="rv-now glass" id="rvNow"></button>
+    <div class="rv-legend glass" id="rvLegend"></div>
+  </div>
+
+  <div class="rv-tools">
+    <button type="button" class="rv-fab" id="rvLocate" data-geo aria-label="現在地を表示">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 3.5 3.8 10.6l7 2.4 2.4 7z" fill="currentColor"/></svg>
+    </button>
+    <div class="rv-fab-group">
+      <button type="button" class="rv-fab" id="radarIn" aria-label="拡大">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button type="button" class="rv-fab" id="radarOut" aria-label="縮小">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <button type="button" class="rv-fab" id="rvLayerBtn" aria-label="地図の種類" aria-controls="rvLayers">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
+        <path d="M12 3.5 3 8.2l9 4.7 9-4.7z"/><path d="M3 12.2l9 4.7 9-4.7"/><path d="M3 16.2l9 4.7 9-4.7"/></svg>
+    </button>
+    <div class="rv-layers glass" id="rvLayers" hidden>
+      <div class="rv-layers-cap">地図の種類</div>
+      <button type="button" data-set="base" data-val="photo" aria-pressed="false">航空写真</button>
+      <button type="button" data-set="base" data-val="std" aria-pressed="false">地図</button>
+      <button type="button" data-set="base" data-val="pale" aria-pressed="false">淡色地図</button>
+    </div>
+  </div>
+
+  <div class="rv-msg" id="radarMsg" hidden role="status"></div>
+  <div class="rv-toast" id="rvToast" hidden role="status"></div>
+
+  <div class="rv-bottom">
+    <div class="rv-scale" id="rvScale"><span class="txt">20 km</span><span class="bar"></span></div>
+    <div class="rv-cards" id="rvCards"></div>
+    <div class="rv-timeline glass">
+      <div class="rv-tl-head"><span class="rv-clock tnum" id="radarClock"></span><span class="rv-issued tnum" id="rvIssued"></span></div>
+      <div class="rv-tl-row">
+        <button type="button" class="rv-play" id="radarPlay" aria-label="再生">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>
+        </button>
+        <div class="rv-track">
+          <input type="range" id="radarTime" min="0" max="0" value="0" step="1" aria-label="表示する時刻">
+          <div class="rv-ticks" id="rvTicks"></div>
+        </div>
+      </div>
+    </div>
+    <div class="rv-attrib">出典: 気象庁（高解像度降水ナウキャスト）／ 国土地理院（地理院タイル）</div>
+  </div>
+</section>
+
+<section class="tab-page" id="page-weather" hidden aria-label="天気">
+  <div class="wrap">
+    <div class="city-switch" id="citySwitch" role="tablist" aria-label="地点"></div>
+    <div class="sheet page-sheet" id="sheet"></div>
+  </div>
+</section>
+
+<main class="wrap tab-page" id="page-region" hidden>
   <div class="banner" id="banner" hidden role="status"></div>
 
   <div class="toolbar">
@@ -691,7 +1041,7 @@ table.compare.hours tbody tr { cursor: default; }
         <option value="f">華氏 °F</option>
       </select>
     </div>
-    <button type="button" class="btn spacer" id="geoBtn">
+    <button type="button" class="btn spacer" id="geoBtn" data-geo>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/>
       </svg>
@@ -771,47 +1121,29 @@ table.compare.hours tbody tr { cursor: default; }
   </section>
 </main>
 
-<div class="overlay" id="radarOverlay" role="dialog" aria-modal="true" aria-labelledby="radarTitle">
-  <div class="sheet radar-sheet">
-    <div class="radar-head">
-      <div>
-        <h2 id="radarTitle">雨雲レーダー</h2>
-        <div class="radar-sub" id="radarSub"></div>
-      </div>
-      <button type="button" class="sheet-close" id="radarClose" aria-label="閉じる">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-          <path d="M5 5l14 14M19 5L5 19"/></svg>
-      </button>
-    </div>
-    <div class="radar-map" id="radarMap" role="img" aria-label="雨雲の分布図">
-      <div class="radar-layer" id="radarBase"></div>
-      <div class="radar-layer" id="radarRain"></div>
-      <div class="radar-pin" id="radarPin" aria-hidden="true"></div>
-      <div class="radar-zoom">
-        <button type="button" id="radarIn" aria-label="拡大">＋</button>
-        <button type="button" id="radarOut" aria-label="縮小">−</button>
-      </div>
-      <div class="radar-msg" id="radarMsg" hidden></div>
-    </div>
-    <div class="radar-controls">
-      <button type="button" class="btn primary" id="radarPlay" aria-label="再生">
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>
-        再生
-      </button>
-      <input type="range" id="radarTime" min="0" max="0" value="0" step="1" aria-label="時刻">
-      <span class="radar-clock tnum" id="radarClock">--:--</span>
-    </div>
-    <div class="radar-legend" id="radarLegend"></div>
-    <p class="radar-note">
-      降水強度: 気象庁 高解像度降水ナウキャスト（実況＋1時間先までの予測） ／ 地図: 国土地理院タイル。
-      いずれも気象庁・国土地理院が公式に API として提供しているものではないため、仕様変更で表示できなくなることがあります。
-    </p>
-  </div>
-</div>
+<section class="tab-page" id="page-news" hidden aria-label="お知らせ">
+  <div class="wrap page-pad" id="newsBody"></div>
+</section>
 
-<div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
-  <div class="sheet" id="sheet"></div>
-</div>
+<section class="tab-page" id="page-menu" hidden aria-label="メニュー">
+  <div class="wrap page-pad">
+    <div id="menuSettings"></div>
+    <div class="menu-group">
+      <div class="menu-cap">データの出典</div>
+      <ul class="menu-list">
+        <li>天気予報・大気質・地点検索: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>（<a href="https://open-meteo.com/en/license" target="_blank" rel="noopener">CC BY 4.0</a>）。日本国内は気象庁の数値予報モデルを含む複数モデルから選択されます。</li>
+        <li>気象警報・注意報、雨雲（高解像度降水ナウキャスト）: <a href="https://www.jma.go.jp/bosai/" target="_blank" rel="noopener">気象庁 防災情報</a></li>
+        <li>雨雲レーダーの地図: <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院 地理院タイル</a>（航空写真は「全国最新写真（シームレス）」）</li>
+      </ul>
+      <p class="menu-note">気象庁の防災情報と地理院タイルの一部は、公式に API として提供されているものではありません。仕様変更により表示できなくなることがあります。</p>
+    </div>
+    <div class="menu-group">
+      <div class="menu-cap">ご注意</div>
+      <p class="menu-note">予報・雨雲の見通し・生活指数は自動で計算した目安で、気象庁が発表する公式の天気予報・警報とは異なる場合があります。防災上の判断は必ず気象庁の公式情報をご確認ください。表示地点と設定はこの端末のブラウザ内にのみ保存され、外部に送信されません。</p>
+    </div>
+    <p class="menu-ver">そらならべ — ぜんぶの空を、ならべて見る。</p>
+  </div>
+</section>
 
 <footer class="site-footer">
   <div class="wrap">
@@ -827,6 +1159,35 @@ table.compare.hours tbody tr { cursor: default; }
     </p>
   </div>
 </footer>
+
+<nav class="tabbar" aria-label="画面の切り替え">
+  <button type="button" data-tab="radar">
+    <svg viewBox="0 0 28 28" aria-hidden="true"><path class="fill" d="M20.6 16.6H8.2a4.4 4.4 0 0 1-.5-8.77 6 6 0 0 1 11.3 1h.3a3.9 3.9 0 0 1-.1 7.77Z"/>
+      <path class="stroke" d="M9.6 19.6l-1 2.8M14 19.6l-1 2.8M18.4 19.6l-1 2.8"/></svg>
+    <span>雨雲レーダー</span>
+  </button>
+  <button type="button" data-tab="weather">
+    <svg viewBox="0 0 28 28" aria-hidden="true"><circle class="stroke" cx="11" cy="10" r="3.6"/>
+      <path class="stroke" d="M11 3v1.6M4 10h1.6M6 5l1.1 1.1M16 5l-1.1 1.1"/>
+      <path class="stroke" d="M21 22.5H10.6a3.8 3.8 0 0 1-.3-7.6 5.1 5.1 0 0 1 9.6.9h.2a3.4 3.4 0 0 1 .9 6.7Z"/></svg>
+    <span>天気</span>
+  </button>
+  <button type="button" data-tab="region">
+    <svg viewBox="0 0 28 28" aria-hidden="true"><path class="stroke" d="M4 8.5l6-2.5 8 3 6-2.5v13.5l-6 2.5-8-3-6 2.5z"/>
+      <path class="stroke" d="M10 6v13.5M18 9v13.5"/></svg>
+    <span>地域の天気</span>
+  </button>
+  <button type="button" data-tab="news">
+    <svg viewBox="0 0 28 28" aria-hidden="true"><path class="stroke" d="M7 19.5V13a7 7 0 0 1 14 0v6.5l1.6 2H5.4z"/>
+      <path class="stroke" d="M11.6 23.5a2.6 2.6 0 0 0 4.8 0"/></svg>
+    <span class="tab-dot" id="newsDot" hidden></span>
+    <span>お知らせ</span>
+  </button>
+  <button type="button" data-tab="menu">
+    <svg viewBox="0 0 28 28" aria-hidden="true"><path class="stroke" d="M5 8h18M5 14h18M5 20h18"/></svg>
+    <span>メニュー</span>
+  </button>
+</nav>
 
 <script src="app.js"></script>
 </body>
