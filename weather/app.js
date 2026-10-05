@@ -2254,7 +2254,7 @@ const radar = {
   times: [], index: 0, lastObs: -1, issued: null, timesAt: 0, loadingTimes: false,
   playing: false, timer: null, refreshTimer: null, cityId: null,
   baseStore: new Map(), baseKind: null, frames: new Map(),
-  series: null, seriesBusy: false, sampleFailed: null, toastTimer: null
+  series: null, seriesBusy: false, sampleFailed: null, toastTimer: null, geoAsked: false
 };
 
 function lon2px(lon, z) { return (lon + 180) / 360 * TILE * Math.pow(2, z); }
@@ -2268,8 +2268,10 @@ function px2lat(py, z) {
 }
 
 /** "20261004T045000" (UTC) → Date */
+/** 気象庁の時刻一覧の時刻は "20210227064500"（UTC・14桁）。念のため T 区切りも受け付ける */
+const JMA_TIME_RE = /^(\d{4})(\d{2})(\d{2})T?(\d{2})(\d{2})(\d{2})$/;
 function parseJmaTime(s) {
-  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/.exec(String(s || ""));
+  const m = JMA_TIME_RE.exec(String(s || ""));
   if (!m) return null;
   return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
 }
@@ -2290,7 +2292,7 @@ async function loadRadarTimes() {
     try {
       const arr = await getJson(NOWC_BASE + file, 12000);
       return (Array.isArray(arr) ? arr : [])
-        .filter(e => e && /^\d{8}T\d{6}$/.test(String(e.basetime)) && /^\d{8}T\d{6}$/.test(String(e.validtime)))
+        .filter(e => e && JMA_TIME_RE.test(String(e.basetime)) && JMA_TIME_RE.test(String(e.validtime)))
         .map(e => ({ basetime: String(e.basetime), validtime: String(e.validtime), kind: kind }));
     } catch (e) { return []; }
   };
@@ -2860,10 +2862,45 @@ function enterRadar(cityId) {
     paintRadar();
     renderRadarPanel();
   }
+  radarGeoFlow();
   if (!radar.times.length || Date.now() - radar.timesAt > 4 * 60 * 1000) reloadRadarTimes();
   if (!radar.refreshTimer) {
     radar.refreshTimer = setInterval(() => { if (!document.hidden && radar.active) reloadRadarTimes(); }, 5 * 60 * 1000);
   }
+}
+
+/**
+ * レーダーを開いたときの位置情報の扱い。
+ *   許可済み → 黙って現在地を取り直して中心にする（このセッションで1回）
+ *   未確認   → 案内カードを出し、「位置情報を使う」でブラウザの許可を求める
+ *   拒否済み → 一度だけ設定の案内を出し、レーダーは選んだ地点で使える
+ */
+async function radarGeoFlow() {
+  if (!navigator.geolocation || radar.geoAsked) return;
+  radar.geoAsked = true;
+  let perm = "prompt";
+  try {
+    if (navigator.permissions && navigator.permissions.query) {
+      perm = (await navigator.permissions.query({ name: "geolocation" })).state;
+    }
+  } catch (e) { /* Permissions API が無いブラウザ（古い Safari など）は「未確認」として扱う */ }
+  if (!radar.active) return;
+  if (perm === "granted") { locateForRadar(true); return; }
+  if (perm === "denied") {
+    radarToast("位置情報がブロックされています。ブラウザの設定で許可すると、現在地の雨雲を表示できます。");
+    return;
+  }
+  $("#rvGeo").hidden = false;
+  $("#rvGeoYes").focus();
+}
+
+/** 現在地を取得してレーダーの中心にする（quiet のときは途中経過を出さない） */
+function locateForRadar(quiet) {
+  $("#rvGeo").hidden = true;
+  requestCurrentLocation({
+    status: msg => { if (!quiet || /できません|許可されません|タイムアウト|対応していません/.test(msg)) radarToast(msg); },
+    done: city => { if (radar.active) setRadarCity(city.id, true); }
+  });
 }
 
 function leaveRadar() {
@@ -3100,7 +3137,7 @@ document.addEventListener("keydown", ev => {
     if (ev.key === "+" || ev.key === "=") { ev.preventDefault(); radarZoomAt(1); return; }
     if (ev.key === "-") { ev.preventDefault(); radarZoomAt(-1); return; }
     if (ev.key === " " && ev.target === document.body) { ev.preventDefault(); radar.playing ? stopRadarPlay() : startRadarPlay(); return; }
-    if (ev.key === "Escape") { $("#rvLayers").hidden = true; return; }
+    if (ev.key === "Escape") { $("#rvLayers").hidden = true; $("#rvGeo").hidden = true; return; }
   }
   if (ev.key === "Escape" && state.tab === "weather" && state.weatherItem) { closeWeatherItem(); return; }
   if (ev.key === "Enter" || ev.key === " ") {
@@ -3132,6 +3169,11 @@ $("#radarTime").addEventListener("input", e => {
 });
 $("#radarIn").addEventListener("click", () => radarZoomAt(1));
 $("#radarOut").addEventListener("click", () => radarZoomAt(-1));
+$("#rvGeoYes").addEventListener("click", () => locateForRadar(false));
+$("#rvGeoNo").addEventListener("click", () => {
+  $("#rvGeo").hidden = true;
+  radarToast("右側の矢印ボタンから、いつでも現在地を表示できます。");
+});
 $("#rvLocate").addEventListener("click", () => {
   const cur = CITY_BY_ID.get(CURRENT_LOCATION_ID);
   if (cur) setRadarCity(CURRENT_LOCATION_ID, true);
