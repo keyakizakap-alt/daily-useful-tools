@@ -797,6 +797,63 @@ span.rv-label { pointer-events: none; cursor: default; }
   padding: 14px 8px 14px 14px; text-align: left; font: inherit; color: #fff; cursor: pointer;
 }
 .rv-now:hover { background: rgba(24, 42, 74, .7); }
+button.rv-place {
+  border: 0; background: rgba(255,255,255,.1); color: #fff; font: inherit; font-size: 19px; font-weight: 800;
+  padding: 2px 8px 2px 6px; margin-left: -6px; border-radius: 10px; cursor: pointer; max-width: 100%;
+}
+button.rv-place:hover { background: rgba(255,255,255,.2); }
+.rv-place-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-caret { width: 16px !important; height: 16px !important; opacity: .85; flex: none; }
+.rv-chev-btn { border: 0; background: none; color: #fff; padding: 6px 2px; display: grid; place-items: center; cursor: pointer; border-radius: 8px; }
+.rv-chev-btn:hover { background: rgba(255,255,255,.12); }
+
+.rv-pick {
+  position: absolute; z-index: 7; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); bottom: 12px;
+  max-width: 460px; display: flex; flex-direction: column; padding: 14px 14px 10px; background: rgba(16, 29, 54, .92);
+}
+.rv-pick[hidden] { display: none; }
+.rv-pick-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.rv-pick-head h3 { font-size: 17px; }
+.rv-pick-close { width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(255,255,255,.12); color: #fff; display: grid; place-items: center; }
+.rv-pick-close svg { width: 18px; height: 18px; }
+.rv-pick-form { display: flex; gap: 8px; margin-bottom: 10px; }
+.rv-pick-form input {
+  flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.1); color: #fff;
+}
+.rv-pick-form input::placeholder { color: rgba(255,255,255,.6); }
+.rv-pick-form input:focus { outline: 2px solid #4aa8ff; outline-offset: 1px; }
+.rv-pick-form button { border: 0; border-radius: 12px; padding: 0 16px; background: #2f80ff; color: #fff; font: inherit; font-weight: 700; }
+.rv-pick-scroll { overflow-y: auto; flex: 1; margin: 0 -6px; padding: 0 6px 6px; overscroll-behavior: contain; }
+.rv-pick-msg { font-size: 12.5px; opacity: .85; padding: 4px 2px 10px; }
+.rv-pick-cap { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; opacity: .7; margin: 14px 2px 6px; }
+.rv-pick-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; margin-bottom: 6px;
+  padding: 9px 12px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; background: rgba(255,255,255,.06);
+  color: #fff; font: inherit;
+}
+.rv-pick-row:hover { background: rgba(255,255,255,.14); }
+.rv-pick-row.on { border-color: #4aa8ff; background: rgba(47,128,255,.22); }
+.rv-pick-icon { width: 28px; height: 28px; display: grid; place-items: center; flex: none; font-size: 18px; }
+.rv-pick-icon svg { width: 26px; height: 26px; }
+.rv-pick-here .rv-pick-icon { border-radius: 50%; background: #2f80ff; }
+.rv-pick-here .rv-pick-icon svg { width: 16px; height: 16px; color: #fff; }
+.rv-pick-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.rv-pick-name { font-size: 14.5px; font-weight: 700; }
+.rv-pick-name small { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: #2f80ff; margin-left: 4px; vertical-align: 2px; }
+.rv-pick-sub { font-size: 11.5px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-pick-temp { font-size: 15px; font-weight: 700; }
+.rv-pick-on { font-size: 10.5px; font-weight: 700; color: #9cc8ff; }
+.rv-pick-note { font-size: 10.5px; opacity: .7; white-space: nowrap; }
+.rv-pick-region { margin-bottom: 8px; }
+.rv-pick-rcap { font-size: 11px; opacity: .65; margin: 0 2px 4px; }
+.rv-pick-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rv-pick-chip {
+  border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.06); color: #fff;
+  border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; font-weight: 600;
+}
+.rv-pick-chip:hover { background: rgba(255,255,255,.16); }
+.rv-pick-chip.on { border-color: #4aa8ff; background: rgba(47,128,255,.3); }
 .rv-now-left { display: flex; align-items: center; gap: 8px; padding-right: 12px; border-right: 1px solid rgba(255,255,255,.24); min-width: 0; }
 .rv-now-icon { flex: none; }
 .rv-now-icon svg { width: 62px; height: 62px; display: block; }
@@ -944,7 +1001,7 @@ span.rv-label { pointer-events: none; cursor: default; }
   .rv-top { left: 8px; right: 8px; top: calc(8px + env(safe-area-inset-top)); gap: 8px; }
   .rv-now { padding: 11px 4px 11px 10px; }
   .rv-now-icon svg { width: 46px; height: 46px; }
-  .rv-place { font-size: 16px; }
+  .rv-place, button.rv-place { font-size: 16px; }
   .rv-when { font-size: 11px; }
   .rv-temp b { font-size: 30px; }
   .rv-temp small { font-size: 15px; }
@@ -1039,7 +1096,7 @@ span.rv-label { pointer-events: none; cursor: default; }
   </div>
 
   <div class="rv-top">
-    <button type="button" class="rv-now glass" id="rvNow"></button>
+    <div class="rv-now glass" id="rvNow" role="group" aria-label="選んでいる地点の天気と雨の見通し"></div>
     <div class="rv-legend glass" id="rvLegend"></div>
   </div>
 
@@ -1077,6 +1134,30 @@ span.rv-label { pointer-events: none; cursor: default; }
     <div class="rv-geo-btns">
       <button type="button" class="rv-geo-yes" id="rvGeoYes">位置情報を使う</button>
       <button type="button" class="rv-geo-no" id="rvGeoNo">今はしない</button>
+    </div>
+  </div>
+  <div class="rv-pick glass" id="rvPick" hidden role="dialog" aria-modal="false" aria-labelledby="rvPickTitle">
+    <div class="rv-pick-head">
+      <h3 id="rvPickTitle">見る地点を選ぶ</h3>
+      <button type="button" class="rv-pick-close" id="rvPickClose" aria-label="閉じる">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <form class="rv-pick-form" id="rvPickForm" role="search">
+      <input type="search" id="rvPickInput" placeholder="地名で検索（例: 松本、軽井沢）" aria-label="地名で検索" autocomplete="off" enterkeyhint="search">
+      <button type="submit">検索</button>
+    </form>
+    <div class="rv-pick-scroll">
+      <div class="rv-pick-msg" id="rvPickMsg" hidden role="status"></div>
+      <div id="rvPickResults"></div>
+      <button type="button" class="rv-pick-row rv-pick-here" data-rv-here>
+        <span class="rv-pick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 3.5 3.8 10.6l7 2.4 2.4 7z" fill="currentColor"/></svg></span>
+        <span class="rv-pick-text"><span class="rv-pick-name">現在地</span><span class="rv-pick-sub">位置情報からいまいる場所を表示</span></span>
+      </button>
+      <div class="rv-pick-cap">登録した地点</div>
+      <div id="rvPickList"></div>
+      <div class="rv-pick-cap">全国の主な地点</div>
+      <div id="rvPickAll"></div>
     </div>
   </div>
   <div class="rv-msg" id="radarMsg" hidden role="status"></div>

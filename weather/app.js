@@ -2788,10 +2788,12 @@ function renderRadarPanel() {
     '<span class="rv-now-left">'
     + '<span class="rv-now-icon">' + icon(levelIcon(curLevel, code), 64) + '</span>'
     + '<span class="rv-now-text">'
-    +   '<span class="rv-place">' + (city.isCurrent
+    +   '<button type="button" class="rv-place" data-rv-pick aria-haspopup="dialog" aria-label="地点を変える（いま: ' + esc(placeName(city)) + '）">' + (city.isCurrent
           ? '<svg viewBox="0 0 24 24" aria-label="現在地"><path d="M20.5 3.5 3.8 10.6l7 2.4 2.4 7z" fill="currentColor"/></svg>'
           : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.4 7-12a7 7 0 1 0-14 0c0 5.6 7 12 7 12z" fill="currentColor"/><circle cx="12" cy="10" r="2.6" fill="#16233c"/></svg>')
-    +     esc(placeName(city)) + '</span>'
+    +     '<span class="rv-place-name">' + esc(placeName(city)) + '</span>'
+    +     '<svg class="rv-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    +   '</button>'
     +   '<span class="rv-when">' + esc(when) + ' 現在</span>'
     +   '<span class="rv-temp"><b class="tnum">' + (d ? fmtTemp(d.now.temp) : "—") + '</b><small>' + unitLabel() + '</small>'
     +     '<em>' + esc(cond) + '</em></span>'
@@ -2801,8 +2803,9 @@ function renderRadarPanel() {
     +   (h ? '<span class="rv-advice">' + (h.notify ? ALERT_SVG : OK_SVG) + '<span>' + esc(h.advice) + '</span></span>' : "")
     +   (s && s.source === "model" ? '<span class="rv-src">数値予報（1時間値）による目安</span>' : "")
     + '</span>'
-    + '<svg class="rv-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  $("#rvNow").setAttribute("aria-label", city.name + "の天気を開く");
+    + '<button type="button" class="rv-chev-btn" data-rv-weather aria-label="' + esc(placeName(city)) + 'の天気を開く">'
+    + '<svg class="rv-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+  if (!$("#rvPick").hidden) renderRadarPicker();
 
   $("#rvCards").innerHTML = [10, 30, 60].map(m => {
     let pt = null;
@@ -2908,6 +2911,105 @@ function leaveRadar() {
   radar.active = false;
   if (radar.refreshTimer) { clearInterval(radar.refreshTimer); radar.refreshTimer = null; }
   $("#rvLayers").hidden = true;
+  closeRadarPicker();
+}
+
+/* ---- レーダーで見る地点を変える ---- */
+let radarSearchSeq = 0;
+
+function openRadarPicker() {
+  $("#rvGeo").hidden = true;
+  $("#rvLayers").hidden = true;
+  $("#rvPickResults").innerHTML = "";
+  $("#rvPickMsg").hidden = true;
+  $("#rvPickInput").value = "";
+  renderRadarPicker();
+  $("#rvPick").hidden = false;
+  $("#rvPickInput").focus();
+}
+
+function closeRadarPicker() {
+  const box = $("#rvPick");
+  if (!box || box.hidden) return;
+  box.hidden = true;
+  radarSearchSeq++;   // 検索の途中で閉じたら結果を捨てる
+  const btn = document.querySelector("#rvNow [data-rv-pick]");
+  if (btn && radar.active) btn.focus();
+}
+
+/** 登録した地点（気温つき）と、全国の主な地点を並べる */
+function renderRadarPicker() {
+  const row = c => {
+    const d = state.data.get(c.id);
+    const on = c.id === radar.cityId;
+    return '<button type="button" class="rv-pick-row' + (on ? " on" : "") + '" data-rv-city="' + esc(c.id) + '"' + (on ? ' aria-current="true"' : "") + '>'
+      + '<span class="rv-pick-icon">' + (d ? icon(wmo(d.now.code).icon, 26) : "") + '</span>'
+      + '<span class="rv-pick-text"><span class="rv-pick-name">' + esc(placeName(c)) + (c.isCurrent ? ' <small>現在地</small>' : "") + '</span>'
+      + (c.sub ? '<span class="rv-pick-sub">' + esc(c.sub) + '</span>' : "") + '</span>'
+      + (d ? '<span class="rv-pick-temp tnum">' + fmtTemp(d.now.temp) + '°</span>' : "")
+      + (on ? '<span class="rv-pick-on">表示中</span>' : "")
+      + '</button>';
+  };
+  $("#rvPickList").innerHTML = orderedCities().map(row).join("");
+  const shown = new Set(state.selected);
+  $("#rvPickAll").innerHTML = REGIONS.map(r => {
+    const chips = CITIES.filter(c => c.region === r && !shown.has(c.id)).map(c =>
+      '<button type="button" class="rv-pick-chip' + (c.id === radar.cityId ? " on" : "") + '" data-rv-city="' + esc(c.id) + '">' + esc(c.name) + '</button>').join("");
+    return chips ? '<div class="rv-pick-region"><div class="rv-pick-rcap">' + esc(r) + '</div><div class="rv-pick-chips">' + chips + '</div></div>' : "";
+  }).join("");
+}
+
+function selectRadarPlace(id) {
+  if (!CITY_BY_ID.has(id)) return;
+  closeRadarPicker();
+  setRadarCity(id, true);
+}
+
+/** 地名で検索（Open-Meteo Geocoding API）。日本の地点を先に並べる */
+async function radarSearch(q) {
+  const seq = ++radarSearchSeq;
+  const msg = $("#rvPickMsg"), box = $("#rvPickResults");
+  box.innerHTML = "";
+  msg.hidden = false;
+  msg.textContent = "「" + q + "」を検索しています…";
+  let results;
+  try {
+    const json = await getJson(GEOCODE_API + "?name=" + encodeURIComponent(q) + "&count=10&language=ja&format=json", 12000);
+    results = ((json && json.results) || []).filter(isValidGeoResult);
+  } catch (e) {
+    if (seq === radarSearchSeq) msg.textContent = "検索できませんでした。通信状況を確認してもう一度お試しください。";
+    return;
+  }
+  if (seq !== radarSearchSeq) return;
+  results.sort((a, b) => (b.country_code === "JP") - (a.country_code === "JP"));
+  if (!results.length) {
+    msg.textContent = "「" + q + "」に一致する地点が見つかりませんでした。別の書き方（ひらがな・ローマ字）もお試しください。";
+    return;
+  }
+  msg.hidden = true;
+  box.innerHTML = results.map(r =>
+    '<button type="button" class="rv-pick-row" data-rv-geo data-id="' + esc(String(r.id)) + '" data-name="' + esc(r.name) + '"'
+    + ' data-lat="' + r.latitude + '" data-lon="' + r.longitude + '" data-sub="' + esc(r.admin1 || r.country || "") + '">'
+    + '<span class="rv-pick-icon" aria-hidden="true">📍</span>'
+    + '<span class="rv-pick-text"><span class="rv-pick-name">' + esc(r.name) + '</span>'
+    + '<span class="rv-pick-sub">' + esc([r.admin1, r.admin2, r.country].filter(Boolean).join(" / ")) + '</span></span>'
+    + (r.country_code && r.country_code !== "JP" ? '<span class="rv-pick-note">雨雲は日本付近のみ</span>' : "")
+    + '</button>').join("");
+}
+
+/**
+ * 検索した地点をレーダーで見る。地域の天気の一覧には加えない（見るだけ）。
+ * 府県予報区が分からないので、気象警報はこの地点では引かない。
+ */
+function selectSearchedPlace(btn) {
+  const lat = parseFloat(btn.getAttribute("data-lat")), lon = parseFloat(btn.getAttribute("data-lon"));
+  const id = "geo:" + btn.getAttribute("data-id");
+  if (!isFinite(lat) || !isFinite(lon) || !/^geo:\d{1,12}$/.test(id)) return;
+  if (!CITY_BY_ID.has(id)) {
+    registerCity({ id: id, name: btn.getAttribute("data-name"), sub: btn.getAttribute("data-sub") || "",
+                   region: "検索した地点", lat: lat, lon: lon, jma: null });
+  }
+  selectRadarPlace(id);
 }
 
 /* ---- 操作（ドラッグ・ピンチ・ホイール・ダブルクリック）---- */
@@ -3125,6 +3227,8 @@ function openPicker() {
 }
 
 document.addEventListener("keydown", ev => {
+  // 地点の選択パネルは、検索欄に入力中でも Esc で閉じられるようにする
+  if (ev.key === "Escape" && state.tab === "radar" && !$("#rvPick").hidden) { ev.preventDefault(); closeRadarPicker(); return; }
   const typing = ev.target && /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName) && ev.target.type !== "range";
   if (state.tab === "radar" && !typing && !ev.metaKey && !ev.ctrlKey && !ev.altKey) {
     const pan = { ArrowLeft: [-80, 0], ArrowRight: [80, 0], ArrowUp: [0, -80], ArrowDown: [0, 80] }[ev.key];
@@ -3137,7 +3241,10 @@ document.addEventListener("keydown", ev => {
     if (ev.key === "+" || ev.key === "=") { ev.preventDefault(); radarZoomAt(1); return; }
     if (ev.key === "-") { ev.preventDefault(); radarZoomAt(-1); return; }
     if (ev.key === " " && ev.target === document.body) { ev.preventDefault(); radar.playing ? stopRadarPlay() : startRadarPlay(); return; }
-    if (ev.key === "Escape") { $("#rvLayers").hidden = true; $("#rvGeo").hidden = true; return; }
+    if (ev.key === "Escape") {
+      if (!$("#rvPick").hidden) { closeRadarPicker(); return; }
+      $("#rvLayers").hidden = true; $("#rvGeo").hidden = true; return;
+    }
   }
   if (ev.key === "Escape" && state.tab === "weather" && state.weatherItem) { closeWeatherItem(); return; }
   if (ev.key === "Enter" || ev.key === " ") {
@@ -3186,7 +3293,23 @@ $("#rvLayerBtn").addEventListener("click", ev => {
   box.querySelectorAll('[data-set="base"]').forEach(b =>
     b.setAttribute("aria-pressed", String(b.getAttribute("data-val") === state.radarBase)));
 });
-$("#rvNow").addEventListener("click", () => { if (radar.cityId) setTab("weather", { cityId: radar.cityId }); });
+$("#rvNow").addEventListener("click", ev => {
+  if (ev.target.closest("[data-rv-pick]")) { openRadarPicker(); return; }
+  if (radar.cityId) setTab("weather", { cityId: radar.cityId });   // カードのそれ以外の部分は天気画面へ
+});
+$("#rvPickClose").addEventListener("click", closeRadarPicker);
+$("#rvPickForm").addEventListener("submit", ev => {
+  ev.preventDefault();
+  const q = $("#rvPickInput").value.trim();
+  if (q) radarSearch(q);
+});
+$("#rvPick").addEventListener("click", ev => {
+  const c = ev.target.closest("[data-rv-city]");
+  if (c) { selectRadarPlace(c.getAttribute("data-rv-city")); return; }
+  const g = ev.target.closest("[data-rv-geo]");
+  if (g) { selectSearchedPlace(g); return; }
+  if (ev.target.closest("[data-rv-here]")) { closeRadarPicker(); locateForRadar(false); }
+});
 bindRadarGestures();
 
 $("#pickerBtn").addEventListener("click", () => {
