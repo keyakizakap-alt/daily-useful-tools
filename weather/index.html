@@ -847,6 +847,26 @@ span.rv-label { pointer-events: none; cursor: default; }
 .rv-layers button[aria-pressed="true"] { background: rgba(255,255,255,.2); }
 .rv-layers button[aria-pressed="true"]::after { content: "　✓"; }
 
+.rv-geo {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6;
+  width: min(360px, calc(100% - 32px)); padding: 20px 20px 16px; text-align: center;
+  background: rgba(18, 33, 60, .86);
+}
+.rv-geo[hidden] { display: none; }
+.rv-geo-icon {
+  width: 52px; height: 52px; margin: 0 auto 10px; border-radius: 50%; background: #2f80ff;
+  display: grid; place-items: center; box-shadow: 0 0 0 8px rgba(47, 128, 255, .25);
+}
+.rv-geo-icon svg { width: 26px; height: 26px; color: #fff; }
+.rv-geo h3 { font-size: 17px; margin-bottom: 6px; }
+.rv-geo p { margin: 0 0 8px; font-size: 13px; line-height: 1.65; }
+.rv-geo .rv-geo-note { font-size: 11px; opacity: .78; text-align: left; }
+.rv-geo-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.rv-geo-btns button { border: 0; border-radius: 12px; padding: 12px; font: inherit; font-size: 14.5px; font-weight: 700; }
+.rv-geo-yes { background: #2f80ff; color: #fff; }
+.rv-geo-yes:hover { background: #1f6ff0; }
+.rv-geo-no { background: rgba(255, 255, 255, .12); color: #fff; }
+.rv-geo-no:hover { background: rgba(255, 255, 255, .2); }
 .rv-msg, .rv-toast { position: absolute; left: 50%; z-index: 5; max-width: 84%; text-align: center; font-size: 13px; padding: 11px 16px; line-height: 1.6;
   background: rgba(18, 33, 60, .78); color: #fff; border: 1px solid rgba(255,255,255,.18); border-radius: 14px;
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 8px 24px rgba(0,0,0,.3); }
@@ -1047,6 +1067,18 @@ span.rv-label { pointer-events: none; cursor: default; }
     </div>
   </div>
 
+  <div class="rv-geo glass" id="rvGeo" hidden role="dialog" aria-modal="false" aria-labelledby="rvGeoTitle">
+    <div class="rv-geo-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M20.5 3.5 3.8 10.6l7 2.4 2.4 7z" fill="currentColor"/></svg>
+    </div>
+    <h3 id="rvGeoTitle">現在地の雨雲を表示しますか？</h3>
+    <p>位置情報を使って、いまいる場所の雨雲と1時間先までの見通しを表示します。</p>
+    <p class="rv-geo-note">座標はこの端末に保存し、天気データの取得（Open-Meteo）に使います。地図や雨雲の画像を取得する際、表示している範囲が国土地理院・気象庁に伝わります。</p>
+    <div class="rv-geo-btns">
+      <button type="button" class="rv-geo-yes" id="rvGeoYes">位置情報を使う</button>
+      <button type="button" class="rv-geo-no" id="rvGeoNo">今はしない</button>
+    </div>
+  </div>
   <div class="rv-msg" id="radarMsg" hidden role="status"></div>
   <div class="rv-toast" id="rvToast" hidden role="status"></div>
 
