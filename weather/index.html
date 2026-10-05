@@ -617,6 +617,62 @@ body:not([data-tab="region"]) .header-actions .seg { display: none; }
 .cs-chip.on .cs-temp { color: rgba(255,255,255,.85); }
 .page-sheet { margin: 8px auto 24px; }
 
+/* ---- 天気タブ: 項目の一覧と項目ごとの画面 ---- */
+.wi-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.wi-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 13px 12px 13px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); font: inherit; color: inherit; border-left-width: 3px;
+  transition: border-color .15s, background .15s, transform .12s;
+}
+.wi-row:hover { border-color: var(--accent); background: var(--surface); }
+.wi-row:active { transform: scale(.995); }
+.wi-row.sev-1 { border-left-color: #c9962b; }
+.wi-row.sev-2 { border-left-color: #c2563f; }
+.wi-row.sev-3 { border-left-color: #7a1533; }
+.wi-emoji { font-size: 22px; line-height: 1; width: 28px; text-align: center; flex: none; }
+.wi-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.wi-title { font-size: 14.5px; font-weight: 700; }
+.wi-sum { font-size: 12.5px; color: var(--text-2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wi-row.sev-1 .wi-sum { color: #8a6012; }
+.wi-row.sev-2 .wi-sum, .wi-row.sev-3 .wi-sum { color: #b23b20; font-weight: 600; }
+:root[data-theme="dark"] .wi-row.sev-1 .wi-sum { color: #f3c96a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .wi-row.sev-1 .wi-sum { color: #f3c96a; } }
+:root[data-theme="dark"] .wi-row.sev-2 .wi-sum, :root[data-theme="dark"] .wi-row.sev-3 .wi-sum { color: #f5a37f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .wi-row.sev-2 .wi-sum, :root:not([data-theme="light"]) .wi-row.sev-3 .wi-sum { color: #f5a37f; } }
+.wi-chev { width: 20px; height: 20px; color: var(--text-3); flex: none; }
+
+.wi-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px 10px 8px; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.wi-back {
+  display: inline-flex; align-items: center; gap: 2px; flex: none; border: 0; background: none;
+  color: var(--accent-text); font: inherit; font-size: 14px; font-weight: 700; padding: 6px 8px; border-radius: 10px;
+}
+.wi-back:hover { background: var(--accent-soft); }
+.wi-back svg { width: 20px; height: 20px; }
+.wi-bar-text { min-width: 0; }
+.wi-bar h2 { font-size: 16.5px; }
+.wi-bar-sub { font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wi-lead { margin: 0 0 10px; font-size: 12.5px; color: var(--text-2); }
+.wi-pager { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--border); }
+.wi-pg {
+  display: flex; flex-direction: column; gap: 1px; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--surface-2); font: inherit; font-size: 13px; font-weight: 700;
+  color: var(--text); text-align: left; min-width: 0;
+}
+.wi-pg small { font-size: 11px; font-weight: 600; color: var(--text-3); }
+.wi-pg.next { text-align: right; }
+.wi-pg.prev small::before { content: "‹ "; }
+.wi-pg.next small::after { content: " ›"; }
+.wi-pg:hover { border-color: var(--accent); }
+/* 画面遷移: 進むときは右から、戻るときは左から */
+.page-sheet.wi-enter { animation: wi-in .26s cubic-bezier(.2, .7, .2, 1); }
+.page-sheet.wi-back-enter { animation: wi-out .26s cubic-bezier(.2, .7, .2, 1); }
+@keyframes wi-in { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes wi-out { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+
 /* ---- お知らせ ---- */
 .news-card {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);

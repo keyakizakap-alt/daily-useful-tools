@@ -185,6 +185,7 @@ const state = {
   openDay: 0,           // 「天気」タブで選んでいる日
   tab: "radar",         // radar / weather / region / news / menu
   weatherCity: null,    // 「天気」タブで最後に見ていた地点
+  weatherItem: null,    // 「天気」タブで開いている項目（null は一覧）
   radarCity: null,      // 雨雲レーダーの中心にしている地点
   radarBase: "photo",   // レーダーの背景地図 photo / std / pale
   data: new Map(),      // cityId -> normalized forecast
@@ -1597,104 +1598,80 @@ async function selectDay(cityId, index) {
  * 7. 詳細パネル（週間予報 + 48時間の推移）
  * ============================================================ */
 
-function openSheet(cityId, dayIndex, opts) {
-  const city = CITY_BY_ID.get(cityId);
-  const d = state.data.get(cityId);
-  if (!city) return;
-  const keepScroll = opts && opts.keepScroll;
-  if (state.tab !== "weather") setTab("weather", { silent: true });
+/* ---- 「天気」タブ: 項目の一覧 → 項目ごとの画面 ---- */
+const WEATHER_ITEMS = ["alerts", "advice", "index", "now", "days", "hourly", "pressure", "air", "radar"];
 
-  const w = d ? wmo(d.now.code) : WMO_UNKNOWN;
-  let html =
-    '<div class="sheet-head" style="background:linear-gradient(135deg,' + w.sky[0] + ',' + w.sky[1] + ')">'
-    + '<span class="icon">' + icon(w.icon, 52) + '</span>'
-    + '<div><h2 id="sheetTitle">' + esc(city.name) + '</h2>'
-    + '<div class="meta">' + esc(city.sub) + ' ・ ' + esc(city.region)
-    + ' ・ ' + city.lat.toFixed(2) + '°N ' + city.lon.toFixed(2) + '°E</div></div>';
+/** 地点の天気情報を項目ごとに組み立てる（一覧の要約と、各項目の画面の中身） */
+function weatherSections(city, d) {
+  const t = d.today || {};
+  const out = [];
 
-  if (d) {
-    html += '<div class="now"><div class="t tnum">' + fmtTemp(d.now.temp, 1) + unitLabel() + '</div>'
-      + '<div class="d">' + esc(w.label) + ' ・ 体感 ' + fmtTemp(d.now.feels) + '°</div></div>';
+  // --- 気象警報・注意報 ---
+  const al = alertsFor(city.id);
+  const sev = al ? al.severity : 0;
+  let ah = '<div class="alert-box ' + SEVERITY_STYLE[sev].cls + (sev ? "" : " sev-0") + '">'
+    + '<div class="head">' + (sev ? "⚠ " + esc(SEVERITY_STYLE[sev].label) + "が発表されています" : "発表中の警報・注意報はありません") + '</div>'
+    + '<div class="body">';
+  if (sev && al.areas.length) {
+    ah += al.areas.map(ar =>
+      '<div class="area">' + (ar.area ? '<div class="area-name">' + esc(ar.area) + '</div>' : "")
+      + ar.items.map(i => '<span class="alert-tag ' + SEVERITY_STYLE[warningSeverity(i) || sev].cls + '">' + esc(i) + '</span>').join("")
+      + '</div>').join("");
+  } else if (!sev) {
+    ah += '<span style="color:var(--text-3);font-size:12.5px">現時点で発表されているものはありません。</span>';
   }
-  html += '</div><div class="sheet-body">';
+  ah += '<div class="alert-note">' + (al && al.source === "jma"
+      ? "出典: " + esc(al.office || "気象庁") + "（" + (al.reportedAt ? esc(String(al.reportedAt).slice(0, 16).replace("T", " ")) : "発表時刻不明") + " 発表）。"
+        + (al.scoped ? "この地点が属する一次細分区域（" + esc(city.jmaArea || "") + "）の発表状況です。"
+                     : "この地点が属する府県予報区全体の発表状況です。区域によっては発表されていない場合があります。")
+        + "市区町村ごとの詳細は気象庁の公式ページをご確認ください。"
+      : "気象庁の発表情報を取得できなかったため、<strong>予報値から自動判定したアプリ独自の目安</strong>を表示しています。"
+        + "気象庁が発表する警報・注意報とは基準も内容も異なります。防災上の判断は必ず気象庁の公式情報をご確認ください。")
+    + '</div></div></div>';
+  out.push({ key: "alerts", title: "気象警報・注意報", emoji: "⚠️", tone: sev ? SEVERITY_STYLE[sev].cls : "",
+    summary: sev ? uniqueAlertNames(al).join("・") : "発表中のものはありません", html: ah });
 
-  if (!d) {
-    const err = state.errors.get(cityId);
-    html += '<p style="color:var(--text-3)">' + esc(err || "予報を読み込んでいます…") + '</p>'
-      + (err ? '<button type="button" class="btn" id="retryBtn">再取得する</button>' : "");
-  } else {
-    const t = d.today || {};
+  // --- 今日のおすすめ（服装・傘）---
+  const um = umbrellaAdvice(t), cl = clothingAdvice(t, d.now);
+  let advh = '<div class="advice-cards">';
+  if (cl) {
+    advh += '<div class="advice-card"><div class="cap">服装</div>'
+      + '<div class="main"><span class="emoji">' + cl.emoji + '</span><span class="title">' + esc(cl.title) + '</span></div>'
+      + '<div class="detail">' + esc(cl.detail) + '</div>'
+      + (cl.tips.length ? '<ul>' + cl.tips.map(x => '<li>' + esc(x) + '</li>').join("") + '</ul>' : "")
+      + '<div class="alert-note">体感温度の最高 ' + fmtTemp(cl.hi) + '° / 最低 ' + fmtTemp(cl.lo) + '° をもとにした目安です。</div></div>';
+  }
+  if (um) {
+    advh += '<div class="advice-card"><div class="cap">傘</div>'
+      + '<div class="main"><span class="emoji">' + (um.level === "no" ? "🌤️" : um.level === "maybe" ? "🌂" : "☂️") + '</span>'
+      + '<span class="title umb ' + um.level + '">' + esc(um.label) + '</span></div>'
+      + '<div class="detail">' + esc(um.note) + '</div>'
+      + '<div class="alert-note">本日の降水確率 ' + fmtNum(t.pop, "%") + ' / 予想降水量 '
+      + (t.precip == null ? "—" : t.precip + " mm") + ' をもとにした目安です。</div></div>';
+  }
+  advh += '</div>';
+  if (um || cl) {
+    out.push({ key: "advice", title: "今日のおすすめ（服装・傘）", emoji: cl ? cl.emoji : "☂️",
+      summary: [cl ? cl.title : "", um ? um.label : ""].filter(Boolean).join(" ／ "), html: advh });
+  }
 
-    // --- 気象警報・注意報 ---
-    const al = alertsFor(cityId);
-    const sev = al ? al.severity : 0;
-    html += '<h3 class="sheet-h3">気象警報・注意報</h3>'
-      + '<div class="alert-box ' + SEVERITY_STYLE[sev].cls + (sev ? "" : " sev-0") + '">'
-      + '<div class="head">' + (sev
-          ? "⚠ " + esc(SEVERITY_STYLE[sev].label) + "が発表されています"
-          : "発表中の警報・注意報はありません") + '</div>'
-      + '<div class="body">';
-    if (sev && al.areas.length) {
-      html += al.areas.map(ar =>
-        '<div class="area">'
-        + (ar.area ? '<div class="area-name">' + esc(ar.area) + '</div>' : "")
-        + ar.items.map(i => '<span class="alert-tag ' + SEVERITY_STYLE[warningSeverity(i) || sev].cls + '">'
-            + esc(i) + '</span>').join("")
-        + '</div>').join("");
-    } else if (!sev) {
-      html += '<span style="color:var(--text-3);font-size:12.5px">現時点で発表されているものはありません。</span>';
-    }
-    html += '<div class="alert-note">' + (al && al.source === "jma"
-        ? "出典: " + esc(al.office || "気象庁") + "（" + (al.reportedAt ? esc(String(al.reportedAt).slice(0, 16).replace("T", " ")) : "発表時刻不明") + " 発表）。"
-          + (al.scoped
-              ? "この地点が属する一次細分区域（" + esc(city.jmaArea || "") + "）の発表状況です。"
-              : "この地点が属する府県予報区全体の発表状況です。区域によっては発表されていない場合があります。")
-          + "市区町村ごとの詳細は気象庁の公式ページをご確認ください。"
-        : "気象庁の発表情報を取得できなかったため、<strong>予報値から自動判定したアプリ独自の目安</strong>を表示しています。"
-          + "気象庁が発表する警報・注意報とは基準も内容も異なります。防災上の判断は必ず気象庁の公式情報をご確認ください。")
-      + '</div></div></div>';
+  // --- 生活指数 ---
+  const idx = lifeIndices(t, d.hours);
+  if (idx.length) {
+    out.push({ key: "index", title: "生活指数", emoji: "👕",
+      summary: idx.slice(0, 3).map(x => x.cap + " " + x.data.title).join("・"),
+      html: '<div class="idx-grid">' + idx.map(x =>
+          '<div class="idx-card lv-' + x.data.level + '">'
+          + '<div class="idx-top"><span class="idx-emoji">' + x.emoji + '</span><span class="idx-cap">' + esc(x.cap) + '</span>'
+          + (x.data.value ? '<span class="idx-val tnum">' + esc(x.data.value) + '</span>' : "") + '</div>'
+          + '<div class="idx-title">' + esc(x.data.title) + '</div><div class="idx-detail">' + esc(x.data.detail) + '</div></div>').join("")
+        + '</div><p class="alert-note">数値予報から機械的に求めた目安です。気象庁や各社が発表している指数そのものではありません。</p>' });
+  }
 
-    // --- おすすめ（服装・傘）---
-    const um = umbrellaAdvice(t), cl = clothingAdvice(t, d.now);
-    if (um || cl) {
-      html += '<h3 class="sheet-h3">今日のおすすめ</h3><div class="advice-cards">';
-      if (cl) {
-        html += '<div class="advice-card"><div class="cap">服装</div>'
-          + '<div class="main"><span class="emoji">' + cl.emoji + '</span>'
-          + '<span class="title">' + esc(cl.title) + '</span></div>'
-          + '<div class="detail">' + esc(cl.detail) + '</div>'
-          + (cl.tips.length ? '<ul>' + cl.tips.map(x => '<li>' + esc(x) + '</li>').join("") + '</ul>' : "")
-          + '<div class="alert-note">体感温度の最高 ' + fmtTemp(cl.hi) + '° / 最低 ' + fmtTemp(cl.lo) + '° をもとにした目安です。</div>'
-          + '</div>';
-      }
-      if (um) {
-        html += '<div class="advice-card"><div class="cap">傘</div>'
-          + '<div class="main"><span class="emoji">' + (um.level === "no" ? "🌤️" : um.level === "maybe" ? "🌂" : "☂️") + '</span>'
-          + '<span class="title umb ' + um.level + '">' + esc(um.label) + '</span></div>'
-          + '<div class="detail">' + esc(um.note) + '</div>'
-          + '<div class="alert-note">本日の降水確率 ' + fmtNum(t.pop, "%") + ' / 予想降水量 '
-          + (t.precip == null ? "—" : t.precip + " mm") + ' をもとにした目安です。</div>'
-          + '</div>';
-      }
-      html += '</div>';
-    }
-
-    // --- 生活指数 ---
-    const idx = lifeIndices(t, d.hours);
-    if (idx.length) {
-      html += '<h3 class="sheet-h3">生活指数</h3><div class="idx-grid">'
-        + idx.map(x =>
-            '<div class="idx-card lv-' + x.data.level + '">'
-            + '<div class="idx-top"><span class="idx-emoji">' + x.emoji + '</span>'
-            + '<span class="idx-cap">' + esc(x.cap) + '</span>'
-            + (x.data.value ? '<span class="idx-val tnum">' + esc(x.data.value) + '</span>' : "") + '</div>'
-            + '<div class="idx-title">' + esc(x.data.title) + '</div>'
-            + '<div class="idx-detail">' + esc(x.data.detail) + '</div></div>').join("")
-        + '</div>'
-        + '<p class="alert-note">数値予報から機械的に求めた目安です。気象庁や各社が発表している指数そのものではありません。</p>';
-    }
-
-    html += '<h3 class="sheet-h3">現在の状況</h3><dl class="stats tnum">'
+  // --- 現在の状況 ---
+  out.push({ key: "now", title: "現在の状況", emoji: "🌡️",
+    summary: "体感 " + fmtTemp(d.now.feels) + "° ・湿度 " + fmtNum(d.now.humidity, "%") + " ・風 " + windText(d.now.windDeg, d.now.wind) + " km/h",
+    html: '<dl class="stats tnum">'
       + stat("体感温度", fmtTemp(d.now.feels, 1) + unitLabel())
       + stat("湿度", fmtNum(d.now.humidity, "%"))
       + stat("風", windText(d.now.windDeg, d.now.wind) + " km/h")
@@ -1703,68 +1680,182 @@ function openSheet(cityId, dayIndex, opts) {
       + stat("UV指数", (t.uv == null ? "—" : Number(t.uv).toFixed(1)))
       + stat("日の出", fmtClock(t.sunrise))
       + stat("日の入", fmtClock(t.sunset))
-      + '</dl>';
+      + '</dl>' });
 
-    html += '<h3 class="sheet-h3">2週間予報（' + d.days.length + '日間）— 日を選ぶと詳細が出ます</h3>'
-      + '<div class="days-wrap"><div class="days-scroll"><div class="days" id="daysStrip">'
-      + d.days.map((day, i) => {
-          const dw = wmo(day.code);
-          const dt = parseLocal(day.date);
-          const dow = dt ? DOW[dt.getDay()] : "";
-          const cls = dt && dt.getDay() === 0 ? " sun" : (dt && dt.getDay() === 6 ? " sat" : "");
-          return '<button type="button" class="day' + (i === 0 ? " today" : "") + (i >= 7 ? " far" : "") + '"'
-            + ' data-day="' + i + '" aria-pressed="false">'
-            + '<div class="dow' + cls + '">' + (i === 0 ? "今日" : dow) + '</div>'
-            + '<div class="date tnum">' + (dt ? (dt.getMonth() + 1) + "/" + dt.getDate() : "") + '</div>'
-            + icon(dw.icon, 34)
-            + '<div class="tmp tnum"><span class="hi">' + fmtTemp(day.hi) + '</span>'
-            + ' <span style="color:var(--text-3)">/</span> <span class="lo">' + fmtTemp(day.lo) + '</span></div>'
-            + '<div class="pop tnum">' + fmtNum(day.pop, "%") + '</div></button>';
-        }).join("")
-      + '</div></div></div>'
-      + '<div id="dayDetail"></div>'
-      + '<p class="alert-note">8日目以降は数値予報の不確実性が大きく、日々変わります。傾向をつかむ目安としてご覧ください。</p>';
-
-    if (d.hours.length > 1) {
-      html += '<h3 class="sheet-h3">今後48時間の推移</h3>'
-        + '<div class="chart-legend"><span><i style="background:var(--accent)"></i>気温 (' + unitLabel() + ')</span>'
-        + '<span><i style="background:#7fb4dd"></i>降水確率 (%)</span></div>'
-        + '<div class="chart">' + hourlyChart(d.hours) + '</div>';
-
-      const pressures = d.hours.filter(h => typeof h.pressure === "number");
-      if (pressures.length > 2) {
-        html += '<h3 class="sheet-h3">気圧の変化（48時間）</h3>'
-          + '<div class="chart">' + pressureChart(d.hours) + '</div>'
-          + '<p class="alert-note">' + esc(pressureComment(d.hours)) + '</p>';
-      }
-    }
-
-    // --- 大気質（開いたときに別 API から取得する）---
-    html += '<h3 class="sheet-h3">大気の状態</h3><div id="airBox" class="air-box">'
-      + '<span style="color:var(--text-3);font-size:12.5px">大気質を読み込んでいます…</span></div>';
-
-    html += '<h3 class="sheet-h3">雨雲の様子</h3>'
-      + '<button type="button" class="btn primary" data-radar="' + esc(city.id) + '">'
-      + '雨雲レーダーで' + esc(city.name) + '周辺を見る</button>';
-
-    html += '<p style="margin:18px 0 0;font-size:11.5px;color:var(--text-3);line-height:1.7">'
-      + '標高 ' + (d.elevation == null ? "—" : Math.round(d.elevation) + " m")
-      + ' の予報格子点の値です。数値予報のため実際の空模様とは差が出ることがあります。'
-      + '出典: Open-Meteo (CC BY 4.0)</p>';
+  // --- 2週間予報 ---
+  if (d.days.length) {
+    const tm = d.days[1];
+    out.push({ key: "days", title: "2週間予報（" + d.days.length + "日間）", emoji: "📅",
+      summary: tm ? "明日 " + wmo(tm.code).label + " " + fmtTemp(tm.hi) + "°/" + fmtTemp(tm.lo) + "° ・降水確率 " + fmtNum(tm.pop, "%") : "",
+      html: '<p class="wi-lead">日を選ぶと、その日の詳しい予報が下に出ます。</p>'
+        + '<div class="days-wrap"><div class="days-scroll"><div class="days" id="daysStrip">'
+        + d.days.map((day, i) => {
+            const dw = wmo(day.code);
+            const dt = parseLocal(day.date);
+            const dow = dt ? DOW[dt.getDay()] : "";
+            const cls = dt && dt.getDay() === 0 ? " sun" : (dt && dt.getDay() === 6 ? " sat" : "");
+            return '<button type="button" class="day' + (i === 0 ? " today" : "") + (i >= 7 ? " far" : "") + '"'
+              + ' data-day="' + i + '" aria-pressed="false">'
+              + '<div class="dow' + cls + '">' + (i === 0 ? "今日" : dow) + '</div>'
+              + '<div class="date tnum">' + (dt ? (dt.getMonth() + 1) + "/" + dt.getDate() : "") + '</div>'
+              + icon(dw.icon, 34)
+              + '<div class="tmp tnum"><span class="hi">' + fmtTemp(day.hi) + '</span>'
+              + ' <span style="color:var(--text-3)">/</span> <span class="lo">' + fmtTemp(day.lo) + '</span></div>'
+              + '<div class="pop tnum">' + fmtNum(day.pop, "%") + '</div></button>';
+          }).join("")
+        + '</div></div></div><div id="dayDetail"></div>'
+        + '<p class="alert-note">8日目以降は数値予報の不確実性が大きく、日々変わります。傾向をつかむ目安としてご覧ください。</p>' });
   }
-  html += '</div>';
+
+  // --- 48時間の推移 ---
+  if (d.hours.length > 1) {
+    const temps = d.hours.map(h => h.temp).filter(v => typeof v === "number");
+    const pops = d.hours.map(h => h.pop).filter(v => typeof v === "number");
+    out.push({ key: "hourly", title: "48時間の推移", emoji: "📈",
+      summary: (temps.length ? "気温 " + fmtTemp(Math.min.apply(null, temps)) + "〜" + fmtTemp(Math.max.apply(null, temps)) + "°" : "")
+        + (pops.length ? " ・降水確率 最大 " + Math.max.apply(null, pops) + "%" : ""),
+      html: '<div class="chart-legend"><span><i style="background:var(--accent)"></i>気温 (' + unitLabel() + ')</span>'
+        + '<span><i style="background:#7fb4dd"></i>降水確率 (%)</span></div>'
+        + '<div class="chart">' + hourlyChart(d.hours) + '</div>' });
+
+    if (d.hours.filter(h => typeof h.pressure === "number").length > 2) {
+      const pts = d.hours.filter(h => typeof h.pressure === "number");
+      let worst = 0;
+      for (let i = 0; i + 6 < pts.length; i++) worst = Math.max(worst, pts[i].pressure - pts[i + 6].pressure);
+      out.push({ key: "pressure", title: "気圧の変化", emoji: "🧭", tone: worst >= 6 ? "sev-2" : worst >= 3 ? "sev-1" : "",
+        summary: (typeof d.now.pressure === "number" ? "現在 " + Math.round(d.now.pressure) + " hPa ・" : "")
+          + (worst >= 3 ? "6時間で " + worst.toFixed(1) + " hPa 低下あり" : "大きな低下はない見込み"),
+        html: '<div class="chart">' + pressureChart(d.hours) + '</div><p class="alert-note">' + esc(pressureComment(d.hours)) + '</p>' });
+    }
+  }
+
+  // --- 大気の状態（開いたときに別 API から取得する）---
+  out.push({ key: "air", title: "大気の状態（PM2.5・黄砂など）", emoji: "🌫️", summary: airSummary(city),
+    html: '<div id="airBox" class="air-box"><span style="color:var(--text-3);font-size:12.5px">大気質を読み込んでいます…</span></div>' });
+
+  // --- 雨雲 ---
+  const rs = radar.series && radar.series.forCity === city.id && radar.series.headline;
+  out.push({ key: "radar", title: "雨雲レーダー", emoji: "🌧️", go: "radar",
+    summary: rs ? rs.title : "地図で雨雲の動きと1時間先までの見通しを見る", html: "" });
+  return out;
+}
+
+/** 大気質の一行要約（取得済みのときだけ数値を出す） */
+function airSummary(city) {
+  const hit = airCache.get(city.id);
+  if (!hit) return "AQI・PM2.5・黄砂などを見る";
+  const a = hit.data, band = aqiBand(a.aqi), pm = pm25Band(a.pm25);
+  return (band ? "AQI " + Math.round(a.aqi) + " " + band.label : "")
+    + (typeof a.pm25 === "number" ? " ・PM2.5 " + a.pm25.toFixed(0) + "μg/m³" + (pm ? "（" + pm.label + "）" : "") : "");
+}
+
+function openSheet(cityId, dayIndex, opts) {
+  const city = CITY_BY_ID.get(cityId);
+  const d = state.data.get(cityId);
+  if (!city) return;
+  const o = opts || {};
+  if (state.tab !== "weather") setTab("weather", { silent: true });
+
+  const w = d ? wmo(d.now.code) : WMO_UNKNOWN;
+  const sections = d ? weatherSections(city, d) : [];
+  const item = sections.find(x => x.key === state.weatherItem && !x.go) || null;
+  if (!item) state.weatherItem = null;
+
+  let html;
+  if (!item) {
+    // ---- 一覧 ----
+    html = '<div class="sheet-head" style="background:linear-gradient(135deg,' + w.sky[0] + ',' + w.sky[1] + ')">'
+      + '<span class="icon">' + icon(w.icon, 52) + '</span>'
+      + '<div><h2 id="sheetTitle">' + esc(city.name) + '</h2>'
+      + '<div class="meta">' + esc(city.sub) + ' ・ ' + esc(city.region)
+      + ' ・ ' + city.lat.toFixed(2) + '°N ' + city.lon.toFixed(2) + '°E</div></div>';
+    if (d) {
+      const t = d.today || {};
+      html += '<div class="now"><div class="t tnum">' + fmtTemp(d.now.temp, 1) + unitLabel() + '</div>'
+        + '<div class="d">' + esc(w.label) + ' ・ 最高 ' + fmtTemp(t.hi) + '° / 最低 ' + fmtTemp(t.lo) + '°</div></div>';
+    }
+    html += '</div><div class="sheet-body">';
+    if (!d) {
+      const err = state.errors.get(cityId);
+      html += '<p style="color:var(--text-3)">' + esc(err || "予報を読み込んでいます…") + '</p>'
+        + (err ? '<button type="button" class="btn" id="retryBtn">再取得する</button>' : "");
+    } else {
+      html += '<ul class="wi-list" aria-label="' + esc(city.name) + 'の天気の項目">'
+        + sections.map(x =>
+            '<li><button type="button" class="wi-row' + (x.tone ? " " + x.tone : "") + '" '
+            + (x.go ? 'data-radar="' + esc(city.id) + '"' : 'data-witem="' + x.key + '"') + '>'
+            + '<span class="wi-emoji" aria-hidden="true">' + x.emoji + '</span>'
+            + '<span class="wi-text"><span class="wi-title">' + esc(x.title) + '</span>'
+            + '<span class="wi-sum" id="wiSum-' + x.key + '">' + esc(x.summary) + '</span></span>'
+            + '<svg class="wi-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+            + '</button></li>').join("")
+        + '</ul>'
+        + '<p style="margin:16px 0 0;font-size:11.5px;color:var(--text-3);line-height:1.7">'
+        + '標高 ' + (d.elevation == null ? "—" : Math.round(d.elevation) + " m")
+        + ' の予報格子点の値です。数値予報のため実際の空模様とは差が出ることがあります。出典: Open-Meteo (CC BY 4.0)</p>';
+    }
+    html += '</div>';
+  } else {
+    // ---- 項目ごとの画面 ----
+    const list = sections.filter(x => !x.go);
+    const i = list.indexOf(item);
+    const prev = list[i - 1], next = list[i + 1];
+    html = '<div class="wi-bar">'
+      + '<button type="button" class="wi-back" data-wback aria-label="一覧に戻る">'
+      + '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      + '<span>一覧</span></button>'
+      + '<div class="wi-bar-text"><h2>' + esc(item.title) + '</h2>'
+      + '<div class="wi-bar-sub"><span id="sheetTitle">' + esc(city.name) + '</span> ・ '
+      + fmtTemp(d.now.temp) + '° ' + esc(w.label) + '</div></div></div>'
+      + '<div class="sheet-body wi-body">' + item.html
+      + '<nav class="wi-pager" aria-label="ほかの項目">'
+      + (prev ? '<button type="button" class="wi-pg prev" data-witem="' + prev.key + '"><small>前の項目</small>' + esc(prev.title) + '</button>' : '<span></span>')
+      + (next ? '<button type="button" class="wi-pg next" data-witem="' + next.key + '"><small>次の項目</small>' + esc(next.title) + '</button>' : '<span></span>')
+      + '</nav></div>';
+  }
 
   const sheet = $("#sheet");
   sheet.innerHTML = html;
+  sheet.classList.remove("wi-enter", "wi-back-enter");
+  if (o.anim) { void sheet.offsetWidth; sheet.classList.add(o.anim === "back" ? "wi-back-enter" : "wi-enter"); }
   state.openCity = cityId;
   if (state.weatherCity !== cityId) { state.weatherCity = cityId; saveState(); }
   sheet.dataset.hasData = d ? "1" : "0";
   const day = Math.min(Math.max(dayIndex || 0, 0), d && d.days.length ? d.days.length - 1 : 0);
   state.openDay = day;
-  if (d && d.days.length) selectDay(cityId, day);
+  if (item && item.key === "days") selectDay(cityId, day);
   if (d) loadAirBox(city);
   renderCitySwitch();
-  if (!keepScroll) window.scrollTo(0, 0);
+  syncWeatherHash();
+  if (!o.keepScroll) window.scrollTo(0, 0);
+}
+
+/** 「天気」タブの URL を、いま見ている項目にあわせる */
+function syncWeatherHash() {
+  if (state.tab !== "weather") return;
+  const want = "#weather" + (state.weatherItem ? "/" + state.weatherItem : "");
+  if (location.hash !== want) {
+    try { history.replaceState(null, "", want); } catch (e) { /* file:// などでは無視 */ }
+  }
+}
+
+/** 項目の画面へ進む（ブラウザの戻る操作で一覧に戻れるよう履歴を積む） */
+function openWeatherItem(key) {
+  if (WEATHER_ITEMS.indexOf(key) < 0 || !state.openCity) return;
+  const fromList = !state.weatherItem;
+  state.weatherItem = key;
+  if (fromList) {
+    try { history.pushState({ witem: key }, "", "#weather/" + key); } catch (e) { /* 履歴を積めなくても表示は切り替える */ }
+  }
+  openSheet(state.openCity, state.openDay, { anim: "forward" });
+}
+
+/** 一覧に戻る */
+function closeWeatherItem() {
+  if (!state.weatherItem) return;
+  if (history.state && history.state.witem) { history.back(); return; }   // popstate 側で描き直す
+  state.weatherItem = null;
+  openSheet(state.openCity, state.openDay, { anim: "back" });
 }
 
 /** 「天気」タブ上部の地点切り替え */
@@ -1856,6 +1947,10 @@ function pressureComment(hours) {
 
 /** 大気質を取得して詳細パネルに差し込む */
 async function loadAirBox(city) {
+  const updateSummary = () => {
+    const sum = document.getElementById("wiSum-air");
+    if (sum && state.openCity === city.id) sum.textContent = airSummary(city);
+  };
   const render = html => {
     const box = document.getElementById("airBox");
     // 取得中に別の地点を開いていたら書き込まない
@@ -1864,6 +1959,7 @@ async function loadAirBox(city) {
   let air;
   try {
     air = await fetchAirQuality(city);
+    updateSummary();
   } catch (e) {
     render('<span style="color:var(--text-3);font-size:12.5px">大気質のデータを取得できませんでした。</span>');
     return;
@@ -1973,8 +2069,10 @@ function setTab(tab, opts) {
   });
   const title = document.getElementById("pageTitle");
   if (title) title.textContent = TAB_TITLES[tab];
-  if (location.hash !== "#" + tab) {
-    try { history.replaceState(null, "", "#" + tab); } catch (e) { /* file:// などでは無視 */ }
+  if (tab === "weather" && !o.keepItem && !o.silent) state.weatherItem = null;
+  const want = "#" + tab + (tab === "weather" && state.weatherItem ? "/" + state.weatherItem : "");
+  if (location.hash !== want) {
+    try { history.replaceState(null, "", want); } catch (e) { /* file:// などでは無視 */ }
   }
   if (prev === "radar" && tab !== "radar") leaveRadar();
   saveState();
@@ -2876,8 +2974,17 @@ document.addEventListener("click", ev => {
     return;
   }
 
+  const witem = ev.target.closest("[data-witem]");
+  if (witem) { openWeatherItem(witem.getAttribute("data-witem")); return; }
+  if (ev.target.closest("[data-wback]")) { closeWeatherItem(); return; }
+
   const open = ev.target.closest("[data-open]");
-  if (open) { openSheet(open.getAttribute("data-open")); return; }
+  if (open) {
+    const id = open.getAttribute("data-open");
+    if (open.closest("#citySwitch")) openSheet(id, state.openDay, { keepScroll: !!state.weatherItem });
+    else { state.weatherItem = null; openSheet(id); }
+    return;
+  }
 
   const add = ev.target.closest("[data-add]");
   if (add) { addSearchedCity(add); return; }
@@ -2995,6 +3102,7 @@ document.addEventListener("keydown", ev => {
     if (ev.key === " " && ev.target === document.body) { ev.preventDefault(); radar.playing ? stopRadarPlay() : startRadarPlay(); return; }
     if (ev.key === "Escape") { $("#rvLayers").hidden = true; return; }
   }
+  if (ev.key === "Escape" && state.tab === "weather" && state.weatherItem) { closeWeatherItem(); return; }
   if (ev.key === "Enter" || ev.key === " ") {
     const row = ev.target.closest && ev.target.closest("tr[data-open]");
     if (row) { ev.preventDefault(); openSheet(row.getAttribute("data-open")); }
@@ -3055,14 +3163,27 @@ $("#sortSel").value = state.sort;
 $("#unitSel").value = state.unit;
 loadCache();          // 直近のキャッシュがあれば即座に表示（オフラインでも中身が見える）
 render();
-const hashTab = (location.hash || "").slice(1);
-setTab(TABS.indexOf(hashTab) >= 0 ? hashTab : state.tab);
+const hashParts = (location.hash || "").slice(1).split("/");
+if (hashParts[0] === "weather" && WEATHER_ITEMS.indexOf(hashParts[1]) >= 0) state.weatherItem = hashParts[1];
+setTab(TABS.indexOf(hashParts[0]) >= 0 ? hashParts[0] : state.tab, { keepItem: true });
 refresh(false);
 
-window.addEventListener("hashchange", () => {
-  const t = (location.hash || "").slice(1);
-  if (TABS.indexOf(t) >= 0 && t !== state.tab) setTab(t);
-});
+/** 戻る・進む操作や URL の直接入力に追従する */
+function followHash() {
+  const parts = (location.hash || "").slice(1).split("/");
+  const t = parts[0];
+  if (t === "weather") {
+    const item = WEATHER_ITEMS.indexOf(parts[1]) >= 0 ? parts[1] : null;
+    const back = !!state.weatherItem && !item;
+    state.weatherItem = item;
+    if (state.tab !== "weather") setTab("weather", { keepItem: true });
+    else if (state.openCity) openSheet(state.openCity, state.openDay, { anim: back ? "back" : item ? "forward" : null });
+  } else if (TABS.indexOf(t) >= 0 && t !== state.tab) {
+    setTab(t);
+  }
+}
+window.addEventListener("popstate", followHash);
+window.addEventListener("hashchange", followHash);
 
 let radarResizeTimer = null;
 window.addEventListener("resize", () => {
