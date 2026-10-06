@@ -188,6 +188,7 @@ const state = {
   weatherItem: null,    // 「天気」タブで開いている項目（null は一覧）
   radarCity: null,      // 雨雲レーダーの中心にしている地点
   radarBase: "photo",   // レーダーの背景地図 photo / std / pale
+  notify: { on: false, rain: true, warn: true, watch: null },   // 通知の設定（watch は雨を見張る地点）
   data: new Map(),      // cityId -> normalized forecast
   errors: new Map(),    // cityId -> message
   alerts: new Map(),    // 府県予報区コード -> 気象庁の警報・注意報
@@ -223,6 +224,12 @@ function loadState() {
     if (["photo", "std", "pale"].includes(s.radarBase)) state.radarBase = s.radarBase;
     if (valid(s.weatherCity)) state.weatherCity = s.weatherCity;
     if (valid(s.radarCity)) state.radarCity = s.radarCity;
+    if (s.notify && typeof s.notify === "object") {
+      state.notify.on = s.notify.on === true;
+      state.notify.rain = s.notify.rain !== false;
+      state.notify.warn = s.notify.warn !== false;
+      state.notify.watch = valid(s.notify.watch) ? s.notify.watch : null;
+    }
     if (!state.selected.length) state.selected = DEFAULT_SELECTED.slice();
     // ピン留めは必ず表示対象に含める
     state.pinned.forEach(id => { if (!state.selected.includes(id)) state.selected.push(id); });
@@ -233,7 +240,8 @@ function saveState() {
     localStorage.setItem(STORE_KEY, JSON.stringify({
       selected: state.selected, pinned: state.pinned, custom: state.custom,
       unit: state.unit, view: state.view, sort: state.sort, theme: state.theme,
-      tab: state.tab, weatherCity: state.weatherCity, radarCity: state.radarCity, radarBase: state.radarBase
+      tab: state.tab, weatherCity: state.weatherCity, radarCity: state.radarCity, radarBase: state.radarBase,
+      notify: state.notify
     }));
   } catch (e) { /* プライベートモード等で保存できなくても動作は継続 */ }
 }
@@ -502,6 +510,7 @@ async function refresh(showBusy) {
     ]);
     state.fetchedAt = Date.now();
     saveCache();
+    checkWarningNotices();
   } finally {
     state.loading = false;
     btn.removeAttribute("aria-busy");
@@ -2164,6 +2173,217 @@ function renderNews() {
   box.innerHTML = html;
 }
 
+/* ============================================================
+ * 7c. 通知（アプリを開いている間だけ）
+ *   サーバーは使わず、開いているページが定期的に確認して端末の通知を出す。
+ *   - 雨: 見張る地点の「◯分後に雨が降り出します／強まります」を 5 分ごとに確認する
+ *   - 警報: 自動更新（15 分ごと）のたびに、気象庁の警報・注意報で新しく出たものを知らせる
+ *   同じ内容を繰り返し知らせないよう、知らせた内容をこの端末に記録する。
+ * ============================================================ */
+const NOTIFY_KEY = "soranarabe.notify.v1";
+const RAIN_CHECK_MS = 5 * 60 * 1000;
+const RAIN_REPEAT_MS = 60 * 60 * 1000;      // 同じ地点・同じ種類の雨は 1 時間は再通知しない
+const notifySupported = typeof window.Notification === "function";
+let rainCheckBusy = false;
+let rainSampleFailed = null;
+let lastWarnCheck = 0;
+
+function notifyPermission() {
+  return notifySupported ? Notification.permission : "unsupported";
+}
+function loadNotifyLog() {
+  try {
+    const o = JSON.parse(localStorage.getItem(NOTIFY_KEY) || "{}");
+    return o && typeof o === "object" ? o : {};
+  } catch (e) { return {}; }
+}
+function saveNotifyLog(log) {
+  try { localStorage.setItem(NOTIFY_KEY, JSON.stringify(log)); } catch (e) { /* 保存できなくても通知は出す */ }
+}
+
+/** 端末の通知を出す。Android の Chrome は Service Worker 経由でしか出せないため、そちらを優先する。 */
+async function showNotice(title, body, hash, tag) {
+  if (notifyPermission() !== "granted") return false;
+  const opts = { body: body, tag: tag, renotify: true, lang: "ja", icon: "icon-192.png", badge: "icon-192.png", data: { hash: hash } };
+  try {
+    const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (reg && reg.showNotification) { await reg.showNotification(title, opts); return true; }
+  } catch (e) { /* 下の方法で出す */ }
+  try {
+    const n = new Notification(title, opts);
+    n.onclick = () => { window.focus(); if (hash) location.hash = hash; n.close(); };
+    return true;
+  } catch (e) { return false; }
+}
+
+/** 雨を見張る地点（指定 → 現在地 → レーダーで見ている地点 → ピン留め → 先頭の地点） */
+function notifyWatchCity() {
+  const ok = id => !!id && CITY_BY_ID.has(id) && state.selected.indexOf(id) >= 0;
+  if (ok(state.notify.watch)) return CITY_BY_ID.get(state.notify.watch);
+  if (ok(CURRENT_LOCATION_ID)) return CITY_BY_ID.get(CURRENT_LOCATION_ID);
+  if (ok(state.radarCity)) return CITY_BY_ID.get(state.radarCity);
+  const id = state.pinned.find(ok) || state.selected.find(ok);
+  return id ? CITY_BY_ID.get(id) : null;
+}
+
+/** 見張る地点の1時間先までの雨を調べ、降り出し・強まりがあれば知らせる */
+async function rainWatchTick() {
+  if (!state.notify.on || !state.notify.rain || notifyPermission() !== "granted" || rainCheckBusy) return;
+  const city = notifyWatchCity();
+  if (!city) return;
+  rainCheckBusy = true;
+  try {
+    let series = null;
+    const r = await loadRadarTimes();
+    const t0 = r.lastObs >= 0 ? r.times[r.lastObs] : null;
+    if (t0 && rainSampleFailed !== t0.validtime) {
+      try {
+        const base = parseJmaTime(t0.validtime);
+        const points = await Promise.all(r.times.slice(r.lastObs).map(async t => ({
+          min: Math.round((parseJmaTime(t.validtime) - base) / 60000),
+          level: await sampleLevel(t, city.lat, city.lon)
+        })));
+        series = { source: "nowcast", at: base, points: points };
+      } catch (e) { rainSampleFailed = t0.validtime; }
+    }
+    if (!series) series = modelSeries(city);
+    if (!series) return;
+    const h = makeHeadline(series);
+    const m = /(\d+)分後に雨が(降り出し|強まり)/.exec(h.title);
+    if (!m) return;
+    const kind = m[2] === "降り出し" ? "start" : "up";
+    const log = loadNotifyLog();
+    const prev = log.rain;
+    if (prev && prev.city === city.id && prev.kind === kind && Date.now() - prev.at < RAIN_REPEAT_MS) return;
+    log.rain = { city: city.id, kind: kind, at: Date.now() };
+    saveNotifyLog(log);
+    // 数値予報（1時間値）では分単位の時刻は出せないので、言い方を変える
+    const title = placeName(city) + "：" + (series.source === "nowcast" ? h.title
+      : "1時間以内に雨が" + (kind === "start" ? "降り出す" : "強まる") + "見込みです");
+    await showNotice(title, h.advice + (series.source === "nowcast" ? "" : "（数値予報による目安）"), "#radar", "soranarabe-rain");
+  } catch (e) {
+    /* 確認に失敗しても次の回に任せる */
+  } finally {
+    rainCheckBusy = false;
+  }
+}
+
+/**
+ * 気象庁の警報・注意報で、前回から新しく出たものを知らせる。
+ * 初めて見る地点（通知を有効にした直後・地点を追加した直後）は、いま出ているものを基準として記録するだけにする。
+ */
+function checkWarningNotices() {
+  lastWarnCheck = Date.now();
+  if (!state.notify.on || !state.notify.warn) return;
+  const log = loadNotifyLog();
+  const seen = log.warn && typeof log.warn === "object" ? log.warn : {};
+  const fresh = [];
+  state.selected.forEach(id => {
+    const a = alertsFor(id);
+    if (!a || a.source !== "jma") return;   // 取得できなかった府県は前回の記録を保つ
+    const names = uniqueAlertNames(a);
+    const prev = seen[id];
+    seen[id] = names;
+    if (!Array.isArray(prev)) return;
+    const added = names.filter(n => prev.indexOf(n) < 0)
+      .sort((x, y) => warningSeverity(y) - warningSeverity(x));
+    if (added.length) fresh.push({ city: CITY_BY_ID.get(id), added: added });
+  });
+  Object.keys(seen).forEach(id => { if (state.selected.indexOf(id) < 0) delete seen[id]; });
+  log.warn = seen;
+  saveNotifyLog(log);
+  if (!fresh.length) return;
+  const top = Math.max.apply(null, fresh.map(f => warningSeverity(f.added[0])));
+  const kindLabel = top >= 2 ? "警報" : "注意報";
+  if (fresh.length === 1) {
+    showNotice(placeName(fresh[0].city) + "：" + fresh[0].added.join("・") + "が発表されました",
+      "気象庁の発表です。最新の情報を確認してください。", "#news", "soranarabe-warn");
+  } else {
+    showNotice(fresh.length + "地点で" + kindLabel + "が発表されました",
+      fresh.slice(0, 4).map(f => placeName(f.city) + "：" + f.added.join("・")).join("\n")
+        + (fresh.length > 4 ? "\nほか" + (fresh.length - 4) + "地点" : ""), "#news", "soranarabe-warn");
+  }
+}
+
+/** 通知の定期確認。画面を閉じずに裏に回しているあいだは、警報だけ自分で取りに行く。 */
+async function notifyTick() {
+  if (!state.notify.on || notifyPermission() !== "granted") return;
+  if (state.notify.warn && document.hidden && !state.loading && Date.now() - lastWarnCheck > AUTO_REFRESH_MS) {
+    try { await refreshAlerts(); } catch (e) { /* 次の回に任せる */ }
+    checkWarningNotices();
+  }
+  await rainWatchTick();
+}
+
+/** メニューの「通知を受け取る」。許可のダイアログはボタン操作の中で出す必要がある。 */
+async function enableNotify() {
+  if (!notifySupported) return;
+  let perm = Notification.permission;
+  if (perm === "default") {
+    try { perm = await Notification.requestPermission(); } catch (e) { perm = Notification.permission; }
+  }
+  if (perm === "granted") {
+    state.notify.on = true;
+    const log = loadNotifyLog();
+    log.warn = {};            // いま出ている警報は基準として記録し直す（有効にした瞬間に通知しない）
+    saveNotifyLog(log);
+    saveState();
+    checkWarningNotices();
+    rainWatchTick();
+  }
+  renderMenu();
+}
+
+function applyNotifySetting(name, val) {
+  if (name === "off") state.notify.on = false;
+  else if (name === "rain" || name === "warn") {
+    state.notify[name] = val === "on";
+    if (name === "warn" && state.notify.warn) { const log = loadNotifyLog(); log.warn = {}; saveNotifyLog(log); checkWarningNotices(); }
+    if (name === "rain" && state.notify.rain) rainWatchTick();
+  } else if (name === "watch") {
+    state.notify.watch = CITY_BY_ID.has(val) ? val : null;
+    const log = loadNotifyLog(); delete log.rain; saveNotifyLog(log);
+    rainWatchTick();
+  } else return;
+  saveState();
+  renderMenu();
+}
+
+function notifyMenuHtml(seg) {
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const standalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+  const perm = notifyPermission();
+  let html = '<div class="menu-group" id="notifyGroup"><div class="menu-cap">通知</div>';
+  if (perm === "unsupported") {
+    html += '<div class="menu-note">' + (ios && !standalone
+      ? "iPhone・iPad では、Safari の共有ボタンから「ホーム画面に追加」したアプリで通知を使えます（iOS 16.4 以降）。"
+      : "このブラウザは通知に対応していません。") + '</div>';
+    return html + '</div>';
+  }
+  if (perm === "denied") {
+    html += '<div class="menu-note">通知がブロックされています。ブラウザ（またはアプリ）の設定で、このサイトの通知を許可してください。</div>';
+    return html + '</div>';
+  }
+  if (!state.notify.on || perm !== "granted") {
+    html += '<button type="button" class="menu-link" id="notifyOn">通知を受け取る</button>'
+      + '<div class="menu-note">雨の降り出し・強まりと、気象警報・注意報の発表をお知らせします。</div>';
+    return html + '</div>';
+  }
+  const watch = notifyWatchCity();
+  const opts = state.selected.map(id => CITY_BY_ID.get(id)).filter(Boolean).map(c =>
+    '<option value="' + esc(c.id) + '"' + (watch && watch.id === c.id ? " selected" : "") + '>'
+    + esc(c.isCurrent ? "現在地（" + placeName(c) + "）" : c.name) + '</option>').join("");
+  html += '<div class="menu-row"><span>雨の降り出し・強まり</span>' + seg("n-rain", state.notify.rain ? "on" : "off", [["on", "オン"], ["off", "オフ"]]) + '</div>'
+    + (state.notify.rain ? '<div class="menu-row"><span>雨を見張る地点</span><select class="menu-select" id="notifyWatch" aria-label="雨を見張る地点">' + opts + '</select></div>' : '')
+    + '<div class="menu-row"><span>警報・注意報の発表</span>' + seg("n-warn", state.notify.warn ? "on" : "off", [["on", "オン"], ["off", "オフ"]]) + '</div>'
+    + '<button type="button" class="menu-link" id="notifyTest">テスト通知を送る</button>'
+    + '<button type="button" class="menu-link menu-link-sub" data-set="n-off" data-val="off">通知をやめる</button>'
+    + '<div class="menu-note">そらならべを開いている間だけ確認します（雨は5分ごと、警報は15分ごと）。アプリを閉じている間は届きません。'
+    + (ios && !standalone ? "iPhone・iPad では、ホーム画面に追加したアプリから開いてください。" : "")
+    + '警報・注意報は登録している地点が対象です。</div>';
+  return html + '</div>';
+}
+
 /* ---- メニュー ---- */
 let installPrompt = null;
 window.addEventListener("beforeinstallprompt", ev => { ev.preventDefault(); installPrompt = ev; if (state.tab === "menu") renderMenu(); });
@@ -2183,6 +2403,7 @@ function renderMenu() {
     + '<div class="menu-row"><span>地域の天気の表示</span>' + seg("view", state.view, [["cards", "カード"], ["table", "比較表"]]) + '</div>'
     + '<div class="menu-row"><span>雨雲レーダーの地図</span>' + seg("base", state.radarBase, [["photo", "航空写真"], ["std", "地図"], ["pale", "淡色"]]) + '</div>'
     + '</div>'
+    + notifyMenuHtml(seg)
     + '<div class="menu-group"><div class="menu-cap">地点</div>'
     + '<button type="button" class="menu-link" data-geo data-geo-menu>現在地の天気を追加</button>'
     + '<button type="button" class="menu-link" data-goto="region" data-picker>地点を追加・削除</button>'
@@ -3183,7 +3404,16 @@ document.addEventListener("click", ev => {
     return;
   }
 
+  if (ev.target.closest("#notifyOn")) { enableNotify(); return; }
+  if (ev.target.closest("#notifyTest")) {
+    showNotice("そらならべ：テスト通知", "このように雨や警報・注意報をお知らせします。", "#menu", "soranarabe-test");
+    return;
+  }
   const set = ev.target.closest("[data-set]");
+  if (set && set.getAttribute("data-set").indexOf("n-") === 0) {
+    applyNotifySetting(set.getAttribute("data-set").slice(2), set.getAttribute("data-val"));
+    return;
+  }
   if (set) { applySetting(set.getAttribute("data-set"), set.getAttribute("data-val")); return; }
 
   if (ev.target.closest("#installBtn") && installPrompt) {
@@ -3365,6 +3595,18 @@ if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
 }
 
 setInterval(() => { if (!document.hidden) refresh(false); }, AUTO_REFRESH_MS);
+setInterval(notifyTick, RAIN_CHECK_MS);
+setTimeout(rainWatchTick, 8000);     // 起動直後の予報取得を待ってから一度確認する
+document.addEventListener("change", ev => {
+  if (ev.target && ev.target.id === "notifyWatch") applyNotifySetting("watch", ev.target.value);
+});
+// 通知をタップしたとき、開いている画面を該当のタブへ切り替える（sw.js から届く）
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", ev => {
+    const d = ev.data || {};
+    if (d.type === "open" && typeof d.hash === "string" && /^#[a-z]+$/.test(d.hash)) location.hash = d.hash;
+  });
+}
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && state.fetchedAt && Date.now() - state.fetchedAt > AUTO_REFRESH_MS) refresh(false);
 });

@@ -3,7 +3,7 @@
  *   天気・警報・タイルなどの外部 API は一切キャッシュしない。
  *   予報の中身は app.js 側が localStorage に 3 時間だけ持つ。
  */
-const CACHE = "soranarabe-shell-v2";
+const CACHE = "soranarabe-shell-v3";
 const SHELL = ["./", "./index.html", "./app.js", "./manifest.webmanifest",
                "./icon-192.png", "./icon-512.png"];
 
@@ -37,5 +37,22 @@ self.addEventListener("fetch", ev => {
         return res;
       })
       .catch(() => caches.match(req).then(hit => hit || caches.match("./index.html")))
+  );
+});
+
+// 通知をタップしたら、開いている画面があればそれを前に出して該当のタブへ、無ければ新しく開く
+self.addEventListener("notificationclick", ev => {
+  ev.notification.close();
+  const hash = (ev.notification.data && ev.notification.data.hash) || "";
+  const safeHash = /^#[a-z]+$/.test(hash) ? hash : "";
+  ev.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+      const mine = list.find(c => new URL(c.url).origin === self.location.origin);
+      if (mine) {
+        mine.postMessage({ type: "open", hash: safeHash });
+        return mine.focus();
+      }
+      return self.clients.openWindow("./" + safeHash);
+    })
   );
 });
