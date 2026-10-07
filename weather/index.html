@@ -2,7 +2,7 @@
 <html lang="ja" data-theme="auto">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://www.jma.go.jp https://cyberjapandata.gsi.go.jp; connect-src https://api.open-meteo.com https://air-quality-api.open-meteo.com https://geocoding-api.open-meteo.com https://www.jma.go.jp; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <title>そらならべ — 日本の天気を、ならべて見る</title>
 <meta name="description" content="名古屋・大阪・札幌・東京・長崎・福岡・那覇・神戸・熊本をはじめ、全国56地点＋任意の地点の天気予報・気象警報を、ひとつの画面に並べて比べられるダッシュボードです。">
@@ -566,8 +566,14 @@ table.compare.hours tbody tr { cursor: default; }
 /* ============================================================
    app shell — 画面下部のタブで切り替えるアプリ型のレイアウト
    ============================================================ */
-:root { --tabbar-h: 64px; }
-body { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
+:root {
+  --tabbar-h: 64px;
+  --tabbar-gap: 0px;                                   /* 画面下端からの浮かせ幅（スマホで使う） */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);     /* iPhone のホームバーの分 */
+  /* タブバーが画面下で占める高さの合計。本文の余白とレーダーの下端はこれに合わせる */
+  --tabbar-space: calc(var(--tabbar-h) + var(--safe-bottom) + var(--tabbar-gap));
+}
+body { padding-bottom: var(--tabbar-space); }
 .tab-page[hidden] { display: none !important; }
 body[data-tab="radar"] { overflow: hidden; }
 body[data-tab="radar"] .site-header { display: none; }
@@ -578,8 +584,8 @@ body:not([data-tab="region"]) .header-actions .seg { display: none; }
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
   display: grid; grid-template-columns: repeat(5, 1fr);
-  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
+  height: calc(var(--tabbar-h) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
   background: color-mix(in srgb, var(--surface) 95%, transparent);
   -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%);
   border-top: 1px solid var(--border);
@@ -594,6 +600,23 @@ body:not([data-tab="region"]) .header-actions .seg { display: none; }
 .tabbar svg { width: 28px; height: 28px; }
 .tabbar svg .stroke, .tabbar svg .fill { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .tabbar button.on { color: var(--accent); }
+/* スマホ: 画面の下端から浮かせた角丸のバーにして、指が届きやすく見やすい位置に上げる */
+@media (max-width: 640px) {
+  :root { --tabbar-h: 68px; --tabbar-gap: 14px; }
+  .tabbar {
+    left: 10px; right: 10px; bottom: calc(var(--safe-bottom) + var(--tabbar-gap));
+    height: var(--tabbar-h); padding-bottom: 0;
+    border: 1px solid var(--border); border-radius: 22px;
+    box-shadow: 0 8px 28px rgba(20, 32, 52, .18), 0 2px 6px rgba(20, 32, 52, .08);
+  }
+  .tabbar button { font-size: 11px; gap: 3px; padding: 7px 2px 6px; }
+  .tabbar svg { width: 27px; height: 27px; }
+  .tabbar button.on::before {
+    content: ""; position: absolute; inset: 6px 3px; border-radius: 16px; background: var(--accent-soft); z-index: -1;
+  }
+  .tabbar button { z-index: 0; }
+  .tab-dot { top: 9px; }
+}
 @media (max-width: 360px) { .tabbar button { font-size: 9.5px; letter-spacing: 0; } }
 .tabbar button.on svg .fill { fill: currentColor; }
 .tabbar button:focus-visible { outline-offset: -4px; }
@@ -723,6 +746,11 @@ body:not([data-tab="region"]) .header-actions .seg { display: none; }
 }
 .menu-cap + .menu-link { border-top: 0; }
 .menu-link[aria-busy="true"] { opacity: .6; }
+.menu-link-sub { color: var(--text-2); font-weight: 500; }
+.menu-select {
+  max-width: 58%; padding: 7px 28px 7px 10px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface-sunk); color: var(--text); font: inherit; font-size: 13.5px;
+}
 .menu-note { font-size: 12.5px; color: var(--text-2); line-height: 1.75; margin: 6px 0 2px; }
 .menu-list { margin: 4px 0; padding-left: 18px; font-size: 12.5px; color: var(--text-2); line-height: 1.8; }
 .menu-list a { color: var(--accent-text); }
@@ -732,7 +760,7 @@ body:not([data-tab="region"]) .header-actions .seg { display: none; }
    雨雲レーダー（全画面）
    ============================================================ */
 .radar-page {
-  position: fixed; inset: 0 0 calc(var(--tabbar-h) + env(safe-area-inset-bottom)) 0; z-index: 10;
+  position: fixed; inset: 0; z-index: 10;   /* 地図はタブバーの後ろまで広げ、操作部品だけをタブバーの上に置く */
   overflow: hidden; background: #0d1a2e; color: #fff;
 }
 .radar-map {
@@ -808,7 +836,7 @@ button.rv-place:hover { background: rgba(255,255,255,.2); }
 .rv-chev-btn:hover { background: rgba(255,255,255,.12); }
 
 .rv-pick {
-  position: absolute; z-index: 7; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); bottom: 12px;
+  position: absolute; z-index: 7; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); bottom: calc(var(--tabbar-space) + 12px);
   max-width: 460px; display: flex; flex-direction: column; padding: 14px 14px 10px; background: rgba(16, 29, 54, .92);
 }
 .rv-pick[hidden] { display: none; }
@@ -932,7 +960,7 @@ button.rv-place:hover { background: rgba(255,255,255,.2); }
 .rv-msg[hidden], .rv-toast[hidden] { display: none; }
 
 .rv-bottom {
-  position: absolute; left: 12px; right: 12px; bottom: 10px; z-index: 3;
+  position: absolute; left: 12px; right: 12px; bottom: calc(var(--tabbar-space) + 10px); z-index: 3;
   display: flex; flex-direction: column; gap: 9px; pointer-events: none;
 }
 .rv-bottom > * { pointer-events: auto; }
@@ -1015,7 +1043,7 @@ button.rv-place:hover { background: rgba(255,255,255,.2); }
   .rv-tools { right: 8px; gap: 10px; }
   .rv-fab { width: 44px; height: 44px; }
   .rv-fab-group .rv-fab { height: 46px; }
-  .rv-bottom { left: 8px; right: 8px; bottom: 8px; gap: 7px; }
+  .rv-bottom { left: 8px; right: 8px; bottom: calc(var(--tabbar-space) + 8px); gap: 7px; }
   .rv-cards { gap: 6px; }
   .rv-card { padding: 8px 9px 9px; border-radius: 14px; }
   .rv-card-when { font-size: 12px; }
