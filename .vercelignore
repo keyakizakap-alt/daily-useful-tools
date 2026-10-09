@@ -1,5 +1,6 @@
 # リポジトリ直下を Root Directory とする Vercel プロジェクトで配信しないもの（開発用のファイル）。
-# このプロジェクトでトップページと全アプリ（love-type / weather / gcp-cert / mail-check）を配信する。
+# このプロジェクトでトップページと全アプリ（love-type / weather / gcp-cert / mail-check /
+# holiday-planner）を配信する。
 # gcp-cert/ と mail-check/ は、Root Directory を指定した別プロジェクトとしても配信できる
 # （その場合は各フォルダの vercel.json と .vercelignore が使われる）。
 /love-type/tools
@@ -9,3 +10,9 @@
 /mail-check/tests
 /mail-check/package.json
 /mail-check/package-lock.json
+/holiday-planner/docs
+/holiday-planner/feedback
+/holiday-planner/tests
+/holiday-planner/package.json
+/holiday-planner/package-lock.json
+/PR_DESCRIPTION.md

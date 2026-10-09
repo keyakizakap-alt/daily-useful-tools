@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'none'; font-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>とびいし — 飛び石連休プランナー</title>
+<meta name="description" content="国民の祝日・振替休日・国民の休日と自分の週休を重ねて、最小の有給で最長の連休になる日を計算します。入力はどこにも送信されません。">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="brand">
+      <h1>とびいし</h1>
+      <p class="tagline">その1日を、どこに置くか。</p>
+    </div>
+    <div class="header-tools">
+      <p class="local-badge">このページは通信を一切行いません。入力は端末内だけで計算されます</p>
+      <div class="theme-switch" role="group" aria-label="表示テーマ">
+        <button type="button" data-theme-value="light" aria-pressed="false">ライト</button>
+        <button type="button" data-theme-value="dark" aria-pressed="false">ダーク</button>
+        <button type="button" data-theme-value="system" aria-pressed="true">自動</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ============ 設定 ============ -->
+  <section class="panel panel-settings" aria-labelledby="settings-heading">
+    <h2 id="settings-heading">設定</h2>
+    <p class="panel-note">何も変えずに使えます。自分の休みの形に合わせると結果が変わります。</p>
+
+    <div class="field">
+      <label for="year">対象の年</label>
+      <select id="year"></select>
+      <span class="hint">今年を選ぶと今日からの期間になります。開始日は「詳しい設定」で変えられます。</span>
+    </div>
+
+    <div class="field">
+      <span class="field-label" id="dow-label">休みの曜日</span>
+      <div class="dow-grid" role="group" aria-labelledby="dow-label">
+        <label><input type="checkbox" class="dow-check" data-dow="0"><span>日</span></label>
+        <label><input type="checkbox" class="dow-check" data-dow="1"><span>月</span></label>
+        <label><input type="checkbox" class="dow-check" data-dow="2"><span>火</span></label>
+        <label><input type="checkbox" class="dow-check" data-dow="3"><span>水</span></label>
+        <label><input type="checkbox" class="dow-check" data-dow="4"><span>木</span></label>
+        <label><input type="checkbox" class="dow-check" data-dow="5"><span>金</span></label>
+        <label><input type="checkbox" class="dow-check" data-dow="6"><span>土</span></label>
+      </div>
+      <span class="hint">シフト勤務の方は実際の休みの曜日を選んでください。</span>
+    </div>
+
+    <div class="field">
+      <span class="field-label">会社の休み</span>
+      <label class="check-row"><input type="checkbox" id="company-newyear"><span>年末年始休業（12月29日〜1月3日）</span></label>
+      <label class="check-row"><input type="checkbox" id="company-obon"><span>お盆休み（8月13日〜16日）</span></label>
+    </div>
+
+    <div class="field">
+      <label for="budget">1年で使ってよい有給（日）</label>
+      <input type="number" id="budget" min="0" max="40" step="1" inputmode="numeric">
+      <span class="hint">「年間プラン」の自動編成がこの日数以内に収めます。</span>
+    </div>
+
+    <div class="field">
+      <label for="max-take">1つの連休に使う有給の上限（日）</label>
+      <input type="number" id="max-take" min="1" max="30" step="1" inputmode="numeric">
+    </div>
+
+    <div class="field">
+      <label for="min-length">連休とみなす最短の日数</label>
+      <select id="min-length">
+        <option value="3">3日以上</option>
+        <option value="4">4日以上</option>
+        <option value="5">5日以上</option>
+        <option value="7">7日以上</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="sort">おすすめの並び順</label>
+      <select id="sort">
+        <option value="efficiency">効率（有給1日あたりの休み）</option>
+        <option value="length">連休の長さ</option>
+        <option value="date">日付の早い順</option>
+      </select>
+      <label class="check-row mt-8"><input type="checkbox" id="opt-show-all"><span>同じ時期の候補もすべて出す（既定は重ならない代表だけ）</span></label>
+    </div>
+
+    <div class="field">
+      <span class="field-label" id="blackout-label-text">休めない期間（繁忙期など）</span>
+      <div class="inline-fields">
+        <input type="date" id="blackout-from" aria-label="休めない期間の開始日">
+        <input type="date" id="blackout-to" aria-label="休めない期間の終了日">
+      </div>
+      <div class="inline-fields mt-6">
+        <input type="text" id="blackout-name" maxlength="40" placeholder="名前（任意）" aria-label="休めない期間の名前">
+        <button type="button" class="ghost" id="btn-add-blackout">追加</button>
+      </div>
+      <p class="field-status" id="blackout-status" aria-live="polite"></p>
+      <ul class="blackout-list" id="blackout-list" aria-labelledby="blackout-label-text"></ul>
+      <p class="empty-note" id="blackout-empty">まだ登録されていません。</p>
+    </div>
+
+    <details class="advanced">
+      <summary>詳しい設定</summary>
+      <div>
+        <div class="field">
+          <label for="range-from">対象期間の開始</label>
+          <input type="date" id="range-from">
+        </div>
+        <div class="field">
+          <label for="range-to">対象期間の終了</label>
+          <input type="date" id="range-to">
+          <span class="hint">年の選択を変えると、この期間も書き換わります。</span>
+        </div>
+        <label class="check-row"><input type="checkbox" id="opt-remember"><span>この端末に設定と選んだプランを保存する（既定は保存しません）</span></label>
+        <div class="button-row">
+          <button type="button" class="ghost" id="btn-export">設定を書き出す</button>
+          <button type="button" class="ghost" id="btn-import">設定を読み込む</button>
+          <button type="button" class="ghost" id="btn-reset">初期化</button>
+        </div>
+        <div class="field mt-10">
+          <label for="io-text">書き出し／読み込み用の JSON</label>
+          <textarea id="io-text" rows="4" spellcheck="false"></textarea>
+          <span class="hint" id="io-status"></span>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- ============ 結果 ============ -->
+  <div>
+    <section class="panel summary-panel mb-20" aria-labelledby="summary-heading">
+      <h2 id="summary-heading" class="visually-hidden">結果の要約</h2>
+      <p class="summary-text" id="summary" aria-live="polite"></p>
+      <ul class="stats">
+        <li><span class="stat-label">一番効率のよい連休</span><span class="stat-value" id="stat-best">—</span><span class="stat-sub" id="stat-best-sub"></span></li>
+        <li><span class="stat-label">対象期間で最長の連休</span><span class="stat-value" id="stat-longest">—</span><span class="stat-sub" id="stat-longest-sub"></span></li>
+        <li><span class="stat-label">有給なしの3連休以上</span><span class="stat-value" id="stat-natural">—</span><span class="stat-sub" id="stat-natural-sub"></span></li>
+      </ul>
+    </section>
+
+    <section class="panel" aria-labelledby="result-heading">
+      <h2 id="result-heading" class="visually-hidden">プランとカレンダー</h2>
+
+      <div class="tabs" role="tablist" aria-label="表示の切り替え">
+        <button type="button" role="tab" id="tab-plans" aria-controls="panel-plans" aria-selected="true">おすすめ</button>
+        <button type="button" role="tab" id="tab-year" aria-controls="panel-year" aria-selected="false" tabindex="-1">年間プラン</button>
+        <button type="button" role="tab" id="tab-calendar" aria-controls="panel-calendar" aria-selected="false" tabindex="-1">カレンダー</button>
+        <button type="button" role="tab" id="tab-holidays" aria-controls="panel-holidays" aria-selected="false" tabindex="-1">祝日</button>
+      </div>
+
+      <!-- おすすめ -->
+      <div role="tabpanel" id="panel-plans" aria-labelledby="tab-plans" tabindex="0">
+        <p class="empty-note" id="plan-note"></p>
+        <ul class="plan-list" id="plan-list"></ul>
+        <p class="empty-note" id="plan-empty" hidden>条件に合う連休が見つかりませんでした。「連休とみなす最短の日数」を短くするか、有給の上限を増やしてみてください。</p>
+        <h3 class="subhead">有給なしで休める週</h3>
+        <ul class="plan-list" id="natural-list"></ul>
+        <p class="empty-note" id="natural-empty" hidden>該当する週はありません。</p>
+      </div>
+
+      <!-- 年間プラン -->
+      <div role="tabpanel" id="panel-year" aria-labelledby="tab-year" tabindex="0" hidden>
+        <div class="button-row mb-12">
+          <button type="button" class="primary" id="btn-compose">予算内で自動編成する</button>
+          <button type="button" class="ghost" id="btn-clear-picked">選択をすべて外す</button>
+        </div>
+        <p class="year-summary" id="year-summary" aria-live="polite"></p>
+        <ul class="plan-list" id="picked-list"></ul>
+        <p class="empty-note" id="picked-empty">まだ選ばれていません。「おすすめ」から追加するか、自動編成を押してください。</p>
+        <div class="request-wrap">
+          <h3 class="subhead subhead-tight">申請用のテキスト</h3>
+          <textarea id="request-text" rows="10" readonly spellcheck="false" aria-label="申請用のテキスト"></textarea>
+          <div class="button-row mt-8">
+            <button type="button" class="ghost" id="btn-copy">コピーする</button>
+          </div>
+          <p class="copy-status" id="copy-status" aria-live="polite"></p>
+        </div>
+      </div>
+
+      <!-- カレンダー -->
+      <div role="tabpanel" id="panel-calendar" aria-labelledby="tab-calendar" tabindex="0" hidden>
+        <ul class="legend">
+          <li><span class="swatch" data-kind="holiday">祝</span>祝日・振替休日・国民の休日</li>
+          <li><span class="swatch" data-kind="weekly">週</span>週休</li>
+          <li><span class="swatch" data-kind="company">社</span>会社の休み</li>
+          <li><span class="swatch" data-kind="paid">有</span>選んだ有給</li>
+          <li><span class="swatch" data-kind="blackout">×</span>休めない期間</li>
+        </ul>
+        <div class="calendar" id="calendar"></div>
+      </div>
+
+      <!-- 祝日 -->
+      <div role="tabpanel" id="panel-holidays" aria-labelledby="tab-holidays" tabindex="0" hidden>
+        <table class="holiday-table">
+          <caption class="visually-hidden">対象年の国民の祝日・振替休日・国民の休日</caption>
+          <thead><tr><th scope="col">日付</th><th scope="col">名称</th><th scope="col">種別</th></tr></thead>
+          <tbody id="holiday-tbody"></tbody>
+        </table>
+        <p class="empty-note" id="holiday-note"></p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="footnote">
+  <h2>祝日データについて</h2>
+  <ul>
+    <li>国民の祝日は祝日法（昭和23年法律第178号）の規則から計算しています。日付の一覧を直接持っていません。</li>
+    <li><strong>春分の日・秋分の日は近似式（有効 1980〜2099年）による推定</strong>です。実際の祝日は前年2月の官報で確定するため、確定前の年は1日ずれる可能性があります。</li>
+    <li>振替休日は「日曜の祝日のあと、祝日でない最初の日」。国民の休日は「祝日に挟まれた平日」として計算しています。</li>
+    <li>2020年・2021年の海の日・スポーツの日・山の日は、東京五輪に伴う移動後の日付です。</li>
+    <li>対応年は 2020〜2050年。2050年までの日付は現行法の規則を延長したもので、法改正があれば変わります。</li>
+    <li>会社の休み（年末年始・お盆）は一般的な例としての既定値です。実際の就業規則に合わせて設定してください。</li>
+  </ul>
+  <h2>扱わないこと</h2>
+  <ul>
+    <li>有給の付与日数・時効の管理、休日出勤・代休・半休・時間単位年休。</li>
+    <li>会社の承認可能性。提案は暦の上での計算結果です。</li>
+  </ul>
+</div>
+
+<!-- ============ テンプレート ============ -->
+
+<template id="tpl-plan">
+  <li class="plan">
+    <div class="plan-head">
+      <span class="plan-range"></span>
+      <span class="plan-length"></span>
+    </div>
+    <p class="plan-desc"></p>
+    <div class="plan-bar" aria-hidden="true"></div>
+    <ul class="plan-take"></ul>
+    <div class="plan-foot">
+      <span class="plan-eff"></span>
+      <button type="button" class="ghost plan-toggle"></button>
+    </div>
+  </li>
+</template>
+
+<template id="tpl-month">
+  <div class="cal-month">
+    <h3></h3>
+    <div class="cal-grid"></div>
+  </div>
+</template>
+
+<template id="tpl-blackout">
+  <li>
+    <span></span>
+    <button type="button" aria-label="削除">削除</button>
+  </li>
+</template>
+
+<script src="src/holidays.js"></script>
+<script src="src/engine.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>

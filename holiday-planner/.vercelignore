@@ -1,0 +1,6 @@
+# このフォルダを Root Directory とする Vercel プロジェクトで配信しないもの（開発用のファイル）。
+docs
+feedback
+tests
+package.json
+package-lock.json

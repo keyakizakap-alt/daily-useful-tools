@@ -9,6 +9,7 @@
 | そらならべ | `weather/` | 日本の天気を、ならべて見る |
 | くもみち | `gcp-cert/` | Google Cloud 認定 全冠ナビ（非公式） |
 | おくるまえに | `mail-check/` | 送信前のメール点検 |
+| とびいし | `holiday-planner/` | 飛び石連休プランナー |
 
 ---
 
@@ -157,6 +158,69 @@ npm audit       # 依存監査（依存0件）
 レビューと修正の記録は [`mail-check/feedback/review_report.md`](mail-check/feedback/review_report.md) にある。
 
 
+## とびいし — 飛び石連休プランナー (`holiday-planner/`)
+
+> その1日を、どこに置くか。
+
+国民の祝日・振替休日・国民の休日と、自分の週休・会社の休み・休めない期間を重ねて、
+**最小の有給で最長の連休になる日**を計算する。`holiday-planner/index.html` をブラウザで開くだけ
+（ビルド・サーバー・APIキー・通信なし）。
+
+### 機能
+
+- **おすすめ** — 「有給1日で6連休」のように、連休の期間・日数・使う有給の日付と効率を並べる。
+  重なるプランは同じ連休の取り方違いなので、既定は**重ならない代表だけ**を出す（全候補への切り替えも可）。
+- **年間プラン** — 有給の残日数を入れると、**予算内で休日の合計が最大になる重ならない組み合わせ**を自動で編成する
+  （重み付き区間スケジューリング＋ナップサックの動的計画法）。手動の追加・削除もできる。
+- **申請用テキスト** — 選んだプランを、そのまま上司に送れる素のテキストで書き出す。
+- **カレンダー** — 月別に、祝日・週休・会社の休み・選んだ有給・連休の範囲を色と記号で表示する。
+- **祝日一覧** — 対象年の祝日を名称・種別（祝日／振替休日／国民の休日）つきで一覧する。
+- **設定** — 休みの曜日（シフト勤務対応）、年末年始休業・お盆休み、休めない期間（繁忙期）、
+  1プランの有給上限、年間予算、連休の最短日数、並び順。
+- 保存は**既定 OFF** の明示トグル。設定は JSON で書き出し／読み込みできる。ライト／ダーク、レスポンシブ、キーボード操作対応。
+
+### 祝日の決まり方
+
+日付の一覧を持たず、**祝日法（昭和23年法律第178号）の規則として計算する**（対応年 2020〜2050年）。
+
+| 種別 | 例 |
+|---|---|
+| 日付固定 | 元日 1/1、建国記念の日 2/11、天皇誕生日 2/23、昭和の日 4/29、山の日 8/11、文化の日 11/3 ほか |
+| 第n月曜 | 成人の日（1月第2）、海の日（7月第3）、敬老の日（9月第3）、スポーツの日（10月第2） |
+| 天文由来 | 春分の日・秋分の日。近似式 `floor(base + 0.242194×(Y−1980) − floor((Y−1980)/4))` |
+| 年単位の特例 | 2020・2021年の海の日・スポーツの日・山の日（東京五輪に伴う移動） |
+
+その上に、**振替休日**（日曜の祝日のあと、祝日でない最初の日）と
+**国民の休日**（祝日に挟まれた平日）を順に適用する。
+
+- **春分の日・秋分の日は近似式による推定**で、実際の祝日は前年2月の官報で確定する。画面にも明記している。
+- 2050年までの日付は現行法の規則を延長したもので、法改正があれば変わる。
+
+### 技術構成
+
+- 依存ライブラリなしの静的ファイル。`src/holidays.js`（暦）・`src/engine.js`（計画）は DOM 非依存の純粋関数で、
+  ブラウザからは `<script src>`、Node からは `require()` で読む UMD 形式。`src/app.js` だけが副作用を持つ。
+- 探索は「**連休の区間が決まれば、その中の平日すべてを有給にする以外に選択肢はない**」という不変条件に基づく。
+  この不変条件により、プランは区間で一意に識別でき、保存も区間の両端だけで済む。
+- セキュリティ: Content-Security-Policy で外部スクリプトと**外部通信を禁止**（`connect-src 'none'`）。
+  `innerHTML` を1か所も使わず、表示は `textContent` と `<template>` の複製のみ。
+  読み込む JSON は既知のキー・型・範囲・件数上限で検証する。保存は既定 OFF で、OFF のままの起動時に残骸を削除する。
+
+### 開発
+
+```bash
+cd holiday-planner
+npm test        # 単体テスト（祝日計算・探索・DP・保存データの検証）68件
+npm run smoke   # file:// のブラウザ結合テスト（playwright があるとき）59件
+npm run lint    # 構文チェック
+npm audit       # 依存監査（依存0件）
+```
+
+設計と判断の記録は [`holiday-planner/docs/requirements.md`](holiday-planner/docs/requirements.md) /
+[`holiday-planner/docs/architecture.md`](holiday-planner/docs/architecture.md)、
+レビューと修正の記録は [`holiday-planner/feedback/review_report.md`](holiday-planner/feedback/review_report.md) にある。
+
+
 ## そらならべ — 日本の天気を、ならべて見る (`weather/`)
 
 > ぜんぶの空を、ならべて見る。
@@ -226,7 +290,8 @@ npm audit       # 依存監査（依存0件）
 ## デプロイ
 
 静的サイトなのでビルド不要。GitHub Pages ではリポジトリ全体をそのまま配信し、
-`/`（トップページ）・`/love-type/`（こいのかたち）・`/weather/`（そらならべ）・`/gcp-cert/`（くもみち）・`/mail-check/`（おくるまえに）が動く。
+`/`（トップページ）・`/love-type/`（こいのかたち）・`/weather/`（そらならべ）・`/gcp-cert/`（くもみち）・
+`/mail-check/`（おくるまえに）・`/holiday-planner/`（とびいし）が動く。
 Vercel でも、リポジトリ直下を Root Directory とする1つのプロジェクトでトップページと全アプリを配信する。
 くもみち・おくるまえには、必要なら別プロジェクトとしても配信できる（下記）。
 
@@ -256,7 +321,7 @@ vercel --prod   # 本番環境へデプロイ
 ```
 
 デプロイ後は `https://<プロジェクト名>.vercel.app/` でトップページ、`/love-type/` でこいのかたち、`/weather/` で天気アプリが開く。
-`/gcp-cert/` でくもみち、`/mail-check/` でおくるまえにも開く。
+`/gcp-cert/` でくもみち、`/mail-check/` でおくるまえに、`/holiday-planner/` でとびいしも開く。
 各アプリは相対パスでファイルを読むため、直下の `vercel.json` は `trailingSlash: true`（`/gcp-cert` → `/gcp-cert/`）にしている。
 `false` にすると `data/*.js` や画像の読み込み先がずれてアプリが動かなくなる。
 
@@ -292,3 +357,13 @@ CLI の場合は `vercel --cwd mail-check`（初回にプロジェクトをリ�
 |---|---|
 | `mail-check/vercel.json` | おくるまえに専用の設定。`ignoreCommand` で `mail-check/` に変更がないコミットはビルドしない |
 | `mail-check/.vercelignore` | 配信対象から `docs/` `feedback/` `tests/` `package*.json` を除外（画面に必要な4ファイルだけを配信する） |
+
+**（任意）とびいし（`holiday-planner/`）を別プロジェクトでも配信する**
+
+同じ手順で Root Directory を `holiday-planner` にする（プロジェクト名は例: `tobiishi`）。
+CLI の場合は `vercel --cwd holiday-planner`。
+
+| ファイル | 役割 |
+|---|---|
+| `holiday-planner/vercel.json` | とびいし専用の設定。`ignoreCommand` で `holiday-planner/` に変更がないコミットはビルドしない |
+| `holiday-planner/.vercelignore` | 配信対象から `docs/` `feedback/` `tests/` `package*.json` を除外（`index.html` と `src/` だけを配信する） |
