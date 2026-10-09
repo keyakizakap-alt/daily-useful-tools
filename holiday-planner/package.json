@@ -1,0 +1,17 @@
+{
+  "name": "tobiishi-holiday-planner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "とびいし — 祝日と週休を重ねて、最小の有給で最長の連休を作る通信ゼロの静的ツール",
+  "license": "MIT",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "lint": "node --check src/holidays.js && node --check src/engine.js && node --check src/app.js",
+    "smoke": "node tests/smoke.mjs",
+    "audit": "npm audit --omit=dev"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
