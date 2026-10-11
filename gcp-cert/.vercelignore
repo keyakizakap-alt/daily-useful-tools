@@ -1,4 +1,0 @@
-# くもみち専用プロジェクト（Root Directory = gcp-cert）で配信しないファイル。
-# プロジェクト側の .vercelignore はリポジトリ直下のものより優先されるため、
-# 直下の .vercelignore で gcp-cert を除外していても、このプロジェクトには影響しない。
-tools/
