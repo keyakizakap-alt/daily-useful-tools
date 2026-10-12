@@ -1,0 +1,19 @@
+{
+  "name": "yasumi-tsunagi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "やすみつなぎ — 祝日と勤務曜日から、有給をいちばん効く日に置く。通信ゼロの静的ツール",
+  "license": "MIT",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "lint": "node --check src/holidays.js && node --check src/planner.js && node --check src/app.js",
+    "smoke": "node tests/smoke.mjs",
+    "audit": "npm audit --omit=dev",
+    "verify": "npm run lint && npm test && npm run audit",
+    "lint:eslint": "eslint src tests"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
