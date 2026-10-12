@@ -10,7 +10,8 @@
     "lint": "node --check src/holidays.js && node --check src/planner.js && node --check src/app.js",
     "smoke": "node tests/smoke.mjs",
     "audit": "npm audit --omit=dev",
-    "verify": "npm run lint && npm test && npm run audit"
+    "verify": "npm run lint && npm test && npm run audit",
+    "lint:eslint": "eslint src tests"
   },
   "engines": {
     "node": ">=20"

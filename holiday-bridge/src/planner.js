@@ -17,7 +17,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (H) {
   'use strict';
 
-  const { addDays, dayOfWeek, diffDays, fromISO, holidayMap, KIND } = H;
+  const { addDays, dayOfWeek, diffDays, fromISO, holidayMap, toISO, utcDate, KIND } = H;
 
 
 
@@ -60,6 +60,8 @@
       companyOff: [],
       maxLeavePerBridge: 5,
       objective: 'long',
+      noLeave: [],
+      leaveLots: [],
     };
   }
 
@@ -87,6 +89,8 @@
     const workdays = normalizeWorkdays(settings && settings.workdays);
     const holidays = holidayMap(startISO, endISO);
     const companyOff = new Set((settings && settings.companyOff) || []);
+    // 繁忙期など、出勤日ではあるが有給を取れない日
+    const noLeave = new Set((settings && settings.noLeave) || []);
 
     const days = [];
     for (let iso = startISO; iso <= endISO; iso = addDays(iso, 1)) {
@@ -114,7 +118,15 @@
         reason = REASON.WEEKEND;
       }
 
-      days.push({ date: iso, dow, off, reason, name });
+      days.push({
+        date: iso,
+        dow,
+        off,
+        reason,
+        name,
+        // 休日はそもそも有給の対象外なので、出勤日についてだけ意味を持つ
+        canTakeLeave: off ? false : !noLeave.has(iso),
+      });
     }
     return days;
   }
@@ -139,6 +151,7 @@
    *   2. 直後 j+1 が出勤日（または期間の末尾）
    *   3. 区間内の出勤日数 <= maxLeavePerBridge
    *   4. 区間の長さ >= MIN_BRIDGE_DAYS
+   *   5. 区間内に「有給を取れない出勤日」（繁忙期など）を含まない
    *
    * 条件 1・2 により極大区間だけが残るため、候補どうしが互いに包含しない。
    *
@@ -159,7 +172,9 @@
       const leaveDates = [];
       for (let j = i; j < n; j += 1) {
         if (!days[j].off) {
-          if (leaveDates.length >= maxLeave) break; // 予算を超えるので、これ以上伸ばせない
+          // 条件 5: 繁忙期の出勤日は有給にできないため、ここで区間が途切れる
+          if (days[j].canTakeLeave === false) break;
+          if (leaveDates.length >= maxLeave) break; // 上限を超えるので、これ以上伸ばせない
           leaveDates.push(days[j].date);
         }
         // 条件 2: 直後が休日なら、まだ極大ではない（さらに伸ばせる）
@@ -328,6 +343,118 @@
   }
 
   /* ------------------------------------------------------------
+     有給の付与ロットと失効
+     ------------------------------------------------------------ */
+
+  /** 同時に保持できる付与ロットの数。労基法 115 条の時効が 2 年のため、
+   *  実務上は「繰越分」と「今年度分」の 2 つまでしか同時に存在しない。 */
+  const MAX_LEAVE_LOTS = 2;
+
+  /** 時効の年数（労働基準法 115 条）。付与日の 2 年後の前日で失効する。 */
+  const LEAVE_EXPIRY_YEARS = 2;
+
+  /**
+   * 付与日から失効日（＝付与日の 2 年後の前日）を求める。
+   * @param {string} grantedISO 付与日
+   * @returns {string|null}
+   */
+  function expiryFromGrant(grantedISO) {
+    const granted = fromISO(grantedISO);
+    if (!granted) return null;
+    const twoYearsLater = utcDate(
+      granted.getUTCFullYear() + LEAVE_EXPIRY_YEARS,
+      granted.getUTCMonth() + 1,
+      granted.getUTCDate()
+    );
+    return addDays(toISO(twoYearsLater), -1);
+  }
+
+  /** 付与ロットを正規化する。不正なものは落とす。 */
+  function normalizeLots(lots) {
+    if (!Array.isArray(lots)) return [];
+    const result = [];
+    for (const lot of lots.slice(0, MAX_LEAVE_LOTS)) {
+      if (!lot || typeof lot !== 'object') continue;
+      const days = clampInt(lot.days, 0, MAX_LEAVE_BUDGET, 0);
+      if (days <= 0) continue;
+      const expiry = lot.expiry && fromISO(lot.expiry) ? lot.expiry : null;
+      result.push({
+        label: typeof lot.label === 'string' && lot.label ? lot.label : '有給',
+        days,
+        expiry,
+      });
+    }
+    return result;
+  }
+
+  /** 付与ロットの合計日数。予算の上限で頭打ちにする。 */
+  function totalLotDays(lots) {
+    const total = normalizeLots(lots).reduce((sum, lot) => sum + lot.days, 0);
+    return Math.min(total, MAX_LEAVE_BUDGET);
+  }
+
+  /**
+   * プランで使う有給を、付与ロットに割り当てる。
+   *
+   * 割り当ては「その日に使えるロットのうち、失効日がいちばん early なもの」から消費する
+   * （最早期限優先）。これは実務の消化順（繰越分から使う）と一致し、
+   * 失効による無駄がもっとも少なくなる割り当てでもある。
+   *
+   * @param {string[]} leaveDates プランで有給を使う日（順不同）
+   * @param {{label: string, days: number, expiry: string|null}[]} lots
+   * @param {string} [periodEndISO] 対象期間の終了日。期間内に失効する分の判定に使う
+   * @returns {{lots: object[], expiringUnused: number, earliestExpiry: string|null,
+   *            unassigned: string[], totalDays: number, usedDays: number}}
+   */
+  function assignLeaveToLots(leaveDates, lots, periodEndISO) {
+    const normalized = normalizeLots(lots).map((lot) => ({ ...lot, used: 0, unused: lot.days }));
+    // 失効日が早い順。失効日なしは最後に回す
+    const order = normalized
+      .map((lot, index) => ({ lot, index }))
+      .sort((a, b) => {
+        const ax = a.lot.expiry;
+        const bx = b.lot.expiry;
+        if (ax === bx) return a.index - b.index;
+        if (ax === null) return 1;
+        if (bx === null) return -1;
+        return ax < bx ? -1 : 1;
+      });
+
+    const unassigned = [];
+    const sortedDates = [...(leaveDates || [])].sort();
+    for (const date of sortedDates) {
+      // その日にまだ有効で、残っているロットのうち、いちばん早く失効するもの
+      const target = order.find(
+        ({ lot }) => lot.unused > 0 && (lot.expiry === null || date <= lot.expiry)
+      );
+      if (!target) {
+        unassigned.push(date);
+        continue;
+      }
+      target.lot.used += 1;
+      target.lot.unused -= 1;
+    }
+
+    // 対象期間の終わりまでに失効してしまう未使用分
+    let expiringUnused = 0;
+    let earliestExpiry = null;
+    for (const lot of normalized) {
+      if (lot.expiry === null) continue;
+      if (earliestExpiry === null || lot.expiry < earliestExpiry) earliestExpiry = lot.expiry;
+      if (!periodEndISO || lot.expiry <= periodEndISO) expiringUnused += lot.unused;
+    }
+
+    return {
+      lots: normalized,
+      expiringUnused,
+      earliestExpiry,
+      unassigned,
+      totalDays: normalized.reduce((sum, lot) => sum + lot.days, 0),
+      usedDays: normalized.reduce((sum, lot) => sum + lot.used, 0),
+    };
+  }
+
+  /* ------------------------------------------------------------
      表示・書き出し
      ------------------------------------------------------------ */
 
@@ -396,6 +523,138 @@
     }
     lines.push('※ 休日の確定は官報および勤務先の就業規則によります。');
     return lines.join('\n');
+  }
+
+  /* ------------------------------------------------------------
+     カレンダー（.ics）への書き出し
+     ------------------------------------------------------------ */
+
+  /** iCalendar の TEXT 値で特別な意味を持つ文字を打ち消す（RFC 5545 §3.3.11）。 */
+  function escapeICSText(text) {
+    return String(text)
+      .replace(/\\/g, '\\\\')
+      .replace(/;/g, '\;')
+      .replace(/,/g, '\\,')
+      .replace(/\r?\n/g, '\\n');
+  }
+
+  /**
+   * 1 行を 75 オクテット以内に折る（RFC 5545 §3.1）。
+   * 日本語が入るため、UTF-8 のマルチバイト境界で切らないようバイト数で数える。
+   */
+  function foldICSLine(line) {
+    const encoder = new TextEncoder();
+    const chars = [...line]; // サロゲートペアを 1 文字として扱う
+    const out = [];
+    let current = '';
+    let bytes = 0;
+    let limit = 75;
+
+    for (const char of chars) {
+      const size = encoder.encode(char).length;
+      if (bytes + size > limit) {
+        out.push(current);
+        current = char;
+        bytes = size + 1; // 継続行の先頭に入れる空白 1 オクテットぶん
+        limit = 75;
+      } else {
+        current += char;
+        bytes += size;
+      }
+    }
+    out.push(current);
+    return out.join('\r\n ');
+  }
+
+  /** 'YYYY-MM-DD' を iCalendar の DATE 値 'YYYYMMDD' にする。 */
+  function icsDate(iso) {
+    return iso.replace(/-/g, '');
+  }
+
+  /** Date を iCalendar の UTC 日時 'YYYYMMDDTHHMMSSZ' にする。 */
+  function icsTimestamp(date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return (
+      `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}` +
+      `T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}Z`
+    );
+  }
+
+  /**
+   * プランを iCalendar（.ics）形式の文字列にする。
+   * カレンダーアプリに取り込めるよう、連休そのものと、有給を取る日の両方を終日予定で書き出す。
+   *
+   * @param {{bridges: any[]}} plan
+   * @param {{now?: Date, includeLeaveDays?: boolean}} [options]
+   * @returns {string} CRLF 区切りの iCalendar 本文
+   */
+  function formatPlanICS(plan, options) {
+    const now = (options && options.now) || new Date();
+    const includeLeaveDays = !options || options.includeLeaveDays !== false;
+    const stamp = icsTimestamp(now);
+    const bridges = (plan && plan.bridges) || [];
+
+    const lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//daily-useful-tools//yasumi-tsunagi//JA',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'X-WR-CALNAME:やすみつなぎ の連休プラン',
+    ];
+
+    const pushEvent = (uid, startISO, endExclusiveISO, summary, description) => {
+      lines.push('BEGIN:VEVENT');
+      lines.push(`UID:${uid}@yasumi-tsunagi.local`);
+      lines.push(`DTSTAMP:${stamp}`);
+      lines.push(`DTSTART;VALUE=DATE:${icsDate(startISO)}`);
+      lines.push(`DTEND;VALUE=DATE:${icsDate(endExclusiveISO)}`);
+      lines.push(`SUMMARY:${escapeICSText(summary)}`);
+      if (description) lines.push(`DESCRIPTION:${escapeICSText(description)}`);
+      // 予定を「空き時間」として扱う。終日の連休で他の予定がブロックされないようにする
+      lines.push('TRANSP:TRANSPARENT');
+      lines.push('END:VEVENT');
+    };
+
+    for (const bridge of bridges) {
+      const summary =
+        bridge.leaveCount > 0
+          ? `${bridge.totalDays}連休（有給${bridge.leaveCount}日）`
+          : `${bridge.totalDays}連休`;
+      const parts = [];
+      if (bridge.leaveCount > 0) {
+        parts.push(`有給を取る日: ${bridge.leaveDates.map(formatDateJaWithYear).join(', ')}`);
+      } else {
+        parts.push('有給を使わずに成立する連休です。');
+      }
+      const labels = [...new Set(bridge.labels)];
+      if (labels.length > 0) parts.push(`含まれる祝日: ${labels.join(', ')}`);
+      parts.push('やすみつなぎ で作成（休日の確定は官報と就業規則によります）');
+
+      // DTEND は排他的なので、終日予定では終了日の翌日を指定する
+      pushEvent(
+        `bridge-${bridge.start}-${bridge.end}`,
+        bridge.start,
+        addDays(bridge.end, 1),
+        summary,
+        parts.join('\n')
+      );
+
+      if (includeLeaveDays) {
+        for (const date of bridge.leaveDates) {
+          pushEvent(
+            `leave-${date}`,
+            date,
+            addDays(date, 1),
+            '有給',
+            `${bridge.totalDays}連休（${formatRangeJa(bridge, { withYear: true })}）のための有給`
+          );
+        }
+      }
+    }
+
+    lines.push('END:VCALENDAR');
+    return lines.map(foldICSLine).join('\r\n') + '\r\n';
   }
 
   /* ------------------------------------------------------------
@@ -537,22 +796,29 @@
 
   return {
     MAX_LEAVE_BUDGET: MAX_LEAVE_BUDGET,
+    LEAVE_EXPIRY_YEARS: LEAVE_EXPIRY_YEARS,
+    MAX_LEAVE_LOTS: MAX_LEAVE_LOTS,
     MAX_LEAVE_PER_BRIDGE_LIMIT: MAX_LEAVE_PER_BRIDGE_LIMIT,
     MIN_BRIDGE_DAYS: MIN_BRIDGE_DAYS,
     OBJECTIVE: OBJECTIVE,
     REASON: REASON,
+    assignLeaveToLots: assignLeaveToLots,
     buildCalendar: buildCalendar,
     buildPlan: buildPlan,
     clampInt: clampInt,
     defaultSettings: defaultSettings,
     dowJa: dowJa,
+    expiryFromGrant: expiryFromGrant,
     findBridges: findBridges,
     formatDateJa: formatDateJa,
     formatDateJaWithYear: formatDateJaWithYear,
+    formatPlanICS: formatPlanICS,
     formatPlanText: formatPlanText,
     formatRangeJa: formatRangeJa,
     parseCompanyOff: parseCompanyOff,
     rankBridges: rankBridges,
+    normalizeLots: normalizeLots,
     reasonLabel: reasonLabel,
+    totalLotDays: totalLotDays,
   };
 });

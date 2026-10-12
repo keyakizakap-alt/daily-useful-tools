@@ -43,7 +43,9 @@
         <div class="segmented" role="radiogroup" aria-labelledby="period-label">
           <button type="button" class="seg" data-period="rolling" role="radio" aria-checked="true">今日から12か月</button>
           <button type="button" class="seg" data-period="year" role="radio" aria-checked="false">年を指定</button>
+          <button type="button" class="seg" data-period="expiry" role="radio" aria-checked="false" id="period-expiry">失効日まで</button>
         </div>
+        <p class="help" id="period-expiry-help" hidden>有給の内訳を指定すると、いちばん早い失効日までの期間で計算できます。</p>
         <label class="inline-field" id="year-field" hidden>
           <span>年</span>
           <input type="number" id="year-input" inputmode="numeric" step="1">
@@ -98,6 +100,61 @@
         <p class="notice" id="company-off-notice" role="status" hidden></p>
       </div>
 
+      <details class="advanced" id="advanced">
+        <summary>詳しく設定する（繰越・失効・繁忙期）</summary>
+
+        <div class="field">
+          <span class="field-label" id="lots-label">有給の内訳と失効日</span>
+          <p class="help">
+            繰越分と今年度分を分けて入れると、<strong>失効しそうな日数</strong>を警告します。
+            有給は労働基準法上、付与日から2年で時効になります。
+          </p>
+          <label class="check-field">
+            <input type="checkbox" id="lots-enabled">
+            <span>内訳で指定する（上の「使える有給の日数」より優先）</span>
+          </label>
+
+          <div class="lots" id="lots-rows" role="group" aria-labelledby="lots-label">
+            <div class="lot-row">
+              <span class="lot-name" id="lot-0-name">繰越分</span>
+              <label class="lot-cell"><span class="lot-cap">日数</span>
+                <input type="number" id="lot-0-days" inputmode="numeric" step="1" aria-labelledby="lot-0-name"></label>
+              <label class="lot-cell"><span class="lot-cap">失効日</span>
+                <input type="date" id="lot-0-expiry" aria-labelledby="lot-0-name"
+                       aria-describedby="lot-0-echo"></label>
+              <span class="lot-echo" id="lot-0-echo"></span>
+            </div>
+            <div class="lot-row">
+              <span class="lot-name" id="lot-1-name">今年度分</span>
+              <label class="lot-cell"><span class="lot-cap">日数</span>
+                <input type="number" id="lot-1-days" inputmode="numeric" step="1" aria-labelledby="lot-1-name"></label>
+              <label class="lot-cell"><span class="lot-cap">失効日</span>
+                <input type="date" id="lot-1-expiry" aria-labelledby="lot-1-name"
+                       aria-describedby="lot-1-echo"></label>
+              <span class="lot-echo" id="lot-1-echo"></span>
+            </div>
+          </div>
+
+          <div class="grant-helper">
+            <label class="lot-cell"><span class="lot-cap">今年度の付与日</span>
+              <input type="date" id="grant-date" aria-describedby="grant-echo"></label>
+            <span class="lot-echo" id="grant-echo"></span>
+            <button type="button" id="fill-expiry" class="btn btn-quiet">失効日を自動で入れる</button>
+          </div>
+          <p class="help">付与日の2年後の前日が失効日です。繰越分はその1年前として埋めます。</p>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="no-leave-input">有給を取れない期間（繁忙期）</label>
+          <textarea id="no-leave-input" rows="2" spellcheck="false"
+                    placeholder="例: 3/25-3/31, 9/28-9/30" aria-describedby="no-leave-help"></textarea>
+          <p class="help" id="no-leave-help">
+            決算期など、有給を申請できない期間。書き方は会社の休業日と同じです。
+            この期間の出勤日は有給に使わず、またぐ連休も提案しません。
+          </p>
+          <p class="error" id="no-leave-error" role="alert" hidden></p>
+        </div>
+      </details>
     </div>
 
     <div class="panel-actions">
@@ -113,6 +170,8 @@
     <h2 id="summary-title" class="sr-only">計算結果の概要</h2>
     <div class="summary-grid" id="summary-grid"></div>
     <p class="summary-period" id="summary-period"></p>
+    <p class="notice notice-warn" id="expiry-notice" role="status" hidden></p>
+    <p class="lot-breakdown" id="lot-breakdown" hidden></p>
   </section>
 
   <!-- ============ タブ ============ -->
@@ -125,7 +184,10 @@
   <section id="panel-plan" class="tab-panel" role="tabpanel" aria-labelledby="tab-plan" tabindex="0">
     <div class="panel-head">
       <h2 class="panel-title">年間プラン</h2>
-      <button type="button" id="copy-button" class="btn">プランをコピー</button>
+      <span class="head-actions">
+        <button type="button" id="ics-button" class="btn btn-quiet">カレンダーに取り込む（.ics）</button>
+        <button type="button" id="copy-button" class="btn">プランをコピー</button>
+      </span>
     </div>
     <p class="copy-status" id="copy-status" role="status"></p>
     <label class="fallback" id="copy-fallback" hidden>

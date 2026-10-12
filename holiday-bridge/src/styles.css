@@ -387,3 +387,74 @@ input:focus-visible, textarea:focus-visible, button:focus-visible {
   .panel, .summary, .tab-panel, .notes { box-shadow: none; border: 1px solid #999; break-inside: avoid; }
   .bridge { break-inside: avoid; }
 }
+
+/* ---------------- 詳しい設定（折りたたみ） ---------------- */
+
+.advanced {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.advanced > summary {
+  cursor: pointer; padding: 12px 16px; min-height: 44px;
+  display: flex; align-items: center;
+  font-size: 13.5px; font-weight: 700; color: var(--text-2);
+  border-radius: 12px;
+}
+.advanced > summary:hover { color: var(--text); }
+.advanced > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.advanced[open] > summary { border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0; }
+.advanced > .field { padding: 16px; margin: 0; }
+.advanced > .field + .field { border-top: 1px solid var(--border); }
+
+.check-field {
+  display: flex; align-items: center; gap: 9px;
+  margin-top: 10px; font-size: 13.5px; color: var(--text-2);
+  min-height: 44px; cursor: pointer;
+}
+.check-field input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+
+/* 有給の内訳 */
+.lots { display: grid; gap: 10px; margin-top: 4px; }
+.lot-row {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px;
+  padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+}
+.lot-name { font-size: 13.5px; font-weight: 700; min-width: 5em; }
+.lot-cell { display: flex; flex-direction: column; gap: 3px; }
+.lot-cap { font-size: 11.5px; color: var(--text-3); font-weight: 600; }
+.lot-cell input[type="number"] { max-width: 6em; }
+.lot-cell input[type="date"] {
+  font: inherit; font-size: 13.5px; color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--border-strong); border-radius: 10px; padding: 9px 10px; min-height: 44px;
+}
+.lot-echo {
+  align-self: flex-end; padding-bottom: 11px;
+  font-size: 12.5px; color: var(--text-3); white-space: nowrap;
+}
+.grant-helper { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 14px; }
+
+.lots[aria-disabled="true"] { opacity: .5; }
+
+/* 狭い画面では、見出し → 日数 → 失効日 の縦並びにする */
+@media (max-width: 480px) {
+  .lot-row { flex-direction: column; align-items: stretch; }
+  .lot-name { min-width: 0; }
+  .lot-cell input[type="number"] { max-width: 100%; }
+  .lot-echo { align-self: flex-start; padding-bottom: 0; white-space: normal; }
+  .grant-helper { flex-direction: column; align-items: stretch; }
+}
+
+/* 失効の警告 */
+.notice-warn {
+  color: var(--danger); background: transparent;
+  border-color: var(--danger); font-weight: 600;
+}
+.lot-breakdown {
+  margin: 10px 0 0; font-size: 12.5px; color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.head-actions { display: flex; flex-wrap: wrap; gap: 8px; }

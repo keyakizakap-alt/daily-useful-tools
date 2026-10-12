@@ -51,7 +51,11 @@ function check(label, condition, detail) {
 }
 
 const browser = await playwright.chromium.launch();
-const context = await browser.newContext({ locale: 'ja-JP', timezoneId: 'Asia/Tokyo' });
+const context = await browser.newContext({
+  locale: 'ja-JP',
+  timezoneId: 'Asia/Tokyo',
+  acceptDownloads: true,
+});
 const page = await context.newPage();
 
 /** ページ読み込み中に出たエラーを集める。 */
@@ -69,6 +73,13 @@ try {
   check('コンソールエラーが出ていない', consoleErrors.length === 0, consoleErrors.join(' / '));
   check('初期表示でコピーの代替テキストは隠れている', await page.locator('#copy-fallback').isHidden());
   check('「今日から12か月」では年の入力欄が隠れている', await page.locator('#year-field').isHidden());
+  check(
+    '対象期間の表示に年が入っている',
+    /\d{4}年\d{1,2}月\d{1,2}日.+\d{4}年\d{1,2}月\d{1,2}日/.test(
+      await page.locator('#summary-period').innerText()
+    ),
+    await page.locator('#summary-period').innerText()
+  );
   check(
     '年をまたぐ期間では連休に年が付く',
     /\d{4}年\d{1,2}月/.test(await page.locator('#plan-list .bridge-range').first().innerText())
@@ -290,6 +301,116 @@ try {
     '範囲外の年は下限に丸められて計算が続く',
     (await page.locator('#year-input').inputValue()) === '2016'
   );
+
+  /* ---- 11b. 有給の内訳・失効・繁忙期・カレンダー書き出し ---- */
+  await page.locator('[data-period="rolling"]').click();
+  await page.waitForTimeout(150);
+
+  check('詳しい設定は初期状態で閉じている', !(await page.locator('#lots-enabled').isVisible()));
+  await page.locator('#advanced summary').click();
+  await page.waitForTimeout(100);
+  check('詳しい設定を開ける', await page.locator('#lots-enabled').isVisible());
+
+  check('失効日が分からないうちは「失効日まで」を選べない', await page.locator('#period-expiry').isDisabled());
+
+  // 付与日から失効日を自動入力
+  await page.locator('#grant-date').fill('2026-04-01');
+  await page.locator('#fill-expiry').click();
+  await page.waitForTimeout(200);
+  check(
+    '付与日の2年後の前日が今年度分の失効日になる',
+    (await page.locator('#lot-1-expiry').inputValue()) === '2028-03-31'
+  );
+  check(
+    '繰越分はその1年前の失効日になる',
+    (await page.locator('#lot-0-expiry').inputValue()) === '2027-03-31'
+  );
+  check('自動入力で内訳が有効になる', await page.locator('#lots-enabled').isChecked());
+
+  // 内訳の合計が予算になる
+  await page.locator('#lot-0-days').fill('5');
+  await page.locator('#lot-0-days').dispatchEvent('input');
+  await page.locator('#lot-1-days').fill('15');
+  await page.locator('#lot-1-days').dispatchEvent('input');
+  await page.waitForTimeout(250);
+  check('内訳の合計が有給日数になる', (await page.locator('#leave-input').inputValue()) === '20');
+  check('内訳を使う間は単純な日数の入力を触れなくする', await page.locator('#leave-input').isDisabled());
+  check(
+    'サマリーの持ち数が内訳の合計になる',
+    (await page.locator('#summary-period').innerText()).includes('有給の持ち数: 20日')
+  );
+  check('ロットごとの消化内訳が出る', await page.locator('#lot-breakdown').isVisible());
+  check(
+    '失効日が年つきで表示される',
+    /2027年3月31日/.test(await page.locator('#lot-breakdown').innerText()),
+    await page.locator('#lot-breakdown').innerText()
+  );
+
+  check('失効日が入ると「失効日まで」を選べる', !(await page.locator('#period-expiry').isDisabled()));
+
+  // 失効が近いロットを作ると警告が出る
+  await page.locator('#lot-0-expiry').fill('2026-11-30');
+  await page.locator('#lot-0-expiry').dispatchEvent('change');
+  await page.locator('#lot-0-days').fill('10');
+  await page.locator('#lot-0-days').dispatchEvent('input');
+  await page.waitForTimeout(250);
+  check('使い切れない有給があると警告が出る', await page.locator('#expiry-notice').isVisible());
+  const expiryText = await page.locator('#expiry-notice').innerText();
+  check('警告が失効する日数を伝える', /失効します/.test(expiryText), expiryText);
+  check('警告が対処法を示す', /失効日まで/.test(expiryText), expiryText);
+
+  // 「失効日まで」に切り替えると警告が消える
+  await page.locator('#period-expiry').click();
+  await page.waitForTimeout(250);
+  check(
+    '「失効日まで」に切り替えると対象期間が失効日で終わる',
+    (await page.locator('#summary-period').innerText()).includes('失効日まで')
+  );
+  check('切り替えると失効の警告が消える', await page.locator('#expiry-notice').isHidden());
+
+  // 繁忙期
+  await page.locator('[data-period="year"]').click();
+  await page.locator('#year-input').fill('2026');
+  await page.locator('#year-input').dispatchEvent('input');
+  await page.waitForTimeout(200);
+  const planBeforeBlackout = await page.locator('#plan-list').innerText();
+  await page.locator('#no-leave-input').fill('5/1, 9/18-9/30');
+  await page.locator('#no-leave-input').dispatchEvent('change');
+  await page.waitForTimeout(250);
+  check('繁忙期を指定するとプランが変わる', (await page.locator('#plan-list').innerText()) !== planBeforeBlackout);
+  check('正しい繁忙期ではエラーが出ない', await page.locator('#no-leave-error').isHidden());
+  check(
+    '繁忙期の日が有給に使われない',
+    !(await page.locator('#plan-list').innerText()).includes('5月1日(金)')
+  );
+  await page.locator('#no-leave-input').fill('2/30');
+  await page.locator('#no-leave-input').dispatchEvent('change');
+  await page.waitForTimeout(200);
+  check('繁忙期の不正な入力でエラーが出る', await page.locator('#no-leave-error').isVisible());
+  await page.locator('#no-leave-input').fill('');
+  await page.locator('#no-leave-input').dispatchEvent('change');
+  await page.waitForTimeout(150);
+
+  // .ics の書き出し
+  const icsDownload = page.waitForEvent('download', { timeout: 5000 }).catch(() => null);
+  await page.locator('#ics-button').click();
+  const download = await icsDownload;
+  check('.ics をダウンロードできる', download !== null);
+  if (download) {
+    check('ファイル名が yasumi-tsunagi.ics', download.suggestedFilename() === 'yasumi-tsunagi.ics');
+    const stream = await download.createReadStream();
+    let body = '';
+    for await (const chunk of stream) body += chunk.toString('utf-8');
+    check('.ics が iCalendar の形式になっている', body.startsWith('BEGIN:VCALENDAR'));
+    check('.ics に予定が入っている', body.includes('BEGIN:VEVENT'));
+    check('.ics の日本語が壊れていない', body.includes('連休') && !body.includes('\uFFFD'));
+  }
+
+  // 条件の初期化で詳しい設定も戻る
+  await page.locator('#reset-button').click();
+  await page.waitForTimeout(200);
+  check('初期化で内訳の指定が解除される', !(await page.locator('#lots-enabled').isChecked()));
+  check('初期化で繁忙期が空になる', (await page.locator('#no-leave-input').inputValue()) === '');
 
   /* ---- 12. テーマ切り替え ---- */
   await page.locator('#theme-toggle').click();

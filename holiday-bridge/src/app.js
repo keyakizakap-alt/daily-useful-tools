@@ -32,6 +32,11 @@
     parseCompanyOff,
     rankBridges,
     reasonLabel,
+    assignLeaveToLots,
+    expiryFromGrant,
+    formatPlanICS,
+    normalizeLots,
+    totalLotDays,
   } = P;
 
 
@@ -49,6 +54,12 @@
     periodMode: 'rolling', // 'rolling' | 'year'
     year: new Date().getFullYear(),
     companyOffText: '',
+    noLeaveText: '',
+    lotsEnabled: false,
+    lots: [
+      { label: '繰越分', days: 0, expiry: '' },
+      { label: '今年度分', days: 0, expiry: '' },
+    ],
     tab: 'plan',
   };
 
@@ -60,6 +71,7 @@
     plan: { bridges: [], totalDays: 0, leaveUsed: 0 },
     ranked: { paid: [], free: [] },
     leaveSet: new Set(),
+    assignment: null,
     periodLabel: '',
   };
 
@@ -73,7 +85,12 @@
       'theme-toggle', 'year-field', 'year-input', 'leave-input', 'per-bridge-input',
       'workdays-row', 'company-off-input', 'company-off-error', 'company-off-notice',
       'settings-status', 'workdays-notice', 'reset-button', 'forget-button',
-      'summary-grid', 'summary-period', 'plan-list', 'rank-list', 'free-list', 'calendar',
+      'summary-grid', 'summary-period', 'expiry-notice', 'lot-breakdown',
+      'plan-list', 'rank-list', 'free-list', 'calendar', 'ics-button',
+      'no-leave-input', 'no-leave-error', 'lots-enabled', 'lots-rows',
+      'grant-date', 'fill-expiry', 'period-expiry', 'period-expiry-help', 'advanced',
+      'lot-0-days', 'lot-0-expiry', 'lot-1-days', 'lot-1-expiry',
+      'lot-0-echo', 'lot-1-echo', 'grant-echo',
       'copy-button', 'copy-status', 'copy-fallback', 'copy-fallback-text',
       'tab-plan', 'tab-rank', 'tab-calendar', 'panel-plan', 'panel-rank', 'panel-calendar',
     ];
@@ -97,6 +114,9 @@
         periodMode: state.periodMode,
         year: state.year,
         companyOffText: state.companyOffText,
+        noLeaveText: state.noLeaveText,
+        lotsEnabled: state.lotsEnabled,
+        lots: state.lots,
         tab: state.tab,
       };
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -132,9 +152,22 @@
     if (data.objective === OBJECTIVE.COUNT || data.objective === OBJECTIVE.LONG) {
       state.objective = data.objective;
     }
-    if (data.periodMode === 'year' || data.periodMode === 'rolling') state.periodMode = data.periodMode;
+    if (['year', 'rolling', 'expiry'].includes(data.periodMode)) state.periodMode = data.periodMode;
     state.year = clampInt(data.year, SUPPORTED_YEARS.min, SUPPORTED_YEARS.max, state.year);
     if (typeof data.companyOffText === 'string') state.companyOffText = data.companyOffText.slice(0, 2000);
+    if (typeof data.noLeaveText === 'string') state.noLeaveText = data.noLeaveText.slice(0, 2000);
+    state.lotsEnabled = data.lotsEnabled === true;
+    if (Array.isArray(data.lots)) {
+      state.lots = state.lots.map((lot, i) => {
+        const saved = data.lots[i];
+        if (!saved || typeof saved !== 'object') return lot;
+        return {
+          label: lot.label,
+          days: clampInt(saved.days, 0, MAX_LEAVE_BUDGET, 0),
+          expiry: typeof saved.expiry === 'string' && fromISO(saved.expiry) ? saved.expiry : '',
+        };
+      });
+    }
     if (['plan', 'rank', 'calendar'].includes(data.tab)) state.tab = data.tab;
   }
 
@@ -185,6 +218,42 @@
      期間の決定
      ------------------------------------------------------------ */
 
+  /** 'YYYY-MM-DD' を years 年ずらす。 */
+  function shiftYears(iso, years) {
+    const date = fromISO(iso);
+    if (!date) return null;
+    return toISO(new Date(Date.UTC(
+      date.getUTCFullYear() + years, date.getUTCMonth(), date.getUTCDate()
+    )));
+  }
+
+  /** 有効な付与ロット（日数が 0 のものは持たない）。 */
+  function activeLots() {
+    if (!state.lotsEnabled) return [];
+    return normalizeLots(
+      state.lots.map((lot) => ({
+        label: lot.label,
+        days: lot.days,
+        expiry: lot.expiry || null,
+      }))
+    );
+  }
+
+  /** 実際に使う有給の予算。内訳を指定していればその合計、していなければ単純な日数。 */
+  function leaveBudget() {
+    return state.lotsEnabled ? totalLotDays(activeLots()) : state.leaveDays;
+  }
+
+  /** いちばん早い失効日。内訳を指定していないか、失効日が未入力なら null。 */
+  function earliestExpiryISO() {
+    let earliest = null;
+    for (const lot of activeLots()) {
+      if (!lot.expiry) continue;
+      if (earliest === null || lot.expiry < earliest) earliest = lot.expiry;
+    }
+    return earliest;
+  }
+
   /** 今日の日付を 'YYYY-MM-DD'（ローカル日付）で返す。 */
   function todayISO() {
     const now = new Date();
@@ -193,6 +262,30 @@
 
   /** state から対象期間を決める。対応範囲外なら理由つきで返す。 */
   function resolvePeriod() {
+    if (state.periodMode === 'expiry') {
+      const expiry = earliestExpiryISO();
+      const start = todayISO();
+      if (!expiry) {
+        return {
+          error: '「失効日まで」を使うには、下の「詳しく設定する」で有給の内訳と失効日を入れてください。',
+        };
+      }
+      if (expiry < start) {
+        return { error: `いちばん早い失効日（${formatDateJaWithYear(expiry)}）が今日より前です。失効日を見直してください。` };
+      }
+      const startYear = fromISO(start).getUTCFullYear();
+      const endYear = fromISO(expiry).getUTCFullYear();
+      if (startYear < SUPPORTED_YEARS.min || endYear > SUPPORTED_YEARS.max) {
+        return { error: `対応している年は ${SUPPORTED_YEARS.min}〜${SUPPORTED_YEARS.max} 年です。` };
+      }
+      return {
+        startISO: start,
+        endISO: expiry,
+        label: `${formatDateJaWithYear(start)}〜${formatDateJaWithYear(expiry)}（失効日まで）`,
+        baseYear: startYear,
+      };
+    }
+
     if (state.periodMode === 'year') {
       const year = state.year;
       if (year < SUPPORTED_YEARS.min || year > SUPPORTED_YEARS.max) {
@@ -222,7 +315,7 @@
     return {
       startISO: start,
       endISO,
-      label: `${formatDateJa(start)}〜${formatDateJa(endISO)}`,
+      label: `${formatDateJaWithYear(start)}〜${formatDateJaWithYear(endISO)}`,
       baseYear: startDate.getUTCFullYear(),
     };
   }
@@ -238,7 +331,7 @@
         startISO: '', endISO: '', days: [],
         plan: { bridges: [], totalDays: 0, leaveUsed: 0 },
         ranked: { paid: [], free: [] },
-        leaveSet: new Set(), periodLabel: '', error: period.error,
+        leaveSet: new Set(), assignment: null, periodLabel: '', error: period.error,
       };
       return;
     }
@@ -255,16 +348,29 @@
     const outside = parsed.dates.filter((d) => d < period.startISO || d > period.endISO);
     showCompanyOffNotice(outside);
 
+    // 繁忙期（有給を取れない期間）
+    const parsedNoLeave = parseCompanyOff(state.noLeaveText, period.baseYear, {
+      notBefore: period.startISO,
+    });
+    showNoLeaveErrors(parsedNoLeave.errors);
+
     const days = buildCalendar(period.startISO, period.endISO, {
       workdays: state.workdays,
       companyOff: parsed.dates,
+      noLeave: parsedNoLeave.dates,
     });
     const bridges = findBridges(days, state.maxLeavePerBridge);
-    const plan = buildPlan(days, bridges, state.leaveDays, { objective: state.objective });
+    const plan = buildPlan(days, bridges, leaveBudget(), { objective: state.objective });
     const ranked = rankBridges(bridges);
 
     const leaveSet = new Set();
     for (const b of plan.bridges) for (const d of b.leaveDates) leaveSet.add(d);
+
+    // 付与ロットへの割り当て（失効しそうな日数を出すため）
+    const lots = activeLots();
+    const assignment = lots.length > 0
+      ? assignLeaveToLots([...leaveSet], lots, period.endISO)
+      : null;
 
     computed = {
       startISO: period.startISO,
@@ -273,6 +379,7 @@
       plan,
       ranked,
       leaveSet,
+      assignment,
       periodLabel: period.label,
       error: null,
     };
@@ -297,6 +404,18 @@
   let currentPeriodLabel = '';
   function computedPeriodLabelFallback() {
     return currentPeriodLabel || '対象期間';
+  }
+
+  /** 繁忙期の入力エラーを表示する。 */
+  function showNoLeaveErrors(errors) {
+    const box = el['no-leave-error'];
+    if (!errors || errors.length === 0) {
+      box.hidden = true;
+      box.textContent = '';
+      return;
+    }
+    box.hidden = false;
+    box.textContent = errors.join(' / ');
   }
 
   function showCompanyOffErrors(errors) {
@@ -363,12 +482,61 @@
     const objectiveLabel =
       state.objective === OBJECTIVE.COUNT ? '休みの回数を優先' : '長い連休を優先';
     el['summary-period'].textContent =
-      `対象期間: ${computed.periodLabel}／優先: ${objectiveLabel}／有給の持ち数: ${state.leaveDays}日`;
+      `対象期間: ${computed.periodLabel}／優先: ${objectiveLabel}／有給の持ち数: ${leaveBudget()}日`;
   }
 
   /** 対象期間が年をまたぐか（またぐなら日付に年を付ける）。 */
   function periodSpansYears() {
     return Boolean(computed.startISO) && computed.startISO.slice(0, 4) !== computed.endISO.slice(0, 4);
+  }
+
+  /** 失効しそうな有給の警告と、ロットごとの消化内訳を描く。 */
+  function renderExpiry() {
+    const notice = el['expiry-notice'];
+    const breakdown = el['lot-breakdown'];
+    const assignment = computed.assignment;
+
+    if (!assignment || computed.error) {
+      notice.hidden = true;
+      notice.textContent = '';
+      breakdown.hidden = true;
+      breakdown.textContent = '';
+      return;
+    }
+
+    // ロットごとの消化内訳
+    const parts = assignment.lots.map(
+      (lot) => `${lot.label} ${lot.days}日中 ${lot.used}日を消化（残 ${lot.unused}日`
+        + `${lot.expiry ? `／失効 ${formatDateJaWithYear(lot.expiry)}` : ''}）`
+    );
+    breakdown.hidden = parts.length === 0;
+    breakdown.textContent = parts.join(' ／ ');
+
+    const messages = [];
+    if (assignment.expiringUnused > 0) {
+      messages.push(
+        `手持ちのうち ${assignment.expiringUnused}日 が、使われないまま失効します`
+        + `（いちばん早い失効日: ${formatDateJaWithYear(assignment.earliestExpiry)}）。`
+      );
+    }
+    if (assignment.unassigned.length > 0) {
+      // 予算としては足りていても、失効日より後に置かれた有給は手持ちから出せない
+      messages.push(
+        `このプランは ${assignment.unassigned.length}日 ぶんを手持ちの有給でまかなえません`
+        + '（失効日より後に置かれているためです）。'
+      );
+    }
+    if (messages.length > 0) {
+      messages.push(
+        '対象期間を「失効日まで」に切り替えると、失効する前に使うプランになります。'
+        + '繁忙期の指定や「1つの連休に使う有給の上限」の見直しも効きます。'
+      );
+      notice.hidden = false;
+      notice.textContent = messages.join('');
+    } else {
+      notice.hidden = true;
+      notice.textContent = '';
+    }
   }
 
   /** 連休カードを 1 枚つくる。 */
@@ -586,7 +754,32 @@
     el['per-bridge-input'].value = String(state.maxLeavePerBridge);
     el['year-input'].value = String(state.year);
     el['company-off-input'].value = state.companyOffText;
+    el['no-leave-input'].value = state.noLeaveText;
     el['year-field'].hidden = state.periodMode !== 'year';
+
+    // 有給の内訳
+    el['lots-enabled'].checked = state.lotsEnabled;
+    el['lots-rows'].setAttribute('aria-disabled', String(!state.lotsEnabled));
+    state.lots.forEach((lot, i) => {
+      el[`lot-${i}-days`].value = String(lot.days);
+      el[`lot-${i}-days`].disabled = !state.lotsEnabled;
+      el[`lot-${i}-expiry`].value = lot.expiry;
+      el[`lot-${i}-expiry`].disabled = !state.lotsEnabled;
+      // 日付入力の表示順はブラウザの言語設定で変わる（11/30/2026 のように見える環境がある）。
+      // 取り違えを防ぐため、解釈した日付を日本語で併記する。
+      el[`lot-${i}-echo`].textContent = lot.expiry ? `= ${formatDateJaWithYear(lot.expiry)}` : '';
+    });
+    el['grant-echo'].textContent = el['grant-date'].value && fromISO(el['grant-date'].value)
+      ? `= ${formatDateJaWithYear(el['grant-date'].value)}`
+      : '';
+    // 内訳を使うときは、単純な日数の入力を読み取り専用にして食い違いを防ぐ
+    el['leave-input'].disabled = state.lotsEnabled;
+    el['leave-input'].value = String(leaveBudget());
+
+    // 「失効日まで」は失効日が分かるときだけ選べる
+    const hasExpiry = earliestExpiryISO() !== null;
+    el['period-expiry'].disabled = !hasExpiry;
+    el['period-expiry-help'].hidden = hasExpiry;
 
     syncSegmented('period', state.periodMode);
     syncSegmented('objective', state.objective);
@@ -618,6 +811,7 @@
     renderControls();
     renderWorkdayNotice();
     renderSummary();
+    renderExpiry();
     renderPlan();
     renderRank();
     renderCalendar();
@@ -662,6 +856,39 @@
       el['copy-fallback-text'].value = text;
       el['copy-fallback-text'].focus();
       el['copy-fallback-text'].select();
+    }
+  }
+
+  /** プランを .ics ファイルとしてダウンロードさせる。 */
+  function downloadICS() {
+    if (computed.error || computed.plan.bridges.length === 0) {
+      el['copy-status'].textContent = '書き出せる連休がありません。';
+      return;
+    }
+    const text = formatPlanICS(computed.plan);
+    let url = null;
+    try {
+      const blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
+      url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'yasumi-tsunagi.ics';
+      document.body.append(link);
+      link.click();
+      link.remove();
+      el['copy-status'].textContent =
+        'yasumi-tsunagi.ics を書き出しました。カレンダーアプリで開くと取り込めます。';
+      el['copy-fallback'].hidden = true;
+    } catch {
+      // Blob やダウンロードが使えない場合は、本文を見せて手動で保存してもらう
+      el['copy-status'].textContent = 'このブラウザでは書き出せなかったため、内容を表示します。';
+      el['copy-fallback'].hidden = false;
+      el['copy-fallback-text'].value = text;
+      el['copy-fallback-text'].focus();
+      el['copy-fallback-text'].select();
+    } finally {
+      // すぐに失効させるとダウンロードが始まらない環境があるため、少し待ってから解放する
+      if (url) window.setTimeout(() => URL.revokeObjectURL(url), 10000);
     }
   }
 
@@ -783,6 +1010,12 @@
         periodMode: 'rolling',
         year: new Date().getFullYear(),
         companyOffText: '',
+        noLeaveText: '',
+        lotsEnabled: false,
+        lots: [
+          { label: '繰越分', days: 0, expiry: '' },
+          { label: '今年度分', days: 0, expiry: '' },
+        ],
         tab: state.tab,
       });
       update();
@@ -795,6 +1028,63 @@
     });
 
     el['copy-button'].addEventListener('click', copyPlan);
+    el['ics-button'].addEventListener('click', downloadICS);
+
+    el['no-leave-input'].addEventListener('change', () => {
+      state.noLeaveText = el['no-leave-input'].value.slice(0, 2000);
+      update();
+    });
+
+    el['lots-enabled'].addEventListener('change', () => {
+      state.lotsEnabled = el['lots-enabled'].checked;
+      // 内訳をやめたときは、合計をそのまま単純な日数として引き継ぐ
+      if (!state.lotsEnabled) {
+        const total = totalLotDays(
+          state.lots.map((lot) => ({ label: lot.label, days: lot.days, expiry: lot.expiry || null }))
+        );
+        if (total > 0) state.leaveDays = total;
+      }
+      // 失効日が無くなったら「失効日まで」から戻す
+      if (state.periodMode === 'expiry' && earliestExpiryISO() === null) state.periodMode = 'rolling';
+      update();
+    });
+
+    state.lots.forEach((lot, i) => {
+      el[`lot-${i}-days`].addEventListener('input', () => {
+        state.lots[i].days = clampInt(el[`lot-${i}-days`].value, 0, MAX_LEAVE_BUDGET, 0);
+        update();
+      });
+      el[`lot-${i}-expiry`].addEventListener('change', () => {
+        const value = el[`lot-${i}-expiry`].value;
+        state.lots[i].expiry = value && fromISO(value) ? value : '';
+        if (state.periodMode === 'expiry' && earliestExpiryISO() === null) state.periodMode = 'rolling';
+        update();
+      });
+    });
+
+    el['grant-date'].addEventListener('change', () => {
+      el['grant-echo'].textContent = el['grant-date'].value && fromISO(el['grant-date'].value)
+        ? `= ${formatDateJaWithYear(el['grant-date'].value)}`
+        : '';
+    });
+
+    el['fill-expiry'].addEventListener('click', () => {
+      const granted = el['grant-date'].value;
+      const thisYear = expiryFromGrant(granted);
+      if (!thisYear) {
+        setSettingsStatus('付与日を入れてから押してください。');
+        return;
+      }
+      // 繰越分は 1 年前に付与されたものなので、失効日も 1 年前になる
+      const carried = expiryFromGrant(shiftYears(granted, -1));
+      state.lots[0].expiry = carried || '';
+      state.lots[1].expiry = thisYear;
+      state.lotsEnabled = true;
+      update();
+      setSettingsStatus(
+        `失効日を入れました（繰越分 ${formatDateJaWithYear(carried)}／今年度分 ${formatDateJaWithYear(thisYear)}）。`
+      );
+    });
 
     TAB_ORDER.forEach((name, index) => {
       const tabEl = el[`tab-${name}`];
