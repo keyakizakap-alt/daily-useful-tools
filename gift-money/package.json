@@ -1,0 +1,17 @@
+{
+  "name": "tsutsumikata-gift-money",
+  "version": "1.0.0",
+  "private": true,
+  "description": "つつみかた — ご祝儀・香典の包み方ナビ。通信ゼロの静的ツール",
+  "license": "MIT",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "lint": "node --check src/engine.js && node --check src/app.js",
+    "smoke": "node tests/smoke.mjs",
+    "audit": "npm audit --omit=dev"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

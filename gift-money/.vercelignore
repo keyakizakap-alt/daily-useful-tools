@@ -1,0 +1,7 @@
+# つつみかた専用プロジェクト（Root Directory = gift-money）で配信しないファイル。
+# プロジェクト側の .vercelignore はリポジトリ直下のものより優先される。
+docs/
+feedback/
+tests/
+package.json
+package-lock.json
