@@ -185,7 +185,7 @@
         { id: 'friend', label: '友人・知人', range: [5000, 10000] },
         { id: 'boss', label: '職場の上司', range: [5000, 10000] },
         { id: 'colleague', label: '職場の同僚・部下', range: [5000, 10000] },
-        { id: 'colleagueFamily', label: '職場の人の家族', range: [3000, 5000] },
+        { id: 'colleagueFamily', label: '職場の人の家族', range: [3000, 10000], note: '上司・管理職の立場で部下の家族に出す場合は、5千円〜1万円が多い目安です。' },
         { id: 'client', label: '取引先', range: [5000, 10000], note: '会社として出す場合は社内の規定に従ってください。' },
         { id: 'neighbor', label: '近所の人', range: [3000, 5000] }
       ],
@@ -364,10 +364,12 @@
     return formatYenShort(range[0]) + '〜' + formatYenShort(range[1]);
   }
 
-  // 金額の「単位となる数」。1万円以上は万の位、それ未満は千の位で見る
-  // 例: 30000 → 3 / 5000 → 5 / 15000 → 1.5
-  function unitCount(amount) {
-    return amount >= 10000 ? amount / 10000 : amount / 1000;
+  // 金額の「頭の数字」。千円単位の数から末尾の0を除き、1桁ならその数字を返す
+  // 例: 30000 → 3 / 5000 → 5 / 300000 → 3 / 10000 → 1 / 15000 → null（1桁でない）
+  function leadingDigit(amount) {
+    if (amount < 1000 || amount % 1000 !== 0) return null;
+    var sig = String(amount / 1000).replace(/0+$/, '');
+    return sig.length === 1 ? Number(sig) : null;
   }
 
   /* ============================================================
@@ -434,11 +436,13 @@
   function parseAmount(value) {
     if (typeof value === 'number') return value;
     if (typeof value !== 'string') return NaN;
-    // 全角数字・カンマ・「円」を許容する
+    // 全角数字・カンマ・「円」「¥」と、「3万」「1万5千」「5千」の書き方を許容する
     var s = value.replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
-      .replace(/[,，\s円]/g, '');
-    if (!/^\d+$/.test(s)) return NaN;
-    return Number(s);
+      .replace(/[,，\s円¥￥]/g, '');
+    if (/^\d+$/.test(s)) return Number(s);
+    var m = /^(?:(\d{1,4})万)?(?:(\d)千)?$/.exec(s);
+    if (m && (m[1] || m[2])) return Number(m[1] || 0) * 10000 + Number(m[2] || 0) * 1000;
+    return NaN;
   }
 
   function checkAmount(value, eventId, relationId) {
@@ -462,19 +466,20 @@
       results.push({ level: 'warn', code: 'imikazu', message: '「4」（死）や「9」（苦）を含む金額は、慶事・弔事のどちらでも避けられます。' });
     }
 
-    var units = unitCount(amount);
-    // 10（1万円・10万円）は区切りのよい数として偶数扱いしない
-    var isEven = Number.isInteger(units) && units % 2 === 0 && units !== 10;
-    if (ev && isEven && amount % 1000 === 0) {
+    // 偶数かどうかは頭の数字で見る（3万・30万・300万はどれも「3」）。
+    // 4 は忌み数として指摘済みなので重ねない
+    var lead = leadingDigit(amount);
+    var isEven = lead !== null && lead % 2 === 0 && lead !== 4;
+    if (ev && isEven) {
       if (ev.evenRule === 'strict') {
-        if (units === 2 && amount >= 10000) {
-          results.push({ level: 'info', code: 'even-pair', message: '2万円は「ペア」として許容されることが増えていますが、「割り切れる＝別れ」を気にする人もいます。1万円札1枚＋5千円札2枚にすると、お札の枚数は奇数になります。' });
-        } else if (units === 8) {
+        if (lead === 2 && amount >= 10000) {
+          results.push({ level: 'info', code: 'even-pair', message: '「2」は「ペア」として許容されることが増えていますが、「割り切れる＝別れ」を気にする人もいます。2万円なら1万円札1枚＋5千円札2枚にすると、お札の枚数は奇数になります。' });
+        } else if (lead === 8) {
           results.push({ level: 'info', code: 'even-pair', message: '8は「末広がり」で縁起がよいとされ、偶数でも許容されることが多い数です。' });
-        } else if (!/[49]/.test(String(units))) {
+        } else {
           results.push({ level: 'warn', code: 'even', message: 'お祝いでは「割り切れる＝別れる」に通じる偶数を避けるのが一般的です（1・3・5・10 が基本）。' });
         }
-      } else if (ev.evenRule === 'soft' && !/[49]/.test(String(units))) {
+      } else if (ev.evenRule === 'soft') {
         results.push({ level: 'info', code: 'even-soft', message: '偶数でも大きな問題はありませんが、「重なる」を気にして奇数にする人もいます。' });
       }
     }
@@ -617,6 +622,9 @@
 
   var MAX_PEOPLE = 50;
 
+  // 連名の合計として提案する、区切りのよい額
+  var NICE_TOTALS = [3000, 5000, 10000, 20000, 30000, 50000, 100000, 200000, 300000, 500000, 1000000];
+
   function isClean(amount, ev) {
     var levels = checkAmount(amount, ev ? ev.id : null).filter(function (r) {
       return r.level === 'warn' || r.level === 'error';
@@ -649,24 +657,19 @@
         : '4名以上は代表者名に「外一同」、または「〇〇部一同」とし、全員の名前を書いた紙を中に入れます。'
     };
     if (!isClean(total, ev)) {
-      // 上下それぞれ、最も近い無難な合計（千円単位）を探す
-      var floorK = Math.floor(total / 1000) * 1000;
-      var downStart = floorK === total ? total - 1000 : floorK;
-      var up = null;
+      // 区切りのよい合計のうち、上下それぞれ最も近い無難なものを提案する
       var down = null;
-      for (var i = 0; i < 200 && (up === null || down === null); i++) {
-        var u = floorK + 1000 * (i + 1);
-        var d = downStart - 1000 * i;
-        if (up === null && u <= MAX_AMOUNT && isClean(u, ev)) up = u;
-        if (down === null && d >= 1000 && isClean(d, ev)) down = d;
-      }
-      [down, up].forEach(function (s) {
-        if (s === null) return;
-        result.suggestions.push({
-          total: s,
-          perPerson: Math.ceil(s / people),
-          even: s % people === 0
-        });
+      var up = null;
+      NICE_TOTALS.forEach(function (t) {
+        if (!isClean(t, ev)) return;
+        if (t < total) down = t;
+        else if (t > total && up === null) up = t;
+      });
+      [down, up].forEach(function (t) {
+        if (t === null) return;
+        // 集金しやすいよう1人あたりは100円単位に切り下げ、差額は代表者が持つ
+        var share = Math.floor(t / people / 100) * 100;
+        result.suggestions.push({ total: t, perPerson: share, remainder: t - share * people });
       });
     }
     return result;

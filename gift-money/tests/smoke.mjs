@@ -71,6 +71,16 @@ async function run(viewport, name) {
   ok(name + ': 初期の推奨額が出る', (await text(page, '#rec-amount')) === '5万円', await text(page, '#rec-amount'));
   ok(name + ': 包み方が表示される', (await page.locator('#manners .manner').count()) === 6);
 
+  // 進学先の選択が年代に持ち越されない
+  await page.click('label[for="ev-school"]');
+  await page.selectOption('#modifier', 'high');
+  await page.click('label[for="ev-wedding"]');
+  ok(name + ': 進学先を変えても年代は変わらない', (await page.inputValue('#modifier')) === 'mid', await page.inputValue('#modifier'));
+  ok(name + ': 年代が持ち越されず5万円のまま', (await text(page, '#rec-amount')) === '5万円');
+  await page.click('label[for="ev-school"]');
+  ok(name + ': 進学先の選択は残る', (await page.inputValue('#modifier')) === 'high');
+  await page.click('label[for="ev-wedding"]');
+
   // 友人・20代
   await page.selectOption('#relation', 'friend');
   await page.selectOption('#modifier', 'low');
@@ -79,6 +89,9 @@ async function run(viewport, name) {
   // 推奨額を ② ③ へ
   await page.click('#btn-use');
   ok(name + ': 推奨額が金額欄に入る', (await page.inputValue('#amount')) === '30000');
+  ok(name + ': 金額欄にフォーカスが移る', await page.evaluate(() => document.activeElement && document.activeElement.id === 'amount'));
+  ok(name + ': 読み上げ用の状態に判定が出る', (await text(page, '#status')).includes('問題なし'), await text(page, '#status'));
+  ok(name + ': 判定の前提が表示される', (await text(page, '#premise')).includes('友人・知人'), await text(page, '#premise'));
   ok(name + ': 判定が「問題なし」', (await page.getAttribute('#checks .check', 'data-level')) === 'ok');
   ok(name + ': 中袋に大字', (await text(page, '#env-amount')) === '金参萬圓');
   ok(name + ': お札の組み合わせ', (await text(page, '#bills')).includes('1万円札'));
@@ -87,6 +100,10 @@ async function run(viewport, name) {
   await page.fill('#amount', '40000');
   const levels = await page.$$eval('#checks .check', (els) => els.map((e) => e.getAttribute('data-level')));
   ok(name + ': 4万円で注意が出る', levels.includes('warn'), levels.join(','));
+
+  // 「3万」「¥」表記
+  await page.fill('#amount', '¥3万');
+  ok(name + ': 「¥3万」を受け付ける', (await text(page, '#env-amount')) === '金参萬圓');
 
   // 不正入力
   await page.fill('#amount', 'abc');
@@ -128,6 +145,9 @@ async function run(viewport, name) {
   ok(name + ': 連名の提案が2件', (await page.locator('.suggestions button').count()) === 2);
   await page.click('.suggestions li:last-child button');
   ok(name + ': 提案を押すと金額欄に入る', (await page.inputValue('#amount')) === '10000');
+  ok(name + ': 連名の合計は1人分の目安と比べない',
+    !(await page.$$eval('#checks .check-message', (els) => els.some((e) => e.textContent.includes('目安')))));
+  ok(name + ': 前提に連名と出る', (await text(page, '#premise')).includes('連名'));
 
   await page.fill('#people', '99');
   ok(name + ': 人数の上限', (await page.getAttribute('#group-result .check', 'data-level')) === 'error');

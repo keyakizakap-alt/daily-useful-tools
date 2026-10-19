@@ -58,6 +58,10 @@ gift-money/
 
 ### 2.3 金額判定（checkAmount）
 
+偶数かどうかは「頭の数字」で判定する（千円単位の数から末尾の0を除いて1桁になるときのその数字。3万・30万・300万はどれも 3）。
+1万5千円のように頭が2桁になる額は偶数判定の対象外。
+
+
 戻り値は `{ level: 'error'|'warn'|'info'|'ok', code, message }` の配列。
 
 | code | level | 条件 |
@@ -83,19 +87,20 @@ gift-money/
 | `toDaiji(amount)` / `toKansuji(amount)` | 大字（壱萬・参阡…）／漢数字（一万三千） |
 | `envelopeText(amount)` | 中袋表の文言（`金 参萬圓` など） |
 | `addressToVertical(text)` | 住所の算用数字（半角・全角）を漢数字に、ハイフンを長音符に |
-| `groupGift(perPerson, people, eventId)` | 連名の合計・判定・無難な合計の提案 |
+| `groupGift(perPerson, people, eventId)` | 連名の合計・判定。合計が避けたい額なら、区切りのよい合計（3千・5千・1万・2万・3万・5万・10万…）から上下1つずつ提案し、1人あたりは100円単位・差額は代表者が持つ形で示す |
 
 ## 3. セキュリティ方針
 
 | 脅威 | 対策 |
 |---|---|
-| 入力由来の XSS | DOM への出力は `textContent` / `createElement` のみ。`innerHTML`・`insertAdjacentHTML`・`document.write`・`eval`・`new Function` を使わない（`tests/static.test.js` で機械的に検査） |
+| 入力由来の XSS | DOM への出力は `textContent` / `createElement` のみ。`innerHTML`・`insertAdjacentHTML`・`document.write`・`eval`・`Function` を使わない（`tests/static.test.js` で検査）。静的検査は網羅できないため、CSP `require-trusted-types-for 'script'` で**ブラウザ側でも**文字列から HTML を作る操作を禁止する |
 | 個人情報（氏名・住所）の流出 | 通信コードを持たない（`fetch` / `XMLHttpRequest` / `WebSocket` / `sendBeacon` なし。静的解析で検査）。CSP `connect-src 'none'` |
 | 個人情報の端末内残留 | `localStorage` / `sessionStorage` / `IndexedDB` / Cookie を使わない（静的解析で検査）。入力欄に `autocomplete="off"` |
 | 外部スクリプトの改ざん | CDN・外部フォントを使わない。CSP `default-src 'none'; script-src 'self'; style-src 'self'` |
-| クリックジャッキング | 配信時ヘッダ `X-Frame-Options: SAMEORIGIN`（直下 `vercel.json`）／ CSP `frame-ancestors` は meta では効かないためヘッダで担保 |
+| クリックジャッキング | `frame-ancestors` は meta では効かないため、配信ヘッダの CSP（meta と同内容＋`frame-ancestors 'none'`）で担保する。直下 `vercel.json` は `/gift-money/(.*)` に、`gift-money/vercel.json` は全体に付与（両者の一致はテストで検査）。GitHub Pages はヘッダを設定できないため、Pages 配信ではこの対策が効かない（既知の制約。入力内容が親ページに読まれることはない） |
+| 開発用ファイルの公開 | `docs/` `feedback/` `tests/` `package*.json` を、直下と `gift-money/` の両方の `.vercelignore` で除外 |
 | フォーム送信による漏えい | `<form>` を使わず、CSP `form-action 'none'` |
-| 異常値による停止 | 金額は `Number` 変換後に整数・範囲を検証。人数は 1〜50 に制限。不正値は error として表示し例外を投げない |
+| 異常値による停止 | 金額は書式（数字・「3万」「1万5千」）を正規表現で確かめてから数値化し、整数・範囲を検証。人数は 1〜50 に制限。連名の提案は固定の候補表から選ぶため、ループ回数が入力に依存しない。不正値は error として表示し例外を投げない |
 | 依存パッケージの脆弱性 | `dependencies` / `devDependencies` なし。`npm audit` で検証 |
 | 機密情報のハードコード | API キー等を一切持たない（静的解析で代表的なパターンを検査） |
 
@@ -103,7 +108,10 @@ gift-money/
 
 - 1 画面・上から順に「① 目安を調べる」「② 金額を確かめる」「③ 中袋の書き方」「④ 連名で包む」。
 - ① の推奨額を選ぶと、② ③ の金額欄に自動で入る（入力し直しも可）。
-- 結果領域は `aria-live="polite"` で更新を読み上げる。
+- 読み上げは、画面外の短い状態行（`role="status"`）1つに集約する（目安額・判定の要約・連名の合計）。
+  結果領域全体をライブ領域にすると、操作や1打鍵ごとに長文が読み上げられるため。
+- ② には「判定の前提」（場面・関係、または連名の合計であること）を表示する。連名の合計は1人分の相場とは比べない。
+- 年代と進学先は別々の値として持ち、場面を切り替えても混ざらない。
 - 中袋見本は CSS の `writing-mode: vertical-rl` で縦書き表示。数字は漢数字化して縦中横を避ける。
 - 判定のレベルは色だけでなく、ラベル（「注意」「確認」「問題なし」）でも伝える。
 

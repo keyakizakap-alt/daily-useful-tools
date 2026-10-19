@@ -62,6 +62,11 @@ test('年代が上がると推奨額は下がらない', () => {
   }
 });
 
+test('上司の立場で部下の家族の香典を出す場合、40代以上は1万円', () => {
+  assert.equal(E.recommend('funeral', 'colleagueFamily', 'high').amount, 10000);
+  assert.equal(E.recommend('funeral', 'colleagueFamily', 'low').amount, 3000);
+});
+
 test('代表的な推奨額', () => {
   assert.equal(E.recommend('wedding', 'friend', 'low').amount, 30000);
   assert.equal(E.recommend('wedding', 'sibling', 'low').amount, 30000);
@@ -126,7 +131,15 @@ test('入力の解釈（全角・カンマ・円を許容）', () => {
   assert.equal(E.parseAmount('30000'), 30000);
   assert.equal(E.parseAmount('３０,０００円'), 30000);
   assert.equal(E.parseAmount(' 5,000 '), 5000);
-  assert.ok(Number.isNaN(E.parseAmount('3万')));
+  assert.equal(E.parseAmount('¥30,000'), 30000);
+  assert.equal(E.parseAmount('￥30000'), 30000);
+  assert.equal(E.parseAmount('3万'), 30000);
+  assert.equal(E.parseAmount('3万円'), 30000);
+  assert.equal(E.parseAmount('1万5千'), 15000);
+  assert.equal(E.parseAmount('5千円'), 5000);
+  assert.ok(Number.isNaN(E.parseAmount('万')));
+  assert.ok(Number.isNaN(E.parseAmount('3万5')));
+  assert.ok(Number.isNaN(E.parseAmount('3.5万')));
   assert.ok(Number.isNaN(E.parseAmount('-1000')));
   assert.ok(Number.isNaN(E.parseAmount('1e5')));
   assert.ok(Number.isNaN(E.parseAmount(null)));
@@ -162,6 +175,14 @@ test('慶事の偶数', () => {
   assert.deepEqual(codes(E.checkAmount(100000, 'wedding')), ['ok']);
   // 4万は忌み数として1回だけ指摘し、偶数の指摘は重ねない
   assert.deepEqual(codes(E.checkAmount(40000, 'wedding')), ['imikazu']);
+  // 偶数は頭の数字で見る: 30万・50万・100万は奇数扱い、20万は「2」、60万は偶数
+  assert.deepEqual(codes(E.checkAmount(300000, 'wedding')), ['ok']);
+  assert.deepEqual(codes(E.checkAmount(500000, 'wedding')), ['ok']);
+  assert.deepEqual(codes(E.checkAmount(1000000, 'wedding')), ['ok']);
+  assert.deepEqual(codes(E.checkAmount(200000, 'wedding')), ['even-pair']);
+  assert.deepEqual(codes(E.checkAmount(600000, 'wedding')), ['even']);
+  // 1万5千のように頭が2桁の額は偶数判定の対象外
+  assert.deepEqual(codes(E.checkAmount(15000, 'birth')), ['ok']);
 });
 
 test('弔事の偶数は info に留める', () => {
@@ -280,9 +301,26 @@ test('連名: 合計が忌み数なら、上下の無難な合計を提案する
   assert.ok(totals[0] < 9000 && totals[1] > 9000);
   for (const s of r.suggestions) {
     assert.notEqual(E.worstLevel(E.checkAmount(s.total, 'birth')), 'warn', String(s.total));
-    assert.ok(s.perPerson * 3 >= s.total);
+    assert.equal(s.perPerson * 3 + s.remainder, s.total);
   }
-  assert.deepEqual(totals, [8000, 10000]);
+  assert.deepEqual(totals, [5000, 10000]);
+});
+
+test('連名: 提案は区切りのよい合計に限り、1人あたりは100円単位', () => {
+  const nice = [3000, 5000, 10000, 20000, 30000, 50000, 100000, 200000, 300000, 500000, 1000000];
+  for (const [per, n] of [[3000, 13], [1000, 6], [3000, 3], [2000, 2], [7000, 7], [4500, 9]]) {
+    for (const ev of ['birth', 'wedding', 'funeral']) {
+      const r = E.groupGift(per, n, ev);
+      for (const s of r.suggestions) {
+        const label = per + '×' + n + '/' + ev + ' → ' + s.total;
+        assert.ok(nice.includes(s.total), label);
+        assert.equal(s.perPerson % 100, 0, label);
+        assert.ok(s.remainder >= 0 && s.remainder < n * 100, label);
+        assert.equal(s.perPerson * n + s.remainder, s.total, label);
+      }
+    }
+  }
+  assert.deepEqual(E.groupGift(3000, 13, 'birth').suggestions.map((s) => s.total), [30000, 50000]);
 });
 
 test('連名: 4名以上は「一同」の書き方を案内', () => {

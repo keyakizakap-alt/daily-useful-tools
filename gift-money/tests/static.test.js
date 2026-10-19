@@ -36,14 +36,15 @@ test('構文チェック（node --check）', () => {
 });
 
 const FORBIDDEN = [
-  [/\.innerHTML\b/, 'innerHTML'],
-  [/\.outerHTML\b/, 'outerHTML'],
+  [/innerHTML|outerHTML|['"]inner['"]\s*\+|['"]HTML['"]/, 'innerHTML / outerHTML（ブラケット記法を含む）'],
   [/insertAdjacentHTML/, 'insertAdjacentHTML'],
   [/document\.write/, 'document.write'],
   [/\beval\s*\(/, 'eval'],
-  [/new\s+Function\b/, 'new Function'],
+  [/\bFunction\s*\(/, 'Function コンストラクタ'],
+  [/createContextualFragment|setHTMLUnsafe|parseHTMLUnsafe|\.srcdoc\b|DOMParser/, '文字列から DOM を作る API'],
+  [/\blocation\s*(\.\s*(href|assign|replace)\b|=)|window\.open\s*\(/, 'ページ遷移（URL に入力を載せて持ち出す経路）'],
   [/set(Timeout|Interval)\s*\(\s*['"]/, '文字列を渡す setTimeout / setInterval'],
-  [/\bfetch\s*\(/, 'fetch'],
+  [/\bfetch\b/, 'fetch'],
   [/XMLHttpRequest/, 'XMLHttpRequest'],
   [/WebSocket/, 'WebSocket'],
   [/EventSource/, 'EventSource'],
@@ -76,15 +77,58 @@ test('秘密情報らしき文字列を含まない', () => {
   }
 });
 
-test('index.html: CSP が通信・外部読み込みを禁止している', () => {
-  const html = read('index.html');
-  const m = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/);
-  assert.ok(m, 'CSP の meta が無い');
-  const csp = m[1];
-  for (const d of ["default-src 'none'", "script-src 'self'", "style-src 'self'", "connect-src 'none'", "form-action 'none'", "base-uri 'none'"]) {
-    assert.ok(csp.includes(d), 'CSP に ' + d + ' が無い');
+// CSP をディレクティブごとに分解する（部分一致では「'self' https:」のような緩和を見逃すため）
+function parseCsp(text) {
+  const out = {};
+  for (const part of text.split(';')) {
+    const tokens = part.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length) out[tokens[0]] = tokens.slice(1).sort();
   }
-  assert.ok(!/unsafe-inline|unsafe-eval/.test(csp), 'CSP に unsafe-* がある');
+  return out;
+}
+
+const EXPECTED_CSP = {
+  'default-src': ["'none'"],
+  'script-src': ["'self'"],
+  'style-src': ["'self'"],
+  'img-src': ["'none'"],
+  'font-src': ["'none'"],
+  'connect-src': ["'none'"],
+  'form-action': ["'none'"],
+  'base-uri': ["'none'"],
+  'require-trusted-types-for': ["'script'"]
+};
+
+function metaCsp() {
+  const m = read('index.html').match(/http-equiv="Content-Security-Policy" content="([^"]+)"/);
+  assert.ok(m, 'CSP の meta が無い');
+  return m[1];
+}
+
+test('index.html: CSP が設計どおり（ディレクティブ単位で完全一致）', () => {
+  assert.deepEqual(parseCsp(metaCsp()), EXPECTED_CSP);
+});
+
+test('配信ヘッダの CSP は meta と同じ内容に frame-ancestors を加えたもの', () => {
+  const expected = Object.assign({}, EXPECTED_CSP, { 'frame-ancestors': ["'none'"] });
+  const configs = [
+    [path.join(ROOT, 'vercel.json'), '/(.*)'],
+    [path.join(ROOT, '..', 'vercel.json'), '/gift-money/(.*)']
+  ];
+  for (const [file, source] of configs) {
+    const conf = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    const rule = conf.headers.find((h) => h.source === source && h.headers.some((x) => x.key === 'Content-Security-Policy'));
+    assert.ok(rule, file + ' に ' + source + ' の CSP ヘッダが無い');
+    const value = rule.headers.find((x) => x.key === 'Content-Security-Policy').value;
+    assert.deepEqual(parseCsp(value), expected, file);
+  }
+});
+
+test('直下の .vercelignore で開発用ファイルを配信しない', () => {
+  const ignore = fs.readFileSync(path.join(ROOT, '..', '.vercelignore'), 'utf-8').split('\n').map((l) => l.trim());
+  for (const p of ['docs', 'feedback', 'tests', 'package.json', 'package-lock.json']) {
+    assert.ok(ignore.includes('/gift-money/' + p), '/gift-money/' + p);
+  }
 });
 
 test('index.html: インラインスクリプト・インラインスタイル・外部 URL を持たない', () => {
