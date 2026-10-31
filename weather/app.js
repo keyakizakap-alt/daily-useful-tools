@@ -188,7 +188,7 @@ const state = {
   weatherItem: null,    // 「天気」タブで開いている項目（null は一覧）
   radarCity: null,      // 雨雲レーダーの中心にしている地点
   radarBase: "photo",   // レーダーの背景地図 photo / std / pale
-  notify: { on: false, rain: true, warn: true, watch: null },   // 通知の設定（watch は雨を見張る地点）
+  notify: { on: false, rain: true, warn: true, watch: null, push: false },   // 通知の設定（watch は雨を見張る地点、push はアプリを閉じていても届く通知）
   data: new Map(),      // cityId -> normalized forecast
   errors: new Map(),    // cityId -> message
   alerts: new Map(),    // 府県予報区コード -> 気象庁の警報・注意報
@@ -229,6 +229,7 @@ function loadState() {
       state.notify.rain = s.notify.rain !== false;
       state.notify.warn = s.notify.warn !== false;
       state.notify.watch = valid(s.notify.watch) ? s.notify.watch : null;
+      state.notify.push = s.notify.push === true;
     }
     if (!state.selected.length) state.selected = DEFAULT_SELECTED.slice();
     // ピン留めは必ず表示対象に含める
@@ -244,6 +245,7 @@ function saveState() {
       notify: state.notify
     }));
   } catch (e) { /* プライベートモード等で保存できなくても動作は継続 */ }
+  schedulePushSync();   // 地点や通知の設定が変わったら、サーバー側の登録内容も更新する
 }
 
 /* ============================================================
@@ -2228,7 +2230,7 @@ function notifyWatchCity() {
 
 /** 見張る地点の1時間先までの雨を調べ、降り出し・強まりがあれば知らせる */
 async function rainWatchTick() {
-  if (!state.notify.on || !state.notify.rain || notifyPermission() !== "granted" || rainCheckBusy) return;
+  if (!state.notify.on || !state.notify.rain || state.notify.push || notifyPermission() !== "granted" || rainCheckBusy) return;
   const city = notifyWatchCity();
   if (!city) return;
   rainCheckBusy = true;
@@ -2274,7 +2276,7 @@ async function rainWatchTick() {
  */
 function checkWarningNotices() {
   lastWarnCheck = Date.now();
-  if (!state.notify.on || !state.notify.warn) return;
+  if (!state.notify.on || !state.notify.warn || state.notify.push) return;   // サーバーから届く設定のときは二重に出さない
   const log = loadNotifyLog();
   const seen = log.warn && typeof log.warn === "object" ? log.warn : {};
   const fresh = [];
@@ -2335,7 +2337,8 @@ async function enableNotify() {
 }
 
 function applyNotifySetting(name, val) {
-  if (name === "off") state.notify.on = false;
+  if (name === "push") { if (val === "on") enablePush(); else disablePush(); return; }
+  if (name === "off") { state.notify.on = false; if (state.notify.push) disablePush(); }
   else if (name === "rain" || name === "warn") {
     state.notify[name] = val === "on";
     if (name === "warn" && state.notify.warn) { const log = loadNotifyLog(); log.warn = {}; saveNotifyLog(log); checkWarningNotices(); }
@@ -2376,12 +2379,168 @@ function notifyMenuHtml(seg) {
   html += '<div class="menu-row"><span>雨の降り出し・強まり</span>' + seg("n-rain", state.notify.rain ? "on" : "off", [["on", "オン"], ["off", "オフ"]]) + '</div>'
     + (state.notify.rain ? '<div class="menu-row"><span>雨を見張る地点</span><select class="menu-select" id="notifyWatch" aria-label="雨を見張る地点">' + opts + '</select></div>' : '')
     + '<div class="menu-row"><span>警報・注意報の発表</span>' + seg("n-warn", state.notify.warn ? "on" : "off", [["on", "オン"], ["off", "オフ"]]) + '</div>'
+    + pushMenuHtml(seg)
     + '<button type="button" class="menu-link" id="notifyTest">テスト通知を送る</button>'
     + '<button type="button" class="menu-link menu-link-sub" data-set="n-off" data-val="off">通知をやめる</button>'
-    + '<div class="menu-note">そらならべを開いている間だけ確認します（雨は5分ごと、警報は15分ごと）。アプリを閉じている間は届きません。'
-    + (ios && !standalone ? "iPhone・iPad では、ホーム画面に追加したアプリから開いてください。" : "")
+    + '<div class="menu-note">' + (state.notify.push
+      ? "アプリを閉じていても、サーバーが5分ごとに確認してお知らせします（混み具合により数分遅れることがあります）。"
+        + "このため、雨を見張る地点（約1km単位に丸めた位置）と登録地点の府県・区域名、通知の宛先をサーバーに保存します。"
+      : "そらならべを開いている間だけ確認します（雨は5分ごと、警報は15分ごと）。"
+        + (pushSupported ? "" : "アプリを閉じている間は届きません。")
+        + (ios && !standalone ? "iPhone・iPad では、ホーム画面に追加したアプリから開いてください。" : ""))
     + '警報・注意報は登録している地点が対象です。</div>';
   return html + '</div>';
+}
+
+
+/* ---- アプリを閉じていても届く通知（サーバーからの Web Push） ----
+ *   端末の購読情報と通知の設定を /api/push/subscribe/ に登録し、サーバー（api/push/cron.js）が 5 分ごとに確認して送る。
+ *   サーバーが用意されていない配信先（GitHub Pages など）では、この項目は出さない。
+ */
+const PUSH_API = "/api/push/";
+const PUSH_SYNC_KEY = "soranarabe.push.sent";
+const pushSupported = notifySupported && "serviceWorker" in navigator && "PushManager" in window;
+var pushConfig;              // undefined = 未取得 / null = 使えない / { enabled, publicKey }
+var pushMsg = "", pushBusy = false, pushSyncTimer = null;
+
+function b64uBytes(s) {
+  const bin = atob(String(s).replace(/-/g, "+").replace(/_/g, "/") + "===".slice((String(s).length + 3) % 4));
+  return Uint8Array.from(bin, ch => ch.charCodeAt(0));
+}
+
+async function loadPushConfig() {
+  if (pushConfig !== undefined) return pushConfig;
+  try {
+    const res = await fetch(PUSH_API + "config/", { cache: "no-store" });
+    const j = res.ok ? await res.json() : null;
+    pushConfig = j && j.enabled && typeof j.publicKey === "string" ? j : null;
+  } catch (e) { pushConfig = null; }
+  return pushConfig;
+}
+
+/** 購読には「動作中」の Service Worker が要るため、インストール直後なら有効になるまで待つ */
+async function pushRegistration() {
+  if (!("serviceWorker" in navigator)) return null;
+  const reg = (await navigator.serviceWorker.getRegistration()) || await navigator.serviceWorker.register("sw.js");
+  if (reg.active) return reg;
+  return Promise.race([navigator.serviceWorker.ready,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("service worker not ready")), 10000))]);
+}
+
+/** サーバーに送る内容（見張る地点と、警報を確認する登録地点） */
+function pushPayload(sub) {
+  const watch = notifyWatchCity();
+  const places = state.selected.map(id => CITY_BY_ID.get(id)).filter(c => c && c.jma).slice(0, 20)
+    .map(c => ({ id: c.id, name: placeName(c), jma: c.jma, area: c.jmaArea || "" }));
+  return {
+    subscription: sub.toJSON(),
+    // 位置は端末の側でも約 1km 単位に丸めてから送る（現在地の細かい座標は送らない）
+    rain: state.notify.rain && watch ? { on: true, lat: Math.round(watch.lat * 100) / 100, lon: Math.round(watch.lon * 100) / 100, name: placeName(watch) } : { on: false },
+    warn: { on: !!state.notify.warn, places: places }
+  };
+}
+
+async function pushPost(method, body, path) {
+  const res = await fetch(PUSH_API + (path || "subscribe/"), {
+    method: method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+  });
+  if (!res.ok) { const e = new Error("HTTP " + res.status); e.status = res.status; throw e; }
+}
+
+async function getOrCreateSubscription(reg) {
+  const sub = await reg.pushManager.getSubscription();
+  if (sub) return sub;
+  return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(pushConfig.publicKey) });
+}
+
+/** メニューの「アプリを閉じていても通知」オン。公開鍵は先に取得してあるので、操作の直後に購読できる */
+async function enablePush() {
+  if (!pushSupported || pushBusy) return;
+  if (!pushConfig) { pushMsg = "サーバー通知の準備ができていません。しばらくしてからお試しください。"; renderMenu(); return; }
+  pushBusy = true; pushMsg = "設定しています…"; renderMenu();
+  try {
+    const reg = await pushRegistration();
+    const sub = await getOrCreateSubscription(reg);
+    const body = pushPayload(sub);
+    await pushPost("POST", body);
+    try { localStorage.setItem(PUSH_SYNC_KEY, JSON.stringify(body)); } catch (e) { /* 保存できなくても可 */ }
+    state.notify.push = true;
+    pushMsg = "";
+    saveState();
+  } catch (e) {
+    pushMsg = e && e.status === 503 ? "登録できる端末の数が上限に達しているか、サーバーの準備ができていません。"
+      : "設定できませんでした。通信状態を確認して、もう一度お試しください。";
+  } finally {
+    pushBusy = false;
+    renderMenu();
+  }
+}
+
+async function disablePush() {
+  state.notify.push = false;
+  pushMsg = "";
+  saveState();
+  const log = loadNotifyLog(); log.warn = {}; saveNotifyLog(log);   // アプリ内の確認に戻すとき、警報はいまの状態を基準にし直す
+  try { localStorage.removeItem(PUSH_SYNC_KEY); } catch (e) { /* 可 */ }
+  renderMenu();
+  try {
+    const reg = await pushRegistration();
+    const sub = reg && await reg.pushManager.getSubscription();
+    if (sub) {
+      await pushPost("POST", { action: "unsubscribe", endpoint: sub.endpoint }).catch(() => {});
+      await sub.unsubscribe();
+    }
+  } catch (e) { /* 端末側の解除に失敗しても、サーバー側は送れなくなった時点で自動で消える */ }
+}
+
+function schedulePushSync() {
+  if (!state.notify.push) return;
+  clearTimeout(pushSyncTimer);
+  pushSyncTimer = setTimeout(() => pushSync(false), 1500);
+}
+
+/** 設定が変わっていればサーバーに送り直す。購読が失効していたら作り直す（force は起動時の確認用） */
+async function pushSync(force) {
+  if (!state.notify.on || !state.notify.push || !pushSupported || notifyPermission() !== "granted") return;
+  try {
+    if (!(await loadPushConfig())) return;
+    const reg = await pushRegistration();
+    const sub = await getOrCreateSubscription(reg);
+    const body = pushPayload(sub);
+    const sig = JSON.stringify(body);
+    let last = null;
+    try { last = localStorage.getItem(PUSH_SYNC_KEY); } catch (e) { /* 可 */ }
+    if (!force && last === sig) return;
+    await pushPost("POST", body);
+    try { localStorage.setItem(PUSH_SYNC_KEY, sig); } catch (e) { /* 可 */ }
+  } catch (e) { /* 次の変更か次回の起動で送り直す */ }
+}
+
+/** サーバー経由のテスト通知（アプリを閉じた状態で届くかを確かめられる） */
+async function sendServerTest() {
+  pushMsg = "テスト通知を送っています…"; renderMenu();
+  try {
+    const reg = await pushRegistration();
+    const sub = reg && await reg.pushManager.getSubscription();
+    if (!sub) throw Object.assign(new Error("no sub"), { status: 404 });
+    await pushPost("POST", { endpoint: sub.endpoint }, "test/");
+    pushMsg = "サーバーからテスト通知を送りました。数秒で届かない場合は、端末の通知設定を確認してください。";
+  } catch (e) {
+    pushMsg = e && e.status === 429 ? "テスト通知は1分に1回まで送れます。少し待ってからお試しください。"
+      : e && (e.status === 404 || e.status === 410) ? "この端末の登録が見つかりません。「アプリを閉じていても通知」をいったんオフにして、もう一度オンにしてください。"
+      : "テスト通知を送れませんでした。通信状態を確認して、もう一度お試しください。";
+    if (e && (e.status === 404 || e.status === 410)) { try { localStorage.removeItem(PUSH_SYNC_KEY); } catch (x) { /* 可 */ } }
+  }
+  renderMenu();
+}
+
+function pushMenuHtml(seg) {
+  if (!pushSupported) return "";
+  if (pushConfig === undefined) { loadPushConfig().then(() => { if (state.tab === "menu") renderMenu(); }); return ""; }
+  if (!pushConfig) return "";
+  return '<div class="menu-row"><span>アプリを閉じていても通知</span>'
+    + seg("n-push", state.notify.push ? "on" : "off", [["on", "オン"], ["off", "オフ"]]) + '</div>'
+    + (pushMsg ? '<div class="menu-note" role="status">' + esc(pushMsg) + '</div>' : '');
 }
 
 /* ---- メニュー ---- */
@@ -3405,6 +3564,7 @@ document.addEventListener("click", ev => {
   }
 
   if (ev.target.closest("#notifyOn")) { enableNotify(); return; }
+  if (ev.target.closest("#notifyTest") && state.notify.push) { sendServerTest(); return; }
   if (ev.target.closest("#notifyTest")) {
     showNotice("そらならべ：テスト通知", "このように雨や警報・注意報をお知らせします。", "#menu", "soranarabe-test");
     return;
@@ -3597,6 +3757,7 @@ if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
 setInterval(() => { if (!document.hidden) refresh(false); }, AUTO_REFRESH_MS);
 setInterval(notifyTick, RAIN_CHECK_MS);
 setTimeout(rainWatchTick, 8000);     // 起動直後の予報取得を待ってから一度確認する
+setTimeout(() => pushSync(true), 10000);   // サーバー側の登録が残っているか、起動のたびに一度だけ確かめる
 document.addEventListener("change", ev => {
   if (ev.target && ev.target.id === "notifyWatch") applyNotifySetting("watch", ev.target.value);
 });

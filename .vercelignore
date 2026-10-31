@@ -15,3 +15,7 @@
 /scripts/harness
 /tests/harness.test.mjs
 /package.json
+
+# そらならべのサーバー通知: 鍵を作るスクリプト（開発用。配信しない）
+/scripts/push
+/tests
