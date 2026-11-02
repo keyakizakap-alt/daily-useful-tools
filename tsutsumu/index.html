@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>つつむ — ご祝儀・香典・お年玉の金額と袋の書き方</title>
+<meta name="description" content="場面と相手を選ぶだけで、包む金額の目安・お札・袋・表書き・中袋の書き方・お返しの目安まで1画面でわかる。通信なしで動きます。">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="src/styles.css">
+</head>
+<body data-group="keiji">
+<a class="skip" href="#result">結果へ移動</a>
+<header class="top">
+  <div class="wrap">
+    <a class="back" href="../">← 毎日の道具箱</a>
+    <h1>つつむ</h1>
+    <p class="lead">ご祝儀・香典・お年玉。「いくら・どの袋・なんて書く」を、1画面で。</p>
+  </div>
+</header>
+
+<main class="wrap main">
+ <div class="layout">
+  <form id="form" class="panel inputs" novalidate>
+    <fieldset>
+      <legend>場面</legend>
+      <div id="occasions" class="chips"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend id="relation-legend">相手との関係</legend>
+      <div id="relations" class="chips"></div>
+    </fieldset>
+
+    <fieldset id="age-field">
+      <legend>あなたの年代</legend>
+      <div id="ages" class="chips"></div>
+    </fieldset>
+
+    <fieldset id="religion-field" hidden>
+      <legend>宗教・宗派</legend>
+      <div id="religions" class="chips"></div>
+    </fieldset>
+
+    <details id="more" class="more">
+      <summary>連名で贈る・金額を自分で決める</summary>
+      <div class="more-body">
+        <div class="row" id="people-row">
+          <label for="people">贈る人数（連名）</label>
+          <input id="people" type="number" inputmode="numeric" min="1" max="100" step="1" value="1">
+          <span class="unit">人</span>
+        </div>
+        <div class="row" id="per-row" hidden>
+          <label for="per-person">1人あたり</label>
+          <input id="per-person" type="number" inputmode="numeric" min="500" max="1000000" step="500">
+          <span class="unit">円</span>
+        </div>
+        <div class="row">
+          <label for="custom-amount">包む金額</label>
+          <input id="custom-amount" type="number" inputmode="numeric" min="1" max="10000000" step="1000" placeholder="おすすめを使う">
+          <span class="unit">円</span>
+        </div>
+        <div class="row">
+          <label for="name" id="name-label">名前（見本の表示用）</label>
+          <input id="name" type="text" maxlength="20" autocomplete="off" placeholder="山田 太郎">
+        </div>
+        <p class="hint">入力した名前や金額は、どこにも送信・保存されません。</p>
+      </div>
+    </details>
+  </form>
+
+  <section id="result" class="result" tabindex="-1" aria-label="結果">
+    <div class="panel summary" aria-live="polite">
+      <p class="eyebrow" id="r-occasion"></p>
+      <p class="amount"><span id="r-amount"></span></p>
+      <p class="range" id="r-range"></p>
+      <div id="r-alts" class="alts"></div>
+      <ul id="r-checks" class="checks"></ul>
+    </div>
+
+    <div class="panel preview-wrap">
+      <div class="preview" id="preview" aria-hidden="true">
+        <div class="pv-omote" id="pv-omote"></div>
+        <div class="pv-band" id="pv-band"></div>
+        <div class="pv-name" id="pv-name"></div>
+      </div>
+      <dl class="facts" id="r-envelope"></dl>
+    </div>
+
+    <div class="grid">
+      <article class="panel card"><h2>お札</h2><div id="r-bills"></div></article>
+      <article class="panel card"><h2>表書き・墨</h2><div id="r-omote"></div></article>
+      <article class="panel card"><h2>名前の書き方</h2><div id="r-names"></div></article>
+      <article class="panel card"><h2>中袋（中包み）</h2><div id="r-naka"></div></article>
+      <article class="panel card"><h2>お返し</h2><div id="r-return"></div></article>
+      <article class="panel card" id="joint-card" hidden><h2>連名の集め方</h2><div id="r-joint"></div></article>
+    </div>
+  </section>
+ </div>
+
+  <section class="panel records" aria-labelledby="records-title">
+    <h2 id="records-title">贈答の記録</h2>
+    <p class="hint">「記録する」を押したときだけ、<strong>この端末のブラウザの中にだけ</strong>保存します。送信はしません。</p>
+    <form id="record-form" class="record-form" novalidate>
+      <div class="seg" role="radiogroup" aria-label="記録の種類">
+        <label><input type="radio" name="direction" value="gave" checked> 贈った</label>
+        <label><input type="radio" name="direction" value="received"> いただいた</label>
+      </div>
+      <label class="f">日付<input id="rec-date" type="date" required></label>
+      <label class="f">相手<input id="rec-person" type="text" maxlength="40" autocomplete="off" required placeholder="例: 佐藤さん（大学の友人）"></label>
+      <label class="f">金額（円）<input id="rec-amount" type="number" inputmode="numeric" min="0" max="10000000" step="1" required></label>
+      <label class="f wide">メモ<input id="rec-note" type="text" maxlength="200" autocomplete="off" placeholder="例: 品物も一緒に"></label>
+      <p class="rec-occasion">場面: <span id="rec-occasion"></span>（上で選んだ場面）</p>
+      <button type="submit" class="btn primary">記録する</button>
+      <p id="rec-msg" class="msg" role="status"></p>
+    </form>
+    <div class="table-wrap">
+      <table class="rec-table">
+        <caption class="sr">保存した記録</caption>
+        <thead><tr><th scope="col">日付</th><th scope="col">種類</th><th scope="col">相手</th><th scope="col">場面</th><th scope="col">金額</th><th scope="col">お返しの目安</th><th scope="col"><span class="sr">操作</span></th></tr></thead>
+        <tbody id="rec-body"></tbody>
+      </table>
+      <p id="rec-empty" class="empty">まだ記録はありません。</p>
+    </div>
+    <div class="rec-actions">
+      <button type="button" class="btn" id="rec-export">書き出す（JSON）</button>
+      <label class="btn file">読み込む（JSON）<input id="rec-import" type="file" accept="application/json,.json"></label>
+      <button type="button" class="btn danger" id="rec-clear">すべて削除</button>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <p>表示する金額と作法は、一般に紹介されている<strong>目安</strong>です。地域・家・宗派の慣習や、周りの人と合わせることを優先してください。</p>
+  <p>このページは通信を行いません。入力内容が外部に送られることはありません。</p>
+</footer>
+<script src="src/engine.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>

@@ -15,3 +15,9 @@
 /scripts/harness
 /tests/harness.test.mjs
 /package.json
+
+# つつむ（開発用。配信しない）
+/tsutsumu/docs
+/tsutsumu/feedback
+/tsutsumu/tests
+/PR_DESCRIPTION.md
