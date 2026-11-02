@@ -9,6 +9,7 @@
 | そらならべ | `weather/` | 日本の天気を、ならべて見る |
 | くもみち | `gcp-cert/` | Google Cloud 認定 全冠ナビ（非公式） |
 | おくるまえに | `mail-check/` | 送信前のメール点検 |
+| つつむ | `tsutsumu/` | ご祝儀・香典・お年玉の金額と袋の書き方 |
 
 ---
 
@@ -341,3 +342,17 @@ CLI の場合は `vercel --cwd mail-check`（初回にプロジェクトをリ�
 |---|---|
 | `mail-check/vercel.json` | おくるまえに専用の設定。`ignoreCommand` で `mail-check/` に変更がないコミットはビルドしない |
 | `mail-check/.vercelignore` | 配信対象から `docs/` `feedback/` `tests/` `package*.json` を除外（画面に必要な4ファイルだけを配信する） |
+
+## つつむ — ご祝儀・香典・お年玉のナビ (`tsutsumu/`)
+
+> 「いくら・どの袋・なんて書く」を、1画面で。
+
+場面（結婚式・出産祝い・香典・法要・お年玉など9種）と相手を選ぶだけで、**包む金額の目安とおすすめ・お札の枚数と新札か否か・
+水引とのし・表書きと墨の濃さ・名前の書き方・中袋の大字（金参萬圓也）・お返しの目安**を1画面に出す。
+4・9 や結婚の偶数など、避けたい金額は理由と代わりの金額つきで知らせる。連名（職場一同など）の合計と1人あたりも計算する。
+
+- `tsutsumu/index.html` をブラウザで開くだけ。ビルド・サーバー・通信は不要。
+- 贈答の記録（贈った／いただいた）は、「記録する」を押したときだけこの端末のブラウザに保存する。JSON で書き出し・読み込みできる。
+- 金額・作法は一般的な目安。地域・家・宗派の慣習を優先する前提。
+- テスト: `npm test`（`tsutsumu/tests/engine.test.mjs`）、画面のスモーク: `node tsutsumu/tests/smoke.mjs`（Playwright）。
+- 要件・設計・レビュー: `tsutsumu/docs/`、`tsutsumu/feedback/review_report.md`。
