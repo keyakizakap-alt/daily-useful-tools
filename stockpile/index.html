@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<title>そなえ帳 — 家庭の防災備蓄ノート</title>
+<meta name="description" content="家族構成から防災備蓄の必要量を計算し、在庫と期限を管理して、今月食べる物・買い足す物を示します。データは端末内にだけ保存されます。">
+<link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">家庭の防災備蓄ノート</p>
+    <h1>そなえ帳</h1>
+    <p class="lead">家族に合った備蓄の量を出し、在庫と期限を管理します。データはこの端末にだけ保存され、どこにも送信されません。</p>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <p id="storage-warning" class="notice warn" hidden>この環境ではデータを保存できません。ページを閉じると入力内容は消えます。必要なら「書き出し」で保存してください。</p>
+
+  <section class="overview" aria-labelledby="ov-h">
+    <h2 id="ov-h" class="sr-only">概況</h2>
+    <div class="stat"><span class="stat-label">水・食料・生活用品の充足率</span><span class="stat-value" id="ov-coverage">0%</span></div>
+    <div class="stat"><span class="stat-label">水は</span><span class="stat-value" id="ov-water">—</span></div>
+    <div class="stat"><span class="stat-label">期限切れ／30日以内</span><span class="stat-value" id="ov-expiry">0／0</span></div>
+  </section>
+  <p id="live" class="sr-only" aria-live="polite"></p>
+
+  <section class="card" aria-labelledby="hh-h">
+    <h2 id="hh-h">1. 家族構成</h2>
+    <p class="hint">人数と備える日数を入れると、必要な量がすぐ下に出ます。最低3日分、できれば1週間分が目安です。</p>
+    <div class="hh-grid" id="household"></div>
+  </section>
+
+  <section class="card" aria-labelledby="req-h">
+    <h2 id="req-h">2. 必要な量と、今ある量</h2>
+    <p class="hint">期限切れの在庫は数えていません。上の充足率は備品を除いた平均です。基準はすべて目安です。持病・アレルギー・月齢に合わせて増やしてください。</p>
+    <div id="requirements"></div>
+  </section>
+
+  <section class="card" aria-labelledby="al-h">
+    <h2 id="al-h">3. 期限のお知らせ</h2>
+    <div id="alerts"></div>
+  </section>
+
+  <section class="card" aria-labelledby="inv-h">
+    <h2 id="inv-h">4. 在庫</h2>
+    <form id="add-form" class="add-form" novalidate>
+      <div class="field">
+        <label for="f-req">品目</label>
+        <select id="f-req" required></select>
+      </div>
+      <div class="field">
+        <label for="f-name">品名（任意）</label>
+        <input id="f-name" type="text" maxlength="40" autocomplete="off" placeholder="例: 保存水 2L">
+      </div>
+      <div class="field">
+        <label for="f-qty">数量 <span id="f-unit" class="unit"></span></label>
+        <input id="f-qty" type="number" inputmode="decimal" min="0.1" step="any" required>
+      </div>
+      <div class="field">
+        <label for="f-exp">賞味・使用期限（任意）</label>
+        <input id="f-exp" type="date">
+      </div>
+      <div class="field actions">
+        <button type="submit" class="btn primary">追加する</button>
+      </div>
+      <p id="add-error" class="error" role="alert"></p>
+    </form>
+    <div id="inventory"></div>
+  </section>
+
+  <section class="card" aria-labelledby="sh-h">
+    <h2 id="sh-h">5. 買い物リスト</h2>
+    <pre id="shopping" class="shopping"></pre>
+    <div class="row">
+      <button type="button" class="btn" id="copy-shopping">買い物リストをコピー</button>
+      <span id="copy-result" class="muted" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="dt-h">
+    <h2 id="dt-h">6. データ</h2>
+    <p class="hint">機種変更やバックアップには「書き出し」を使ってください。読み込むと、今のデータは置き換わります。</p>
+    <div class="row wrap-row">
+      <button type="button" class="btn" id="export">書き出し（JSON）</button>
+      <label class="btn file-btn">読み込み<input type="file" id="import" accept="application/json,.json"></label>
+      <button type="button" class="btn danger" id="clear">全消去</button>
+    </div>
+    <p id="data-result" class="muted" role="status"></p>
+    <details class="basis">
+      <summary>基準値の考え方</summary>
+      <p>飲料水1人1日3L、カセットボンベ1人1週間6本などは、農林水産省の家庭備蓄の考え方に沿った目安です。ペットフードは最低5日分を目安にしています。最新の情報は公式ページで確認してください。</p>
+      <p><a href="https://www.maff.go.jp/j/zyukyu/foodstock/" rel="noopener noreferrer" target="_blank">農林水産省「家庭備蓄ポータル」</a></p>
+    </details>
+  </section>
+</main>
+<footer class="wrap foot">
+  <p><a href="../">daily-useful-tools のトップへ</a></p>
+</footer>
+<script src="src/engine.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>
