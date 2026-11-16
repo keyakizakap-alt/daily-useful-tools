@@ -4,6 +4,7 @@
 
   var R = window.GomiRules;
   var STORAGE_KEY = "gomi-day:v1";
+  var CORRUPT_KEY = "gomi-day:v1:corrupt";
   var SHARE_PREFIX = "#s=";
 
   var PALETTE = {
@@ -33,6 +34,8 @@
   var state = R.emptyConfig();
   var storageOk = true;
   var pendingShare = null;
+  var beforeImport = null;
+  var noticeTimer = null;
 
   function $(id) {
     return document.getElementById(id);
@@ -62,13 +65,34 @@
   // ---------- 保存 ----------
 
   function load() {
+    var raw = null;
     try {
-      var raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return R.emptyConfig();
-      return R.sanitizeConfig(JSON.parse(raw));
+      raw = window.localStorage.getItem(STORAGE_KEY);
     } catch (e) {
+      setStorageWarning("この端末では設定を保存できません。ページを閉じると内容は消えます。");
+      storageOk = false;
       return R.emptyConfig();
     }
+    if (!raw) return R.emptyConfig();
+    try {
+      return R.sanitizeConfig(JSON.parse(raw));
+    } catch (e) {
+      // 壊れた保存データは消さずに別のキーへ退避する（上書きで失われないように）
+      try {
+        window.localStorage.setItem(CORRUPT_KEY, raw);
+      } catch (e2) {
+        /* 退避できなくても起動は続ける */
+      }
+      setStorageWarning("保存されていた設定を読み込めなかったため、空の状態で始めました。元のデータは「" + CORRUPT_KEY + "」として残してあります。");
+      return R.emptyConfig();
+    }
+  }
+
+  /** 保存に関する警告は、操作結果の通知とは別の場所に出し続ける（上書きされて見落とさないように）。 */
+  function setStorageWarning(message) {
+    var w = $("storage-warn");
+    w.textContent = message;
+    w.hidden = false;
   }
 
   function save() {
@@ -76,10 +100,8 @@
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       storageOk = true;
     } catch (e) {
-      if (storageOk) {
-        notify("この端末では設定を保存できません。ページを閉じると内容は消えます。", true);
-      }
       storageOk = false;
+      setStorageWarning("この端末では設定を保存できません。ページを閉じると内容は消えます。");
     }
   }
 
@@ -90,11 +112,14 @@
     render();
   }
 
+  /** 操作結果を画面下部に表示する（どこまでスクロールしていても見える）。 */
   function notify(message, warn) {
     var n = $("notice");
     n.textContent = message;
     n.classList.toggle("warn", !!warn);
     n.hidden = false;
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(function () { n.hidden = true; }, warn ? 10000 : 6000);
   }
 
   // ---------- 描画 ----------
@@ -164,6 +189,7 @@
       btn.addEventListener("click", function () {
         var next = { version: 1, rules: state.rules.filter(function (_, i) { return i !== index; }), breaks: state.breaks };
         commit(next);
+        $("h-rules").focus();
         notify(rule.name + "（" + desc + "）を削除しました。");
       });
       li.appendChild(btn);
@@ -187,6 +213,7 @@
       btn.setAttribute("aria-label", label + " のお休み期間を削除");
       btn.addEventListener("click", function () {
         commit({ version: 1, rules: state.rules, breaks: state.breaks.filter(function (_, i) { return i !== index; }) });
+        $("h-breaks").focus();
         notify(label + " のお休み期間を削除しました。");
       });
       li.appendChild(btn);
@@ -335,6 +362,12 @@
 
   function checkShareHash() {
     if (location.hash.indexOf(SHARE_PREFIX) !== 0) return;
+    if (isFramed()) {
+      // 他のサイトに埋め込まれた状態では、気づかないうちに読み込ませられないよう受け付けない
+      clearHash();
+      notify("埋め込まれたページでは共有リンクを読み込めません。リンクを直接開いてください。", true);
+      return;
+    }
     var encoded = location.hash.slice(SHARE_PREFIX.length);
     try {
       pendingShare = R.decodeShare(encoded);
@@ -344,19 +377,41 @@
       notify("共有リンクを読み込めませんでした。" + err.message, true);
       return;
     }
-    var text = "共有された規則が" + pendingShare.rules.length + "件、お休み期間が" + pendingShare.breaks.length + "件あります。読み込みますか？";
+    var text = "共有された規則が" + pendingShare.rules.length + "件、お休み期間が" + pendingShare.breaks.length + "件あります。内容を確かめてから読み込んでください。";
     if (state.rules.length > 0 || state.breaks.length > 0) {
-      text += "（今この端末にある設定は置き換わります）";
+      text += "今この端末にある設定は置き換わります（読み込んだ後に元に戻せます）。";
     }
     $("share-banner-text").textContent = text;
-    $("share-banner").hidden = false;
-    $("share-accept").focus();
+    var list = $("share-preview");
+    list.replaceChildren();
+    pendingShare.rules.forEach(function (rule) {
+      var li = el("li");
+      li.appendChild(chip(rule.name));
+      li.appendChild(el("span", "", rule.name + "：" + R.describeRule(rule)));
+      list.appendChild(li);
+    });
+    pendingShare.breaks.forEach(function (b) {
+      list.appendChild(el("li", "", "お休み：" + R.formatJapanese(R.parseDate(b.from)) + " 〜 " + R.formatJapanese(R.parseDate(b.to))));
+    });
+    $("share-ask").hidden = false;
+    $("share-done").hidden = true;
+    var banner = $("share-banner");
+    banner.hidden = false;
+    banner.focus();
   }
 
   function closeShareBanner() {
     pendingShare = null;
     $("share-banner").hidden = true;
     clearHash();
+  }
+
+  function isFramed() {
+    try {
+      return window.top !== window.self;
+    } catch (e) {
+      return true;
+    }
   }
 
   // ---------- カレンダー ----------
@@ -403,10 +458,23 @@
       notify("すべて消しました。");
     });
     $("share-accept").addEventListener("click", function () {
-      if (pendingShare) {
-        commit(pendingShare);
-        notify("共有された規則を読み込みました。");
-      }
+      if (!pendingShare) return;
+      beforeImport = { version: 1, rules: state.rules, breaks: state.breaks };
+      commit(pendingShare);
+      pendingShare = null;
+      clearHash();
+      $("share-ask").hidden = true;
+      $("share-done").hidden = false;
+      $("share-undo").focus();
+    });
+    $("share-undo").addEventListener("click", function () {
+      if (beforeImport) commit(beforeImport);
+      beforeImport = null;
+      closeShareBanner();
+      notify("読み込む前の設定に戻しました。");
+    });
+    $("share-close").addEventListener("click", function () {
+      beforeImport = null;
       closeShareBanner();
     });
     $("share-reject").addEventListener("click", function () {
@@ -419,7 +487,18 @@
       if (document.visibilityState === "visible") render();
     });
     render();
+    scheduleMidnight();
     checkShareHash();
+  }
+
+  /** 開いたまま日付が変わったら「今日」「あした」を更新する。 */
+  function scheduleMidnight() {
+    var now = new Date();
+    var next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
+    setTimeout(function () {
+      render();
+      scheduleMidnight();
+    }, Math.min(next - now, 2147483647));
   }
 
   init();

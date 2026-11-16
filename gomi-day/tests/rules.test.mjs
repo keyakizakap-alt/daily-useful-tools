@@ -61,8 +61,8 @@ test("同じ名前の規則が同じ日に重なっても1回だけ表示する"
 
 test("describeRule は日本語の説明を返す", () => {
   assert.equal(R.describeRule({ type: "weekly", weekdays: [4, 1] }), "毎週 月・木曜");
-  assert.equal(R.describeRule({ type: "nth", weekdays: [3], nths: [4, 2] }), "第2・第4 水曜");
-  assert.equal(R.describeRule({ type: "biweekly", weekdays: [5], anchor: "2026-11-20" }), "隔週 金曜（11月20日（金） の週から）");
+  assert.equal(R.describeRule({ type: "nth", weekdays: [3], nths: [4, 2] }), "第2・第4水曜");
+  assert.equal(R.describeRule({ type: "biweekly", weekdays: [5], anchor: "2026-11-20" }), "隔週 金曜（11月20日の週を基準に1週おき）");
 });
 
 test("sanitizeConfig は不正な入力を日本語のメッセージで拒否する", () => {
@@ -164,4 +164,26 @@ test("toICS は お休み期間を除外し、日数の上限を守る", () => {
   assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 3, "お休み期間が除外されていない。直し方: toICS が itemsOn を使っているか確認する");
   const big = R.toICS(c, d("2026-11-16"), 100000, {});
   assert.ok((big.match(/BEGIN:VEVENT/g) || []).length <= R.LIMITS.icsDays, "日数の上限を超えた。直し方: toICS の count の上限を確認する");
+});
+
+test("UID は規則の並び順に依存せず、種類名と日付で決まる", () => {
+  const a = cfg([{ name: "燃やすごみ", type: "weekly", weekdays: [1] }, { name: "資源ごみ", type: "weekly", weekdays: [1] }]);
+  const b = cfg([{ name: "資源ごみ", type: "weekly", weekdays: [1] }]);
+  const uid = (ics, name) => ics.split("BEGIN:VEVENT").find((e) => e.includes(`SUMMARY:${name}の日`)).match(/UID:(\S+)/)[1];
+  const opts = { now: new Date(0) };
+  assert.equal(uid(R.toICS(a, d("2026-11-16"), 1, opts), "資源ごみ"), uid(R.toICS(b, d("2026-11-16"), 1, opts), "資源ごみ"),
+    "規則を削除すると UID が変わり、取り込み直したカレンダーで予定が重複する。直し方: UID を日付と種類名のハッシュで作る");
+});
+
+test("見えない文字・双方向制御文字は種類名から取り除く", () => {
+  const c = cfg([{ name: "\u202e缶\u200b\ufeff", type: "weekly", weekdays: [1] }]);
+  assert.equal(c.rules[0].name, "缶", "見えない文字が残った。直し方: cleanName の除去範囲に U+200B〜U+200F, U+202A〜U+202E, U+2060〜U+2069, U+FEFF を含める");
+  assert.throws(() => cfg([{ name: "\u200b\u200b", type: "weekly", weekdays: [1] }]), { name: "GomiConfigError" },
+    "見えない文字だけの名前を受け付けた。直し方: 除去後に空なら拒否する");
+});
+
+test("最大件数・最大文字数の設定でも共有リンクを作れる", () => {
+  const rules = Array.from({ length: R.LIMITS.rules }, (_, i) => ({ name: "燃やさないごみ大型".padEnd(18, "あ") + i, type: "nth", weekdays: [0, 1, 2, 3, 4, 5, 6], nths: [1, 2, 3, 4, 5] }));
+  const c = cfg(rules.map((r) => ({ ...r, name: r.name.slice(0, 20) })));
+  assert.doesNotThrow(() => R.encodeShare(c), "上限内の設定が共有できない。直し方: LIMITS.shareLength を上限の設定が収まる長さにする");
 });

@@ -17,7 +17,7 @@
     rules: 30,
     breaks: 30,
     nameLength: 20,
-    shareLength: 4000,
+    shareLength: 8000,
     icsDays: 400,
   });
 
@@ -142,11 +142,11 @@
         .sort(function (a, b) { return a - b; })
         .map(function (n) { return "第" + n; })
         .join("・");
-      return nths + " " + wd + "曜";
+      return nths + wd + "曜";
     }
     if (rule.type === "biweekly") {
       var anchor = parseDate(rule.anchor);
-      return "隔週 " + wd + "曜（" + (anchor ? formatJapanese(anchor) : rule.anchor) + " の週から）";
+      return "隔週 " + wd + "曜（" + (anchor ? (anchor.getMonth() + 1) + "月" + anchor.getDate() + "日" : rule.anchor) + "の週を基準に1週おき）";
     }
     return "";
   }
@@ -163,7 +163,7 @@
   function cleanName(value) {
     if (typeof value !== "string") fail("ごみの種類名が文字ではありません。");
     // eslint-disable-next-line no-control-regex
-    var name = value.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, "").trim();
+    var name = value.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]/g, "").trim();
     if (name.length === 0) fail("ごみの種類名を入力してください。");
     if (Array.from(name).length > LIMITS.nameLength) {
       fail("ごみの種類名は" + LIMITS.nameLength + "文字以内にしてください。");
@@ -315,6 +315,17 @@
     return out.join("\r\n");
   }
 
+  /** 種類名から決まる短い識別子（規則の並び順に依存しない UID を作るため）。 */
+  function nameHash(name) {
+    var h = 2166136261;
+    var bytes = new TextEncoder().encode(name);
+    for (var i = 0; i < bytes.length; i++) {
+      h ^= bytes[i];
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return ("0000000" + h.toString(16)).slice(-8);
+  }
+
   function icsDate(date) {
     return formatDate(date).replace(/-/g, "");
   }
@@ -351,7 +362,7 @@
       for (var j = 0; j < items.length; j++) {
         var summary = items[j] + "の日";
         lines.push("BEGIN:VEVENT");
-        lines.push("UID:" + icsDate(d) + "-" + (j + 1) + "@gomi-day.daily-useful-tools");
+        lines.push("UID:" + icsDate(d) + "-" + nameHash(items[j]) + "@gomi-day.daily-useful-tools");
         lines.push("DTSTAMP:" + stamp);
         lines.push("DTSTART;VALUE=DATE:" + icsDate(d));
         lines.push("DTEND;VALUE=DATE:" + icsDate(addDays(d, 1)));

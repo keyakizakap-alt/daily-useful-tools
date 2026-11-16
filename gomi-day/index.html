@@ -21,14 +21,25 @@
 </header>
 
 <main id="main" class="wrap">
-  <div id="share-banner" class="banner" role="region" aria-label="共有された規則" hidden>
-    <p id="share-banner-text"></p>
-    <div class="row">
-      <button type="button" id="share-accept" class="btn primary">読み込む</button>
-      <button type="button" id="share-reject" class="btn">読み込まない</button>
+  <div id="share-banner" class="banner" role="region" aria-labelledby="share-banner-title" tabindex="-1" hidden>
+    <h2 id="share-banner-title" class="banner-title">共有された規則</h2>
+    <div id="share-ask">
+      <p id="share-banner-text"></p>
+      <ul class="preview" id="share-preview"></ul>
+      <div class="row">
+        <button type="button" id="share-accept" class="btn primary">読み込む</button>
+        <button type="button" id="share-reject" class="btn">読み込まない</button>
+      </div>
+    </div>
+    <div id="share-done" hidden>
+      <p>共有された規則を読み込みました。</p>
+      <div class="row">
+        <button type="button" id="share-undo" class="btn">元に戻す</button>
+        <button type="button" id="share-close" class="btn">閉じる</button>
+      </div>
     </div>
   </div>
-  <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
+  <p id="storage-warn" class="notice warn" role="alert" hidden></p>
 
   <section aria-labelledby="h-now">
     <h2 id="h-now" class="visually-hidden">今日とあした</h2>
@@ -54,7 +65,7 @@
   </section>
 
   <section aria-labelledby="h-rules" class="panel">
-    <h2 id="h-rules">収集の規則</h2>
+    <h2 id="h-rules" tabindex="-1">収集の規則</h2>
     <ul class="rule-list" id="rule-list"></ul>
 
     <form id="rule-form" class="form" novalidate>
@@ -91,13 +102,13 @@
       <fieldset class="field" id="nth-field" hidden>
         <legend>第何週か</legend>
         <div class="choices" id="nth-choices"></div>
-        <p class="hint">「第2水曜」は、その月の2回目の水曜日です。</p>
+        <p class="hint">「第2水曜」は、その月の2回目の水曜日です。「第5」は5回目の曜日がある月だけ収集します。</p>
       </fieldset>
 
       <div class="field" id="anchor-field" hidden>
         <label for="rule-anchor">基準日（この規則で収集がある日を1つ）</label>
         <input id="rule-anchor" name="anchor" type="date">
-        <p class="hint">この日の週から、1週おきに収集されるものとして計算します。</p>
+        <p class="hint">基準日を含む週（日曜〜土曜）を収集のある週として、1週おきに計算します。</p>
       </div>
 
       <p class="error" id="rule-error" role="alert"></p>
@@ -106,7 +117,7 @@
   </section>
 
   <section aria-labelledby="h-breaks" class="panel">
-    <h2 id="h-breaks">お休み期間</h2>
+    <h2 id="h-breaks" tabindex="-1">お休み期間</h2>
     <p class="hint">年末年始や、祝日で収集が休みになる日を入れると、その期間は表示しません。</p>
     <ul class="rule-list" id="break-list"></ul>
     <form id="break-form" class="form inline" novalidate>
@@ -138,6 +149,7 @@
       <h3>スマホのカレンダーに入れる</h3>
       <p class="hint">今日から1年分の収集日を、カレンダー用ファイル（.ics）として保存します。開くとカレンダーアプリに取り込めます。</p>
       <label class="choice"><input type="checkbox" id="ics-alarm" checked> 前の日の20時に通知する</label>
+      <p class="hint">通知の設定は、カレンダーアプリによっては取り込まれません。届かないときはアプリ側で通知を設定してください。</p>
       <button type="button" id="ics-download" class="btn">カレンダー用ファイルを保存</button>
     </div>
     <div class="share-block">
@@ -152,6 +164,7 @@
   </footer>
 </main>
 
+<p id="notice" class="toast" role="status" aria-live="polite" hidden></p>
 <script src="src/rules.js"></script>
 <script src="src/app.js"></script>
 </body>
