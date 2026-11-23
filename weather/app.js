@@ -188,7 +188,8 @@ const state = {
   weatherItem: null,    // 「天気」タブで開いている項目（null は一覧）
   radarCity: null,      // 雨雲レーダーの中心にしている地点
   radarBase: "photo",   // レーダーの背景地図 photo / std / pale
-  notify: { on: false, rain: true, warn: true, watch: null },   // 通知の設定（watch は雨を見張る地点）
+  radarRange: "1h",     // 雨雲レーダーの予報の長さ 1h（5分刻み）/ 24h（その先は1時間刻み）
+  notify: { on: false, rain: true, warn: true, watch: null, push: false },   // 通知の設定（watch は雨を見張る地点、push はアプリを閉じていても届く通知）
   data: new Map(),      // cityId -> normalized forecast
   errors: new Map(),    // cityId -> message
   alerts: new Map(),    // 府県予報区コード -> 気象庁の警報・注意報
@@ -222,6 +223,7 @@ function loadState() {
     if (["auto", "light", "dark"].includes(s.theme)) state.theme = s.theme;
     if (TABS.includes(s.tab)) state.tab = s.tab;
     if (["photo", "std", "pale"].includes(s.radarBase)) state.radarBase = s.radarBase;
+    if (s.radarRange === "1h" || s.radarRange === "24h") state.radarRange = s.radarRange;
     if (valid(s.weatherCity)) state.weatherCity = s.weatherCity;
     if (valid(s.radarCity)) state.radarCity = s.radarCity;
     if (s.notify && typeof s.notify === "object") {
@@ -229,6 +231,7 @@ function loadState() {
       state.notify.rain = s.notify.rain !== false;
       state.notify.warn = s.notify.warn !== false;
       state.notify.watch = valid(s.notify.watch) ? s.notify.watch : null;
+      state.notify.push = s.notify.push === true;
     }
     if (!state.selected.length) state.selected = DEFAULT_SELECTED.slice();
     // ピン留めは必ず表示対象に含める
@@ -240,10 +243,11 @@ function saveState() {
     localStorage.setItem(STORE_KEY, JSON.stringify({
       selected: state.selected, pinned: state.pinned, custom: state.custom,
       unit: state.unit, view: state.view, sort: state.sort, theme: state.theme,
-      tab: state.tab, weatherCity: state.weatherCity, radarCity: state.radarCity, radarBase: state.radarBase,
+      tab: state.tab, weatherCity: state.weatherCity, radarCity: state.radarCity, radarBase: state.radarBase, radarRange: state.radarRange,
       notify: state.notify
     }));
   } catch (e) { /* プライベートモード等で保存できなくても動作は継続 */ }
+  schedulePushSync();   // 地点や通知の設定が変わったら、サーバー側の登録内容も更新する
 }
 
 /* ============================================================
@@ -2228,7 +2232,7 @@ function notifyWatchCity() {
 
 /** 見張る地点の1時間先までの雨を調べ、降り出し・強まりがあれば知らせる */
 async function rainWatchTick() {
-  if (!state.notify.on || !state.notify.rain || notifyPermission() !== "granted" || rainCheckBusy) return;
+  if (!state.notify.on || !state.notify.rain || state.notify.push || notifyPermission() !== "granted" || rainCheckBusy) return;
   const city = notifyWatchCity();
   if (!city) return;
   rainCheckBusy = true;
@@ -2274,7 +2278,7 @@ async function rainWatchTick() {
  */
 function checkWarningNotices() {
   lastWarnCheck = Date.now();
-  if (!state.notify.on || !state.notify.warn) return;
+  if (!state.notify.on || !state.notify.warn || state.notify.push) return;   // サーバーから届く設定のときは二重に出さない
   const log = loadNotifyLog();
   const seen = log.warn && typeof log.warn === "object" ? log.warn : {};
   const fresh = [];
@@ -2335,7 +2339,8 @@ async function enableNotify() {
 }
 
 function applyNotifySetting(name, val) {
-  if (name === "off") state.notify.on = false;
+  if (name === "push") { if (val === "on") enablePush(); else disablePush(); return; }
+  if (name === "off") { state.notify.on = false; if (state.notify.push) disablePush(); }
   else if (name === "rain" || name === "warn") {
     state.notify[name] = val === "on";
     if (name === "warn" && state.notify.warn) { const log = loadNotifyLog(); log.warn = {}; saveNotifyLog(log); checkWarningNotices(); }
@@ -2376,12 +2381,168 @@ function notifyMenuHtml(seg) {
   html += '<div class="menu-row"><span>雨の降り出し・強まり</span>' + seg("n-rain", state.notify.rain ? "on" : "off", [["on", "オン"], ["off", "オフ"]]) + '</div>'
     + (state.notify.rain ? '<div class="menu-row"><span>雨を見張る地点</span><select class="menu-select" id="notifyWatch" aria-label="雨を見張る地点">' + opts + '</select></div>' : '')
     + '<div class="menu-row"><span>警報・注意報の発表</span>' + seg("n-warn", state.notify.warn ? "on" : "off", [["on", "オン"], ["off", "オフ"]]) + '</div>'
+    + pushMenuHtml(seg)
     + '<button type="button" class="menu-link" id="notifyTest">テスト通知を送る</button>'
     + '<button type="button" class="menu-link menu-link-sub" data-set="n-off" data-val="off">通知をやめる</button>'
-    + '<div class="menu-note">そらならべを開いている間だけ確認します（雨は5分ごと、警報は15分ごと）。アプリを閉じている間は届きません。'
-    + (ios && !standalone ? "iPhone・iPad では、ホーム画面に追加したアプリから開いてください。" : "")
+    + '<div class="menu-note">' + (state.notify.push
+      ? "アプリを閉じていても、サーバーが5分ごとに確認してお知らせします（混み具合により数分遅れることがあります）。"
+        + "このため、雨を見張る地点（約1km単位に丸めた位置）と登録地点の府県・区域名、通知の宛先をサーバーに保存します。"
+      : "そらならべを開いている間だけ確認します（雨は5分ごと、警報は15分ごと）。"
+        + (pushSupported ? "" : "アプリを閉じている間は届きません。")
+        + (ios && !standalone ? "iPhone・iPad では、ホーム画面に追加したアプリから開いてください。" : ""))
     + '警報・注意報は登録している地点が対象です。</div>';
   return html + '</div>';
+}
+
+
+/* ---- アプリを閉じていても届く通知（サーバーからの Web Push） ----
+ *   端末の購読情報と通知の設定を /api/push/subscribe/ に登録し、サーバー（api/push/cron.js）が 5 分ごとに確認して送る。
+ *   サーバーが用意されていない配信先（GitHub Pages など）では、この項目は出さない。
+ */
+const PUSH_API = "/api/push/";
+const PUSH_SYNC_KEY = "soranarabe.push.sent";
+const pushSupported = notifySupported && "serviceWorker" in navigator && "PushManager" in window;
+var pushConfig;              // undefined = 未取得 / null = 使えない / { enabled, publicKey }
+var pushMsg = "", pushBusy = false, pushSyncTimer = null;
+
+function b64uBytes(s) {
+  const bin = atob(String(s).replace(/-/g, "+").replace(/_/g, "/") + "===".slice((String(s).length + 3) % 4));
+  return Uint8Array.from(bin, ch => ch.charCodeAt(0));
+}
+
+async function loadPushConfig() {
+  if (pushConfig !== undefined) return pushConfig;
+  try {
+    const res = await fetch(PUSH_API + "config/", { cache: "no-store" });
+    const j = res.ok ? await res.json() : null;
+    pushConfig = j && j.enabled && typeof j.publicKey === "string" ? j : null;
+  } catch (e) { pushConfig = null; }
+  return pushConfig;
+}
+
+/** 購読には「動作中」の Service Worker が要るため、インストール直後なら有効になるまで待つ */
+async function pushRegistration() {
+  if (!("serviceWorker" in navigator)) return null;
+  const reg = (await navigator.serviceWorker.getRegistration()) || await navigator.serviceWorker.register("sw.js");
+  if (reg.active) return reg;
+  return Promise.race([navigator.serviceWorker.ready,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("service worker not ready")), 10000))]);
+}
+
+/** サーバーに送る内容（見張る地点と、警報を確認する登録地点） */
+function pushPayload(sub) {
+  const watch = notifyWatchCity();
+  const places = state.selected.map(id => CITY_BY_ID.get(id)).filter(c => c && c.jma).slice(0, 20)
+    .map(c => ({ id: c.id, name: placeName(c), jma: c.jma, area: c.jmaArea || "" }));
+  return {
+    subscription: sub.toJSON(),
+    // 位置は端末の側でも約 1km 単位に丸めてから送る（現在地の細かい座標は送らない）
+    rain: state.notify.rain && watch ? { on: true, lat: Math.round(watch.lat * 100) / 100, lon: Math.round(watch.lon * 100) / 100, name: placeName(watch) } : { on: false },
+    warn: { on: !!state.notify.warn, places: places }
+  };
+}
+
+async function pushPost(method, body, path) {
+  const res = await fetch(PUSH_API + (path || "subscribe/"), {
+    method: method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+  });
+  if (!res.ok) { const e = new Error("HTTP " + res.status); e.status = res.status; throw e; }
+}
+
+async function getOrCreateSubscription(reg) {
+  const sub = await reg.pushManager.getSubscription();
+  if (sub) return sub;
+  return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(pushConfig.publicKey) });
+}
+
+/** メニューの「アプリを閉じていても通知」オン。公開鍵は先に取得してあるので、操作の直後に購読できる */
+async function enablePush() {
+  if (!pushSupported || pushBusy) return;
+  if (!pushConfig) { pushMsg = "サーバー通知の準備ができていません。しばらくしてからお試しください。"; renderMenu(); return; }
+  pushBusy = true; pushMsg = "設定しています…"; renderMenu();
+  try {
+    const reg = await pushRegistration();
+    const sub = await getOrCreateSubscription(reg);
+    const body = pushPayload(sub);
+    await pushPost("POST", body);
+    try { localStorage.setItem(PUSH_SYNC_KEY, JSON.stringify(body)); } catch (e) { /* 保存できなくても可 */ }
+    state.notify.push = true;
+    pushMsg = "";
+    saveState();
+  } catch (e) {
+    pushMsg = e && e.status === 503 ? "登録できる端末の数が上限に達しているか、サーバーの準備ができていません。"
+      : "設定できませんでした。通信状態を確認して、もう一度お試しください。";
+  } finally {
+    pushBusy = false;
+    renderMenu();
+  }
+}
+
+async function disablePush() {
+  state.notify.push = false;
+  pushMsg = "";
+  saveState();
+  const log = loadNotifyLog(); log.warn = {}; saveNotifyLog(log);   // アプリ内の確認に戻すとき、警報はいまの状態を基準にし直す
+  try { localStorage.removeItem(PUSH_SYNC_KEY); } catch (e) { /* 可 */ }
+  renderMenu();
+  try {
+    const reg = await pushRegistration();
+    const sub = reg && await reg.pushManager.getSubscription();
+    if (sub) {
+      await pushPost("POST", { action: "unsubscribe", endpoint: sub.endpoint }).catch(() => {});
+      await sub.unsubscribe();
+    }
+  } catch (e) { /* 端末側の解除に失敗しても、サーバー側は送れなくなった時点で自動で消える */ }
+}
+
+function schedulePushSync() {
+  if (!state.notify.push) return;
+  clearTimeout(pushSyncTimer);
+  pushSyncTimer = setTimeout(() => pushSync(false), 1500);
+}
+
+/** 設定が変わっていればサーバーに送り直す。購読が失効していたら作り直す（force は起動時の確認用） */
+async function pushSync(force) {
+  if (!state.notify.on || !state.notify.push || !pushSupported || notifyPermission() !== "granted") return;
+  try {
+    if (!(await loadPushConfig())) return;
+    const reg = await pushRegistration();
+    const sub = await getOrCreateSubscription(reg);
+    const body = pushPayload(sub);
+    const sig = JSON.stringify(body);
+    let last = null;
+    try { last = localStorage.getItem(PUSH_SYNC_KEY); } catch (e) { /* 可 */ }
+    if (!force && last === sig) return;
+    await pushPost("POST", body);
+    try { localStorage.setItem(PUSH_SYNC_KEY, sig); } catch (e) { /* 可 */ }
+  } catch (e) { /* 次の変更か次回の起動で送り直す */ }
+}
+
+/** サーバー経由のテスト通知（アプリを閉じた状態で届くかを確かめられる） */
+async function sendServerTest() {
+  pushMsg = "テスト通知を送っています…"; renderMenu();
+  try {
+    const reg = await pushRegistration();
+    const sub = reg && await reg.pushManager.getSubscription();
+    if (!sub) throw Object.assign(new Error("no sub"), { status: 404 });
+    await pushPost("POST", { endpoint: sub.endpoint }, "test/");
+    pushMsg = "サーバーからテスト通知を送りました。数秒で届かない場合は、端末の通知設定を確認してください。";
+  } catch (e) {
+    pushMsg = e && e.status === 429 ? "テスト通知は1分に1回まで送れます。少し待ってからお試しください。"
+      : e && (e.status === 404 || e.status === 410) ? "この端末の登録が見つかりません。「アプリを閉じていても通知」をいったんオフにして、もう一度オンにしてください。"
+      : "テスト通知を送れませんでした。通信状態を確認して、もう一度お試しください。";
+    if (e && (e.status === 404 || e.status === 410)) { try { localStorage.removeItem(PUSH_SYNC_KEY); } catch (x) { /* 可 */ } }
+  }
+  renderMenu();
+}
+
+function pushMenuHtml(seg) {
+  if (!pushSupported) return "";
+  if (pushConfig === undefined) { loadPushConfig().then(() => { if (state.tab === "menu") renderMenu(); }); return ""; }
+  if (!pushConfig) return "";
+  return '<div class="menu-row"><span>アプリを閉じていても通知</span>'
+    + seg("n-push", state.notify.push ? "on" : "off", [["on", "オン"], ["off", "オフ"]]) + '</div>'
+    + (pushMsg ? '<div class="menu-note" role="status">' + esc(pushMsg) + '</div>' : '');
 }
 
 /* ---- メニュー ---- */
@@ -2437,6 +2598,14 @@ const BASEMAPS = {
   pale:  { url: GSI + "pale/{z}/{x}/{y}.png", fb: GSI + "std/{z}/{x}/{y}.png", label: "淡色地図", dark: false }
 };
 const NOWC_BASE = "https://www.jma.go.jp/bosai/jmatile/data/nowc/";
+/*
+ * 1時間より先: 気象庁 降水短時間予報（6時間先まで）・降水15時間予報（7〜15時間先）のタイル。いずれも前1時間降水量・1時間刻み。
+ *   https://www.jma.go.jp/bosai/jmatile/data/rasrf/targetTimes.json
+ *   https://www.jma.go.jp/bosai/jmatile/data/rasrf/{basetime}/{member}/{validtime}/surf/rasrf/{z}/{x}/{y}.png
+ *   member は一覧の値（none / immed）をそのまま使う（固定すると 404 になる）。
+ * これも公式に API として提供されているものではない。16〜24時間先は地図が無いため、地点のグラフを数値予報で補う。
+ */
+const RASRF_BASE = "https://www.jma.go.jp/bosai/jmatile/data/rasrf/";
 const TILE = 256;
 const RADAR_ZOOM_MIN = 5, RADAR_ZOOM_MAX = 10, SAMPLE_ZOOM = 8;
 
@@ -2473,6 +2642,7 @@ const MAP_LABELS = [
 const radar = {
   active: false, inited: false, zoom: 8, centerX: 0, centerY: 0,
   times: [], index: 0, lastObs: -1, issued: null, timesAt: 0, loadingTimes: false,
+  nowTimes: [], longTimes: [], longFailed: false, hours: null, hoursBusy: false,
   playing: false, timer: null, refreshTimer: null, cityId: null,
   baseStore: new Map(), baseKind: null, frames: new Map(),
   series: null, seriesBusy: false, sampleFailed: null, toastTimer: null, geoAsked: false
@@ -2504,7 +2674,28 @@ function jstClock(date) {
 }
 function tpl(url, z, x, y) { return url.replace("{z}", z).replace("{x}", x).replace("{y}", y); }
 function nowcUrl(t, z, x, y) {
+  if (t.kind === "long") return RASRF_BASE + t.basetime + "/" + t.member + "/" + t.validtime + "/surf/rasrf/" + z + "/" + x + "/" + y + ".png";
   return NOWC_BASE + t.basetime + "/none/" + t.validtime + "/surf/hrpns/" + z + "/" + x + "/" + y + ".png";
+}
+/** 時刻ごとのレイヤーの識別子（同じ時刻でも発表が新しくなれば別のコマとして読み直す） */
+function frameKey(t) { return t.basetime + "/" + (t.member || "none") + "/" + t.validtime; }
+
+/**
+ * 降水短時間予報の時刻一覧から、時刻ごとにいちばん新しい発表のものを 1 件ずつ選ぶ。
+ * 一覧には複数の発表（basetime）と、解析値（basetime == validtime）・重複した時刻が混ざっている。
+ */
+function parseLongTimes(arr, after) {
+  const byValid = new Map();
+  (Array.isArray(arr) ? arr : []).forEach(e => {
+    if (!e) return;
+    const b = String(e.basetime), v = String(e.validtime), m = String(e.member || "");
+    if (!/^\d{14}$/.test(b) || !/^\d{14}$/.test(v) || v <= b || !/^[a-z]+$/.test(m)) return;
+    if (Array.isArray(e.elements) && e.elements.indexOf("rasrf") < 0) return;
+    if (after && v <= after) return;
+    const known = byValid.get(v);
+    if (!known || known.basetime < b) byValid.set(v, { basetime: b, validtime: v, member: m, kind: "long" });
+  });
+  return Array.from(byValid.values()).sort((a, b) => a.validtime < b.validtime ? -1 : 1);
 }
 
 /** 実況（N1）の直近1時間と、予測（N2）の1時間先までを時系列に並べる */
@@ -2527,7 +2718,11 @@ async function loadRadarTimes() {
   const sameBase = fcAfter.filter(t => t.basetime === issued);
   const PAST = 4;   // 現在＋15分前まで
   const times = obs.slice(-PAST).concat(sameBase.slice(0, 12));
-  return { times: times, lastObs: obs.length ? Math.min(obs.length, PAST) - 1 : -1, issued: issued };
+  // 1時間より先（降水短時間予報）。取れなくても 1時間先までは出す
+  const nowEnd = times.length ? times[times.length - 1].validtime : null;
+  let long = [];
+  try { long = parseLongTimes(await getJson(RASRF_BASE + "targetTimes.json", 12000), nowEnd); } catch (e) { long = null; }
+  return { times: times, lastObs: obs.length ? Math.min(obs.length, PAST) - 1 : -1, issued: issued, long: long };
 }
 
 function radarView() {
@@ -2599,7 +2794,7 @@ function paintBase() {
 function frameFor(i) {
   const t = radar.times[i];
   if (!t) return null;
-  let f = radar.frames.get(t.validtime);
+  let f = radar.frames.get(frameKey(t));
   if (!f) {
     const el = document.createElement("div");
     el.className = "radar-layer rain-frame";
@@ -2607,7 +2802,7 @@ function frameFor(i) {
     $("#radarRain").appendChild(el);
     f = { el: el, store: new Map(), stats: { total: 0, loaded: 0, failed: 0 }, t: t };
     f.stats.onChange = () => { if (radar.times[radar.index] === t) checkRainFailure(f); };
-    radar.frames.set(t.validtime, f);
+    radar.frames.set(frameKey(t), f);
   }
   return f;
 }
@@ -2752,15 +2947,41 @@ function buildTicks() {
   slider.max = String(Math.max(0, n - 1));
   let html = "";
   if (n > 1 && radar.lastObs >= 0) {
-    [0, 15, 30, 45, 60].forEach(m => {
-      const i = radar.times.findIndex((t, k) => k >= radar.lastObs && minutesFromNow(k) === m);
+    const long = state.radarRange === "24h" && radar.longTimes.length;
+    const marks = long ? [[0, "現在"], [60, "1時間後"], [360, "6時間後"], [720, "12時間後"]]
+                       : [[0, "現在"], [15, "15分後"], [30, "30分後"], [45, "45分後"], [60, "60分後"]];
+    // 目盛りの文字が重ならないよう、実際の幅で間隔を確かめる（左から順に、入らないものは省く）
+    const width = $("#rvTicks").clientWidth || 260;
+    const fontPx = window.matchMedia && window.matchMedia("(max-width: 520px)").matches ? 10.5 : 12;   // .rv-tick の文字の大きさ
+    let lastRight = -Infinity;
+    marks.forEach(([m, label]) => {
+      // 1時間より先のコマは正時ごとなので、いちばん近いコマ（±35分以内）に目盛りを付ける
+      let i = -1, best = m === 0 || !long ? 1 : 36;
+      radar.times.forEach((t, k) => {
+        const d = Math.abs(minutesFromNow(k) - m);
+        if (k >= radar.lastObs && d < best) { best = d; i = k; }
+      });
       if (i < 0) return;
-      html += '<span class="rv-tick' + (m === 0 ? " now" : "") + '" style="left:' + (i / (n - 1) * 100).toFixed(2) + '%">'
-        + (m === 0 ? "現在" : m + "分後") + '</span>';
+      const pos = i / (n - 1) * 100;
+      const half = (label.length * fontPx * 0.92 + 8) / 2, x = pos / 100 * width;
+      if (x - half < lastRight) return;
+      lastRight = x + half;
+      html += '<span class="rv-tick' + (m === 0 ? " now" : "") + '" style="left:' + pos.toFixed(2) + '%">' + label + '</span>';
     });
   }
   $("#rvTicks").innerHTML = html;
-  $("#rvIssued").textContent = radar.issued ? jstClock(parseJmaTime(radar.issued)) + " 発表" : "";
+  const longIssued = state.radarRange === "24h" && radar.longTimes.length
+    ? radar.longTimes.reduce((a, t) => t.basetime > a ? t.basetime : a, "") : null;
+  $("#rvIssued").textContent = radar.issued
+    ? jstClock(parseJmaTime(radar.issued)) + " 発表" + (longIssued ? "（1時間より先は " + jstClock(parseJmaTime(longIssued)) + "）" : "") : "";
+  document.querySelectorAll("#rvRange [data-range]").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.getAttribute("data-range") === state.radarRange)));
+}
+/** 「◯分後」「◯時間◯分後」 */
+function aheadText(m) {
+  if (m < 60) return m + "分後";
+  const h = Math.floor(m / 60), r = m % 60;
+  return h + "時間" + (r ? r + "分" : "") + "後";
 }
 function updateTimeline() {
   const n = radar.times.length;
@@ -2772,7 +2993,8 @@ function updateTimeline() {
   if (!t) { clock.textContent = ""; return; }
   const m = minutesFromNow(radar.index);
   clock.textContent = jstClock(parseJmaTime(t.validtime))
-    + (m === 0 ? "（現在）" : m > 0 ? "（" + m + "分後の予測）" : "（" + (-m) + "分前）");
+    + (m === 0 ? "（現在）" : m > 0 ? "（" + aheadText(m) + "の予測）" : "（" + (-m) + "分前）");
+  highlightRadarHour();
 }
 
 async function reloadRadarTimes() {
@@ -2783,14 +3005,15 @@ async function reloadRadarTimes() {
     const r = await loadRadarTimes();
     radar.timesAt = Date.now();
     if (!r.times.length) {
-      radar.times = []; radar.lastObs = -1; radar.issued = null;
+      radar.times = []; radar.nowTimes = []; radar.longTimes = []; radar.lastObs = -1; radar.issued = null;
       showRadarMsg("雨雲の観測時刻を取得できませんでした。地図のみ表示しています。");
     } else {
-      radar.times = r.times; radar.lastObs = r.lastObs; radar.issued = r.issued;
-      const kept = keep ? radar.times.findIndex(t => t.validtime === keep) : -1;
-      radar.index = kept >= 0 ? kept : Math.max(0, radar.lastObs);
+      radar.nowTimes = r.times; radar.lastObs = r.lastObs; radar.issued = r.issued;
+      radar.longTimes = r.long || [];
+      radar.longFailed = r.long === null;
+      applyRadarRange(keep);
       // 使わなくなった時刻のレイヤーを捨てる
-      const live = new Set(radar.times.map(t => t.validtime));
+      const live = new Set(radar.nowTimes.concat(radar.longTimes).map(frameKey));
       radar.frames.forEach((f, k) => { if (!live.has(k)) { f.el.remove(); radar.frames.delete(k); } });
       hideRadarMsg();
     }
@@ -2800,7 +3023,32 @@ async function reloadRadarTimes() {
   buildTicks();
   paintRadar();
   radar.series = null;
+  radar.hours = null;
   updateRadarSeries();
+}
+
+/** 「1時間」「24時間」に合わせて、スライダーに並べるコマを組み直す（見ていた時刻はなるべく保つ） */
+function applyRadarRange(keepValid) {
+  const keep = keepValid !== undefined ? keepValid
+    : radar.times[radar.index] && radar.index !== radar.lastObs ? radar.times[radar.index].validtime : null;
+  radar.times = state.radarRange === "24h" ? radar.nowTimes.concat(radar.longTimes) : radar.nowTimes.slice();
+  const kept = keep ? radar.times.findIndex(t => t.validtime === keep) : -1;
+  radar.index = kept >= 0 ? kept : Math.max(0, radar.lastObs);
+}
+
+function setRadarRange(val) {
+  if (val !== "1h" && val !== "24h") return;
+  const changed = state.radarRange !== val;
+  state.radarRange = val;
+  saveState();
+  if (!changed) return;
+  stopRadarPlay();
+  applyRadarRange();
+  if (val === "24h" && radar.longFailed) radarToast("1時間より先の雨雲の予報を取得できませんでした。地点のグラフは数値予報で表示します。");
+  buildTicks();
+  paintRadar();
+  renderRadarPanel();
+  if (val === "24h") updateRadarHours();
 }
 
 function stopRadarPlay() {
@@ -2940,7 +3188,7 @@ async function updateRadarSeries() {
   // 同じ時刻で一度読み取りに失敗していたら、時刻一覧が更新されるまで再試行しない
   const sampleKey = t0 ? t0.validtime : null;
   if (t0 && radar.sampleFailed !== sampleKey) {
-    const list = radar.times.slice(radar.lastObs);
+    const list = radar.times.slice(radar.lastObs).filter(t => t.kind !== "long");
     try {
       const base = parseJmaTime(t0.validtime);
       const points = await Promise.all(list.map(async t => ({
@@ -3028,6 +3276,8 @@ function renderRadarPanel() {
     + '<svg class="rv-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
   if (!$("#rvPick").hidden) renderRadarPicker();
 
+  $("#rvCards").classList.toggle("is-hours", state.radarRange === "24h");
+  if (state.radarRange === "24h") { $("#rvCards").innerHTML = radarHoursHtml(city); highlightRadarHour(); layoutRadarTools(); return; }
   $("#rvCards").innerHTML = [10, 30, 60].map(m => {
     let pt = null;
     if (s) s.points.forEach(p => { if (p.min <= m + 2 && (!pt || p.min > pt.min)) pt = p; });
@@ -3040,6 +3290,76 @@ function renderRadarPanel() {
       +   '<span class="rv-card-mm tnum">' + (lv === null ? "" : esc(RAIN_LEVELS[lv].range)) + '</span></span>'
       + '</div>' + rainMeter(lv || 0) + '</div>';
   }).join("");
+  layoutRadarTools();   // カードの高さが変わったら右のボタンの位置を合わせ直す
+}
+
+/* ---- 24時間の雨（地点のグラフ）----
+ *   15時間先までは降水短時間予報のタイルの色を地点で読み取り、それより先（と読み取れないとき）は数値予報の1時間値で補う。
+ */
+function hourKey(date) { return date.toISOString().slice(0, 13); }
+
+/** 数値予報（Open-Meteo）の 1 時間値: 時刻（UTC の時まで）→ 区分 */
+function modelHourLevels(city) {
+  const d = state.data.get(city.id), out = new Map();
+  if (!d || !d.hours) return out;
+  d.hours.forEach(h => { const t = parseLocal(h.time); if (t) out.set(hourKey(t), levelFromMm(h.precip)); });
+  return out;
+}
+
+async function updateRadarHours() {
+  const city = CITY_BY_ID.get(radar.cityId);
+  if (!city || state.radarRange !== "24h") return;
+  const key = city.id + "|" + radar.longTimes.map(frameKey).join(",");
+  if ((radar.hours && radar.hours.key === key) || radar.hoursBusy === key) return;
+  radar.hoursBusy = key;
+  const jma = new Map();
+  let failed = false;
+  if (radar.longTimes.length && radar.sampleFailed !== "long") {
+    try {
+      const lv = await Promise.all(radar.longTimes.map(t => sampleLevel(t, city.lat, city.lon)));
+      radar.longTimes.forEach((t, i) => jma.set(hourKey(parseJmaTime(t.validtime)), lv[i]));
+    } catch (e) {
+      failed = true;
+      radar.sampleFailed = "long";   // 色を読み取れない（CORS など）→ 数値予報だけで出す
+    }
+  }
+  if (radar.hoursBusy === key) radar.hoursBusy = false;
+  if (radar.cityId !== city.id) return;
+  radar.hours = { key: key, forCity: city.id, jma: jma, failed: failed };
+  renderRadarPanel();
+}
+
+function radarHoursHtml(city) {
+  const model = modelHourLevels(city);
+  const h = radar.hours && radar.hours.forCity === city.id ? radar.hours : null;
+  if (!h) updateRadarHours();
+  const start = new Date(); start.setMinutes(0, 0, 0);
+  let bars = "", lastJma = -1;
+  for (let k = 1; k <= 24; k++) {
+    const t = new Date(start.getTime() + k * 3600e3), key = hourKey(t);
+    const fromJma = h && h.jma.has(key);
+    const lv = fromJma ? h.jma.get(key) : model.has(key) ? model.get(key) : null;
+    if (fromJma) lastJma = k;
+    const label = jstClock(t).slice(0, 2).replace(/^0/, "") + "時";
+    const frame = radar.times.findIndex(x => x.kind === "long" && hourKey(parseJmaTime(x.validtime)) === key);
+    bars += '<button type="button" class="rv-hbar' + (fromJma ? "" : " model") + '" data-rv-hour="' + frame + '" data-hk="' + key + '"'
+      + ' aria-label="' + esc(label + " " + (lv === null ? "データなし" : RAIN_LEVELS[lv].label + "（" + RAIN_LEVELS[lv].range + "）")
+        + (fromJma ? " 気象庁の予報" : " 数値予報")) + '">'
+      + '<span class="rv-hbar-col"><i style="height:' + (lv ? 12 + lv * 11 : 6) + '%;' + (lv ? "background:" + RAIN_LEVELS[lv].color : "") + '"></i></span>'
+      + '<span class="rv-hbar-t">' + (k % 3 === 0 ? esc(label) : "") + '</span></button>';
+  }
+  const note = h && lastJma > 0 ? lastJma + "時間先まで気象庁・以降は数値予報（薄い色）"
+    : h && h.failed ? "数値予報（1時間値）による目安"
+    : !h ? "読み込んでいます…" : "数値予報（1時間値）による目安";
+  return '<div class="rv-hours"><div class="rv-hours-head"><b>24時間の雨</b><span class="rv-hours-note">' + esc(note) + '</span></div>'
+    + '<div class="rv-hours-bars">' + bars + '</div></div>';
+}
+
+/** スライダーの時刻に当たる棒を強調する */
+function highlightRadarHour() {
+  const t = radar.times[radar.index];
+  const key = t && t.kind === "long" ? hourKey(parseJmaTime(t.validtime)) : null;
+  document.querySelectorAll("#rvCards .rv-hbar").forEach(b => b.classList.toggle("on", b.getAttribute("data-hk") === key));
 }
 
 function buildLegend() {
@@ -3405,6 +3725,7 @@ document.addEventListener("click", ev => {
   }
 
   if (ev.target.closest("#notifyOn")) { enableNotify(); return; }
+  if (ev.target.closest("#notifyTest") && state.notify.push) { sendServerTest(); return; }
   if (ev.target.closest("#notifyTest")) {
     showNotice("そらならべ：テスト通知", "このように雨や警報・注意報をお知らせします。", "#menu", "soranarabe-test");
     return;
@@ -3498,6 +3819,20 @@ $("#themeBtn").addEventListener("click", () =>
   applySetting("theme", state.theme === "auto" ? "light" : state.theme === "light" ? "dark" : "auto"));
 $("#radarBtn").addEventListener("click", () => setTab("radar"));
 $("#radarPlay").addEventListener("click", () => { radar.playing ? stopRadarPlay() : startRadarPlay(); });
+$("#rvCards").addEventListener("click", e => {
+  const b = e.target.closest("[data-rv-hour]");
+  if (!b) return;
+  const i = parseInt(b.getAttribute("data-rv-hour"), 10);
+  if (i < 0) { radarToast("この時間は雨雲の地図がありません（グラフは数値予報による目安です）"); return; }
+  stopRadarPlay();
+  radar.index = i;
+  paintRain();
+  updateTimeline();
+});
+$("#rvRange").addEventListener("click", e => {
+  const b = e.target.closest("[data-range]");
+  if (b) setRadarRange(b.getAttribute("data-range"));
+});
 $("#radarTime").addEventListener("input", e => {
   stopRadarPlay();
   radar.index = parseInt(e.target.value, 10) || 0;
@@ -3597,6 +3932,7 @@ if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
 setInterval(() => { if (!document.hidden) refresh(false); }, AUTO_REFRESH_MS);
 setInterval(notifyTick, RAIN_CHECK_MS);
 setTimeout(rainWatchTick, 8000);     // 起動直後の予報取得を待ってから一度確認する
+setTimeout(() => pushSync(true), 10000);   // サーバー側の登録が残っているか、起動のたびに一度だけ確かめる
 document.addEventListener("change", ev => {
   if (ev.target && ev.target.id === "notifyWatch") applyNotifySetting("watch", ev.target.value);
 });

@@ -42,5 +42,10 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/push/cron.js": {
+      "maxDuration": 30
+    }
+  }
 }

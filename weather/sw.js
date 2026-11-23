@@ -3,7 +3,7 @@
  *   天気・警報・タイルなどの外部 API は一切キャッシュしない。
  *   予報の中身は app.js 側が localStorage に 3 時間だけ持つ。
  */
-const CACHE = "soranarabe-shell-v3";
+const CACHE = "soranarabe-shell-v4";
 const SHELL = ["./", "./index.html", "./app.js", "./manifest.webmanifest",
                "./icon-192.png", "./icon-512.png"];
 
@@ -25,6 +25,8 @@ self.addEventListener("fetch", ev => {
   const url = new URL(req.url);
   // 自分のオリジンのアプリ本体だけを扱う。API とタイルは素通し。
   if (url.origin !== self.location.origin) return;
+  // 通知の登録などのサーバー API はキャッシュせず、そのまま通す
+  if (url.pathname.indexOf("/api/") === 0) return;
 
   // ネットワーク優先・失敗したらキャッシュ（更新をすぐ反映しつつオフラインでも開ける）
   ev.respondWith(
@@ -55,4 +57,17 @@ self.addEventListener("notificationclick", ev => {
       return self.clients.openWindow("./" + safeHash);
     })
   );
+});
+
+// サーバー（api/push/cron.js）から届いた通知を表示する。アプリを閉じていても動く。
+self.addEventListener("push", ev => {
+  let d = {};
+  try { d = ev.data ? ev.data.json() : {}; } catch (e) { d = {}; }
+  const title = typeof d.title === "string" && d.title ? d.title.slice(0, 120) : "そらならべ";
+  ev.waitUntil(self.registration.showNotification(title, {
+    body: typeof d.body === "string" ? d.body.slice(0, 400) : "",
+    tag: typeof d.tag === "string" ? d.tag.slice(0, 40) : "soranarabe",
+    renotify: true, lang: "ja", icon: "icon-192.png", badge: "icon-192.png",
+    data: { hash: typeof d.hash === "string" ? d.hash : "" }
+  }));
 });
