@@ -12,6 +12,7 @@
 
 # repo-harness（開発用。配信しない）
 /docs/specs
+/docs/QUALITY_REPORT_TEMPLATE.md
 /scripts/harness
 /tests/harness.test.mjs
 /package.json
