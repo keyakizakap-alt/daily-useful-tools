@@ -188,6 +188,7 @@ const state = {
   weatherItem: null,    // 「天気」タブで開いている項目（null は一覧）
   radarCity: null,      // 雨雲レーダーの中心にしている地点
   radarBase: "photo",   // レーダーの背景地図 photo / std / pale
+  radarRange: "1h",     // 雨雲レーダーの予報の長さ 1h（5分刻み）/ 24h（その先は1時間刻み）
   notify: { on: false, rain: true, warn: true, watch: null, push: false },   // 通知の設定（watch は雨を見張る地点、push はアプリを閉じていても届く通知）
   data: new Map(),      // cityId -> normalized forecast
   errors: new Map(),    // cityId -> message
@@ -222,6 +223,7 @@ function loadState() {
     if (["auto", "light", "dark"].includes(s.theme)) state.theme = s.theme;
     if (TABS.includes(s.tab)) state.tab = s.tab;
     if (["photo", "std", "pale"].includes(s.radarBase)) state.radarBase = s.radarBase;
+    if (s.radarRange === "1h" || s.radarRange === "24h") state.radarRange = s.radarRange;
     if (valid(s.weatherCity)) state.weatherCity = s.weatherCity;
     if (valid(s.radarCity)) state.radarCity = s.radarCity;
     if (s.notify && typeof s.notify === "object") {
@@ -241,7 +243,7 @@ function saveState() {
     localStorage.setItem(STORE_KEY, JSON.stringify({
       selected: state.selected, pinned: state.pinned, custom: state.custom,
       unit: state.unit, view: state.view, sort: state.sort, theme: state.theme,
-      tab: state.tab, weatherCity: state.weatherCity, radarCity: state.radarCity, radarBase: state.radarBase,
+      tab: state.tab, weatherCity: state.weatherCity, radarCity: state.radarCity, radarBase: state.radarBase, radarRange: state.radarRange,
       notify: state.notify
     }));
   } catch (e) { /* プライベートモード等で保存できなくても動作は継続 */ }
@@ -2596,6 +2598,14 @@ const BASEMAPS = {
   pale:  { url: GSI + "pale/{z}/{x}/{y}.png", fb: GSI + "std/{z}/{x}/{y}.png", label: "淡色地図", dark: false }
 };
 const NOWC_BASE = "https://www.jma.go.jp/bosai/jmatile/data/nowc/";
+/*
+ * 1時間より先: 気象庁 降水短時間予報（6時間先まで）・降水15時間予報（7〜15時間先）のタイル。いずれも前1時間降水量・1時間刻み。
+ *   https://www.jma.go.jp/bosai/jmatile/data/rasrf/targetTimes.json
+ *   https://www.jma.go.jp/bosai/jmatile/data/rasrf/{basetime}/{member}/{validtime}/surf/rasrf/{z}/{x}/{y}.png
+ *   member は一覧の値（none / immed）をそのまま使う（固定すると 404 になる）。
+ * これも公式に API として提供されているものではない。16〜24時間先は地図が無いため、地点のグラフを数値予報で補う。
+ */
+const RASRF_BASE = "https://www.jma.go.jp/bosai/jmatile/data/rasrf/";
 const TILE = 256;
 const RADAR_ZOOM_MIN = 5, RADAR_ZOOM_MAX = 10, SAMPLE_ZOOM = 8;
 
@@ -2632,6 +2642,7 @@ const MAP_LABELS = [
 const radar = {
   active: false, inited: false, zoom: 8, centerX: 0, centerY: 0,
   times: [], index: 0, lastObs: -1, issued: null, timesAt: 0, loadingTimes: false,
+  nowTimes: [], longTimes: [], longFailed: false, hours: null, hoursBusy: false,
   playing: false, timer: null, refreshTimer: null, cityId: null,
   baseStore: new Map(), baseKind: null, frames: new Map(),
   series: null, seriesBusy: false, sampleFailed: null, toastTimer: null, geoAsked: false
@@ -2663,7 +2674,28 @@ function jstClock(date) {
 }
 function tpl(url, z, x, y) { return url.replace("{z}", z).replace("{x}", x).replace("{y}", y); }
 function nowcUrl(t, z, x, y) {
+  if (t.kind === "long") return RASRF_BASE + t.basetime + "/" + t.member + "/" + t.validtime + "/surf/rasrf/" + z + "/" + x + "/" + y + ".png";
   return NOWC_BASE + t.basetime + "/none/" + t.validtime + "/surf/hrpns/" + z + "/" + x + "/" + y + ".png";
+}
+/** 時刻ごとのレイヤーの識別子（同じ時刻でも発表が新しくなれば別のコマとして読み直す） */
+function frameKey(t) { return t.basetime + "/" + (t.member || "none") + "/" + t.validtime; }
+
+/**
+ * 降水短時間予報の時刻一覧から、時刻ごとにいちばん新しい発表のものを 1 件ずつ選ぶ。
+ * 一覧には複数の発表（basetime）と、解析値（basetime == validtime）・重複した時刻が混ざっている。
+ */
+function parseLongTimes(arr, after) {
+  const byValid = new Map();
+  (Array.isArray(arr) ? arr : []).forEach(e => {
+    if (!e) return;
+    const b = String(e.basetime), v = String(e.validtime), m = String(e.member || "");
+    if (!/^\d{14}$/.test(b) || !/^\d{14}$/.test(v) || v <= b || !/^[a-z]+$/.test(m)) return;
+    if (Array.isArray(e.elements) && e.elements.indexOf("rasrf") < 0) return;
+    if (after && v <= after) return;
+    const known = byValid.get(v);
+    if (!known || known.basetime < b) byValid.set(v, { basetime: b, validtime: v, member: m, kind: "long" });
+  });
+  return Array.from(byValid.values()).sort((a, b) => a.validtime < b.validtime ? -1 : 1);
 }
 
 /** 実況（N1）の直近1時間と、予測（N2）の1時間先までを時系列に並べる */
@@ -2686,7 +2718,11 @@ async function loadRadarTimes() {
   const sameBase = fcAfter.filter(t => t.basetime === issued);
   const PAST = 4;   // 現在＋15分前まで
   const times = obs.slice(-PAST).concat(sameBase.slice(0, 12));
-  return { times: times, lastObs: obs.length ? Math.min(obs.length, PAST) - 1 : -1, issued: issued };
+  // 1時間より先（降水短時間予報）。取れなくても 1時間先までは出す
+  const nowEnd = times.length ? times[times.length - 1].validtime : null;
+  let long = [];
+  try { long = parseLongTimes(await getJson(RASRF_BASE + "targetTimes.json", 12000), nowEnd); } catch (e) { long = null; }
+  return { times: times, lastObs: obs.length ? Math.min(obs.length, PAST) - 1 : -1, issued: issued, long: long };
 }
 
 function radarView() {
@@ -2758,7 +2794,7 @@ function paintBase() {
 function frameFor(i) {
   const t = radar.times[i];
   if (!t) return null;
-  let f = radar.frames.get(t.validtime);
+  let f = radar.frames.get(frameKey(t));
   if (!f) {
     const el = document.createElement("div");
     el.className = "radar-layer rain-frame";
@@ -2766,7 +2802,7 @@ function frameFor(i) {
     $("#radarRain").appendChild(el);
     f = { el: el, store: new Map(), stats: { total: 0, loaded: 0, failed: 0 }, t: t };
     f.stats.onChange = () => { if (radar.times[radar.index] === t) checkRainFailure(f); };
-    radar.frames.set(t.validtime, f);
+    radar.frames.set(frameKey(t), f);
   }
   return f;
 }
@@ -2911,15 +2947,41 @@ function buildTicks() {
   slider.max = String(Math.max(0, n - 1));
   let html = "";
   if (n > 1 && radar.lastObs >= 0) {
-    [0, 15, 30, 45, 60].forEach(m => {
-      const i = radar.times.findIndex((t, k) => k >= radar.lastObs && minutesFromNow(k) === m);
+    const long = state.radarRange === "24h" && radar.longTimes.length;
+    const marks = long ? [[0, "現在"], [60, "1時間後"], [360, "6時間後"], [720, "12時間後"]]
+                       : [[0, "現在"], [15, "15分後"], [30, "30分後"], [45, "45分後"], [60, "60分後"]];
+    // 目盛りの文字が重ならないよう、実際の幅で間隔を確かめる（左から順に、入らないものは省く）
+    const width = $("#rvTicks").clientWidth || 260;
+    const fontPx = window.matchMedia && window.matchMedia("(max-width: 520px)").matches ? 10.5 : 12;   // .rv-tick の文字の大きさ
+    let lastRight = -Infinity;
+    marks.forEach(([m, label]) => {
+      // 1時間より先のコマは正時ごとなので、いちばん近いコマ（±35分以内）に目盛りを付ける
+      let i = -1, best = m === 0 || !long ? 1 : 36;
+      radar.times.forEach((t, k) => {
+        const d = Math.abs(minutesFromNow(k) - m);
+        if (k >= radar.lastObs && d < best) { best = d; i = k; }
+      });
       if (i < 0) return;
-      html += '<span class="rv-tick' + (m === 0 ? " now" : "") + '" style="left:' + (i / (n - 1) * 100).toFixed(2) + '%">'
-        + (m === 0 ? "現在" : m + "分後") + '</span>';
+      const pos = i / (n - 1) * 100;
+      const half = (label.length * fontPx * 0.92 + 8) / 2, x = pos / 100 * width;
+      if (x - half < lastRight) return;
+      lastRight = x + half;
+      html += '<span class="rv-tick' + (m === 0 ? " now" : "") + '" style="left:' + pos.toFixed(2) + '%">' + label + '</span>';
     });
   }
   $("#rvTicks").innerHTML = html;
-  $("#rvIssued").textContent = radar.issued ? jstClock(parseJmaTime(radar.issued)) + " 発表" : "";
+  const longIssued = state.radarRange === "24h" && radar.longTimes.length
+    ? radar.longTimes.reduce((a, t) => t.basetime > a ? t.basetime : a, "") : null;
+  $("#rvIssued").textContent = radar.issued
+    ? jstClock(parseJmaTime(radar.issued)) + " 発表" + (longIssued ? "（1時間より先は " + jstClock(parseJmaTime(longIssued)) + "）" : "") : "";
+  document.querySelectorAll("#rvRange [data-range]").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.getAttribute("data-range") === state.radarRange)));
+}
+/** 「◯分後」「◯時間◯分後」 */
+function aheadText(m) {
+  if (m < 60) return m + "分後";
+  const h = Math.floor(m / 60), r = m % 60;
+  return h + "時間" + (r ? r + "分" : "") + "後";
 }
 function updateTimeline() {
   const n = radar.times.length;
@@ -2931,7 +2993,8 @@ function updateTimeline() {
   if (!t) { clock.textContent = ""; return; }
   const m = minutesFromNow(radar.index);
   clock.textContent = jstClock(parseJmaTime(t.validtime))
-    + (m === 0 ? "（現在）" : m > 0 ? "（" + m + "分後の予測）" : "（" + (-m) + "分前）");
+    + (m === 0 ? "（現在）" : m > 0 ? "（" + aheadText(m) + "の予測）" : "（" + (-m) + "分前）");
+  highlightRadarHour();
 }
 
 async function reloadRadarTimes() {
@@ -2942,14 +3005,15 @@ async function reloadRadarTimes() {
     const r = await loadRadarTimes();
     radar.timesAt = Date.now();
     if (!r.times.length) {
-      radar.times = []; radar.lastObs = -1; radar.issued = null;
+      radar.times = []; radar.nowTimes = []; radar.longTimes = []; radar.lastObs = -1; radar.issued = null;
       showRadarMsg("雨雲の観測時刻を取得できませんでした。地図のみ表示しています。");
     } else {
-      radar.times = r.times; radar.lastObs = r.lastObs; radar.issued = r.issued;
-      const kept = keep ? radar.times.findIndex(t => t.validtime === keep) : -1;
-      radar.index = kept >= 0 ? kept : Math.max(0, radar.lastObs);
+      radar.nowTimes = r.times; radar.lastObs = r.lastObs; radar.issued = r.issued;
+      radar.longTimes = r.long || [];
+      radar.longFailed = r.long === null;
+      applyRadarRange(keep);
       // 使わなくなった時刻のレイヤーを捨てる
-      const live = new Set(radar.times.map(t => t.validtime));
+      const live = new Set(radar.nowTimes.concat(radar.longTimes).map(frameKey));
       radar.frames.forEach((f, k) => { if (!live.has(k)) { f.el.remove(); radar.frames.delete(k); } });
       hideRadarMsg();
     }
@@ -2959,7 +3023,32 @@ async function reloadRadarTimes() {
   buildTicks();
   paintRadar();
   radar.series = null;
+  radar.hours = null;
   updateRadarSeries();
+}
+
+/** 「1時間」「24時間」に合わせて、スライダーに並べるコマを組み直す（見ていた時刻はなるべく保つ） */
+function applyRadarRange(keepValid) {
+  const keep = keepValid !== undefined ? keepValid
+    : radar.times[radar.index] && radar.index !== radar.lastObs ? radar.times[radar.index].validtime : null;
+  radar.times = state.radarRange === "24h" ? radar.nowTimes.concat(radar.longTimes) : radar.nowTimes.slice();
+  const kept = keep ? radar.times.findIndex(t => t.validtime === keep) : -1;
+  radar.index = kept >= 0 ? kept : Math.max(0, radar.lastObs);
+}
+
+function setRadarRange(val) {
+  if (val !== "1h" && val !== "24h") return;
+  const changed = state.radarRange !== val;
+  state.radarRange = val;
+  saveState();
+  if (!changed) return;
+  stopRadarPlay();
+  applyRadarRange();
+  if (val === "24h" && radar.longFailed) radarToast("1時間より先の雨雲の予報を取得できませんでした。地点のグラフは数値予報で表示します。");
+  buildTicks();
+  paintRadar();
+  renderRadarPanel();
+  if (val === "24h") updateRadarHours();
 }
 
 function stopRadarPlay() {
@@ -3099,7 +3188,7 @@ async function updateRadarSeries() {
   // 同じ時刻で一度読み取りに失敗していたら、時刻一覧が更新されるまで再試行しない
   const sampleKey = t0 ? t0.validtime : null;
   if (t0 && radar.sampleFailed !== sampleKey) {
-    const list = radar.times.slice(radar.lastObs);
+    const list = radar.times.slice(radar.lastObs).filter(t => t.kind !== "long");
     try {
       const base = parseJmaTime(t0.validtime);
       const points = await Promise.all(list.map(async t => ({
@@ -3187,6 +3276,8 @@ function renderRadarPanel() {
     + '<svg class="rv-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
   if (!$("#rvPick").hidden) renderRadarPicker();
 
+  $("#rvCards").classList.toggle("is-hours", state.radarRange === "24h");
+  if (state.radarRange === "24h") { $("#rvCards").innerHTML = radarHoursHtml(city); highlightRadarHour(); layoutRadarTools(); return; }
   $("#rvCards").innerHTML = [10, 30, 60].map(m => {
     let pt = null;
     if (s) s.points.forEach(p => { if (p.min <= m + 2 && (!pt || p.min > pt.min)) pt = p; });
@@ -3199,6 +3290,76 @@ function renderRadarPanel() {
       +   '<span class="rv-card-mm tnum">' + (lv === null ? "" : esc(RAIN_LEVELS[lv].range)) + '</span></span>'
       + '</div>' + rainMeter(lv || 0) + '</div>';
   }).join("");
+  layoutRadarTools();   // カードの高さが変わったら右のボタンの位置を合わせ直す
+}
+
+/* ---- 24時間の雨（地点のグラフ）----
+ *   15時間先までは降水短時間予報のタイルの色を地点で読み取り、それより先（と読み取れないとき）は数値予報の1時間値で補う。
+ */
+function hourKey(date) { return date.toISOString().slice(0, 13); }
+
+/** 数値予報（Open-Meteo）の 1 時間値: 時刻（UTC の時まで）→ 区分 */
+function modelHourLevels(city) {
+  const d = state.data.get(city.id), out = new Map();
+  if (!d || !d.hours) return out;
+  d.hours.forEach(h => { const t = parseLocal(h.time); if (t) out.set(hourKey(t), levelFromMm(h.precip)); });
+  return out;
+}
+
+async function updateRadarHours() {
+  const city = CITY_BY_ID.get(radar.cityId);
+  if (!city || state.radarRange !== "24h") return;
+  const key = city.id + "|" + radar.longTimes.map(frameKey).join(",");
+  if ((radar.hours && radar.hours.key === key) || radar.hoursBusy === key) return;
+  radar.hoursBusy = key;
+  const jma = new Map();
+  let failed = false;
+  if (radar.longTimes.length && radar.sampleFailed !== "long") {
+    try {
+      const lv = await Promise.all(radar.longTimes.map(t => sampleLevel(t, city.lat, city.lon)));
+      radar.longTimes.forEach((t, i) => jma.set(hourKey(parseJmaTime(t.validtime)), lv[i]));
+    } catch (e) {
+      failed = true;
+      radar.sampleFailed = "long";   // 色を読み取れない（CORS など）→ 数値予報だけで出す
+    }
+  }
+  if (radar.hoursBusy === key) radar.hoursBusy = false;
+  if (radar.cityId !== city.id) return;
+  radar.hours = { key: key, forCity: city.id, jma: jma, failed: failed };
+  renderRadarPanel();
+}
+
+function radarHoursHtml(city) {
+  const model = modelHourLevels(city);
+  const h = radar.hours && radar.hours.forCity === city.id ? radar.hours : null;
+  if (!h) updateRadarHours();
+  const start = new Date(); start.setMinutes(0, 0, 0);
+  let bars = "", lastJma = -1;
+  for (let k = 1; k <= 24; k++) {
+    const t = new Date(start.getTime() + k * 3600e3), key = hourKey(t);
+    const fromJma = h && h.jma.has(key);
+    const lv = fromJma ? h.jma.get(key) : model.has(key) ? model.get(key) : null;
+    if (fromJma) lastJma = k;
+    const label = jstClock(t).slice(0, 2).replace(/^0/, "") + "時";
+    const frame = radar.times.findIndex(x => x.kind === "long" && hourKey(parseJmaTime(x.validtime)) === key);
+    bars += '<button type="button" class="rv-hbar' + (fromJma ? "" : " model") + '" data-rv-hour="' + frame + '" data-hk="' + key + '"'
+      + ' aria-label="' + esc(label + " " + (lv === null ? "データなし" : RAIN_LEVELS[lv].label + "（" + RAIN_LEVELS[lv].range + "）")
+        + (fromJma ? " 気象庁の予報" : " 数値予報")) + '">'
+      + '<span class="rv-hbar-col"><i style="height:' + (lv ? 12 + lv * 11 : 6) + '%;' + (lv ? "background:" + RAIN_LEVELS[lv].color : "") + '"></i></span>'
+      + '<span class="rv-hbar-t">' + (k % 3 === 0 ? esc(label) : "") + '</span></button>';
+  }
+  const note = h && lastJma > 0 ? lastJma + "時間先まで気象庁・以降は数値予報（薄い色）"
+    : h && h.failed ? "数値予報（1時間値）による目安"
+    : !h ? "読み込んでいます…" : "数値予報（1時間値）による目安";
+  return '<div class="rv-hours"><div class="rv-hours-head"><b>24時間の雨</b><span class="rv-hours-note">' + esc(note) + '</span></div>'
+    + '<div class="rv-hours-bars">' + bars + '</div></div>';
+}
+
+/** スライダーの時刻に当たる棒を強調する */
+function highlightRadarHour() {
+  const t = radar.times[radar.index];
+  const key = t && t.kind === "long" ? hourKey(parseJmaTime(t.validtime)) : null;
+  document.querySelectorAll("#rvCards .rv-hbar").forEach(b => b.classList.toggle("on", b.getAttribute("data-hk") === key));
 }
 
 function buildLegend() {
@@ -3658,6 +3819,20 @@ $("#themeBtn").addEventListener("click", () =>
   applySetting("theme", state.theme === "auto" ? "light" : state.theme === "light" ? "dark" : "auto"));
 $("#radarBtn").addEventListener("click", () => setTab("radar"));
 $("#radarPlay").addEventListener("click", () => { radar.playing ? stopRadarPlay() : startRadarPlay(); });
+$("#rvCards").addEventListener("click", e => {
+  const b = e.target.closest("[data-rv-hour]");
+  if (!b) return;
+  const i = parseInt(b.getAttribute("data-rv-hour"), 10);
+  if (i < 0) { radarToast("この時間は雨雲の地図がありません（グラフは数値予報による目安です）"); return; }
+  stopRadarPlay();
+  radar.index = i;
+  paintRain();
+  updateTimeline();
+});
+$("#rvRange").addEventListener("click", e => {
+  const b = e.target.closest("[data-range]");
+  if (b) setRadarRange(b.getAttribute("data-range"));
+});
 $("#radarTime").addEventListener("input", e => {
   stopRadarPlay();
   radar.index = parseInt(e.target.value, 10) || 0;

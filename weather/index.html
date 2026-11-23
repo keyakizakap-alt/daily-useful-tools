@@ -989,8 +989,35 @@ button.rv-place:hover { background: rgba(255,255,255,.2); }
 .rv-meter i { width: 7px; height: 14px; border-radius: 2px; background: rgba(255, 255, 255, .22); }
 
 .rv-timeline { padding: 7px 16px 4px 12px; }
-.rv-tl-head { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; opacity: .92; padding-left: 64px; min-height: 16px; }
+.rv-tl-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11.5px; padding-left: 64px; min-height: 16px; }
+.rv-clock { opacity: .92; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-range { display: inline-flex; flex: none; padding: 2px; border-radius: 999px; background: rgba(255, 255, 255, .16); }
+.rv-range button {
+  border: 0; background: none; color: #fff; font: inherit; font-size: 11.5px; font-weight: 700;
+  padding: 4px 11px; border-radius: 999px; opacity: .82; min-height: 26px;
+}
+.rv-range button[aria-pressed="true"] { background: #fff; color: #1d2a44; opacity: 1; }
+.rv-range button:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.rv-cards.is-hours { display: block; }
+.rv-hours {
+  padding: 9px 12px 6px; color: #fff; border-radius: 16px;
+  background: rgba(18, 33, 60, .62); border: 1px solid rgba(255, 255, 255, .18);
+  -webkit-backdrop-filter: blur(18px) saturate(150%); backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .25);
+}
+.rv-hours-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 13px; }
+.rv-hours-head b { flex: none; white-space: nowrap; }
+.rv-hours-note { font-size: 10.5px; opacity: .8; text-align: right; }
+.rv-hours-bars { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 2px; margin-top: 4px; }
+.rv-hbar { border: 0; background: none; color: #fff; padding: 0; font: inherit; min-width: 0; cursor: pointer; border-radius: 4px; }
+.rv-hbar-col { display: flex; align-items: flex-end; height: 48px; padding: 0 1px; border-radius: 4px; }
+.rv-hbar-col i { display: block; width: 100%; border-radius: 2px 2px 1px 1px; background: rgba(255, 255, 255, .3); }
+.rv-hbar.model .rv-hbar-col i { opacity: .55; }
+.rv-hbar.on .rv-hbar-col { background: rgba(255, 255, 255, .2); box-shadow: inset 0 0 0 1.5px #fff; }
+.rv-hbar-t { display: block; height: 15px; font-size: 10px; line-height: 15px; white-space: nowrap; overflow: visible; opacity: .88; }
+.rv-hbar:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
 .rv-clock { font-weight: 700; }
+.rv-attrib .rv-issued { font-weight: 700; }
 .rv-tl-row { display: flex; align-items: center; gap: 14px; }
 .rv-play {
   width: 50px; height: 50px; border-radius: 50%; border: 0; background: #fff; color: #1d2a44; flex: none;
@@ -1056,6 +1083,12 @@ button.rv-place:hover { background: rgba(255,255,255,.2); }
   .rv-play { width: 44px; height: 44px; }
   .rv-tl-row { gap: 10px; }
   .rv-tl-head { padding-left: 54px; font-size: 10.5px; }
+  .rv-range button { font-size: 10.5px; padding: 3px 9px; min-height: 24px; }
+  .rv-hours { padding: 7px 9px 4px; border-radius: 14px; }
+  .rv-hours-head { font-size: 12px; }
+  .rv-hours-note { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 9.5px; }
+  .rv-hbar-col { height: 30px; }
+  .rv-hbar-t { font-size: 9px; }
   .rv-tick { font-size: 10.5px; }
 }
 
@@ -1195,7 +1228,10 @@ button.rv-place:hover { background: rgba(255,255,255,.2); }
     <div class="rv-scale" id="rvScale"><span class="txt">20 km</span><span class="bar"></span></div>
     <div class="rv-cards" id="rvCards"></div>
     <div class="rv-timeline glass">
-      <div class="rv-tl-head"><span class="rv-clock tnum" id="radarClock"></span><span class="rv-issued tnum" id="rvIssued"></span></div>
+      <div class="rv-tl-head"><span class="rv-clock tnum" id="radarClock"></span>
+        <span class="rv-range" id="rvRange" role="group" aria-label="予報の長さ">
+          <button type="button" data-range="1h" aria-pressed="true">1時間</button><button type="button" data-range="24h" aria-pressed="false">24時間</button>
+        </span></div>
       <div class="rv-tl-row">
         <button type="button" class="rv-play" id="radarPlay" aria-label="再生">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>
@@ -1206,7 +1242,7 @@ button.rv-place:hover { background: rgba(255,255,255,.2); }
         </div>
       </div>
     </div>
-    <div class="rv-attrib">出典: 気象庁（高解像度降水ナウキャスト）／ 国土地理院（地理院タイル）</div>
+    <div class="rv-attrib"><span class="rv-issued tnum" id="rvIssued"></span> 出典: 気象庁（高解像度降水ナウキャスト・降水短時間予報）／ Open-Meteo（数値予報）／ 国土地理院（地理院タイル）</div>
   </div>
 </section>
 
