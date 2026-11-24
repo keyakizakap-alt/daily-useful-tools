@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>あしたのごみ — ごみ出しの日をまとめて管理</title>
+<meta name="description" content="「第2・第4水曜」「隔週金曜」などのごみ出しの規則を一度入れれば、今日とあしたに出すごみがすぐ分かる。家族と共有でき、カレンダーにも書き出せます。">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+<header class="top">
+  <div class="wrap">
+    <a class="back" href="../">daily-useful-tools</a>
+    <h1>あしたのごみ</h1>
+    <p class="lead">ごみ出しの規則を一度入れれば、今日とあしたに出すごみがすぐ分かります。</p>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <div id="share-banner" class="banner" role="region" aria-labelledby="share-banner-title" tabindex="-1" hidden>
+    <h2 id="share-banner-title" class="banner-title">共有された規則</h2>
+    <div id="share-ask">
+      <p id="share-banner-text"></p>
+      <ul class="preview" id="share-preview"></ul>
+      <div class="row">
+        <button type="button" id="share-accept" class="btn primary">読み込む</button>
+        <button type="button" id="share-reject" class="btn">読み込まない</button>
+      </div>
+    </div>
+    <div id="share-done" hidden>
+      <p>共有された規則を読み込みました。</p>
+      <div class="row">
+        <button type="button" id="share-undo" class="btn">元に戻す</button>
+        <button type="button" id="share-close" class="btn">閉じる</button>
+      </div>
+    </div>
+  </div>
+  <p id="storage-warn" class="notice warn" role="alert" hidden></p>
+
+  <section aria-labelledby="h-now">
+    <h2 id="h-now" class="visually-hidden">今日とあした</h2>
+    <div class="now">
+      <article class="day-card" id="card-today" aria-labelledby="today-title">
+        <h3 id="today-title"><span class="day-name">今日</span> <span class="day-date" id="today-date"></span></h3>
+        <ul class="items" id="today-items"></ul>
+      </article>
+      <article class="day-card tomorrow" id="card-tomorrow" aria-labelledby="tomorrow-title">
+        <h3 id="tomorrow-title"><span class="day-name">あした</span> <span class="day-date" id="tomorrow-date"></span></h3>
+        <ul class="items" id="tomorrow-items"></ul>
+      </article>
+    </div>
+    <div id="empty-guide" class="guide" hidden>
+      <p>まだ規則がありません。お住まいの地域の分別表を見ながら、下の「収集の規則」から追加してください。</p>
+      <button type="button" id="load-sample" class="btn">よくある例を入れてみる</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-upcoming" class="panel">
+    <h2 id="h-upcoming">これから2週間</h2>
+    <ol class="upcoming" id="upcoming"></ol>
+  </section>
+
+  <section aria-labelledby="h-rules" class="panel">
+    <h2 id="h-rules" tabindex="-1">収集の規則</h2>
+    <ul class="rule-list" id="rule-list"></ul>
+
+    <form id="rule-form" class="form" novalidate>
+      <h3>規則を追加</h3>
+      <div class="field">
+        <label for="rule-name">ごみの種類</label>
+        <input id="rule-name" name="name" type="text" list="name-suggest" maxlength="20" autocomplete="off" placeholder="例: 燃やすごみ" required>
+        <datalist id="name-suggest">
+          <option value="燃やすごみ"></option>
+          <option value="燃やさないごみ"></option>
+          <option value="資源ごみ"></option>
+          <option value="プラスチック"></option>
+          <option value="ペットボトル"></option>
+          <option value="びん・缶"></option>
+          <option value="古紙・古布"></option>
+          <option value="有害ごみ"></option>
+        </datalist>
+      </div>
+
+      <fieldset class="field">
+        <legend>収集のしかた</legend>
+        <div class="choices">
+          <label class="choice"><input type="radio" name="type" value="weekly" checked> 毎週</label>
+          <label class="choice"><input type="radio" name="type" value="nth"> 第何週</label>
+          <label class="choice"><input type="radio" name="type" value="biweekly"> 隔週</label>
+        </div>
+      </fieldset>
+
+      <fieldset class="field">
+        <legend>曜日</legend>
+        <div class="choices" id="weekday-choices"></div>
+      </fieldset>
+
+      <fieldset class="field" id="nth-field" hidden>
+        <legend>第何週か</legend>
+        <div class="choices" id="nth-choices"></div>
+        <p class="hint">「第2水曜」は、その月の2回目の水曜日です。「第5」は5回目の曜日がある月だけ収集します。</p>
+      </fieldset>
+
+      <div class="field" id="anchor-field" hidden>
+        <label for="rule-anchor">基準日（この規則で収集がある日を1つ）</label>
+        <input id="rule-anchor" name="anchor" type="date">
+        <p class="hint">基準日を含む週（日曜〜土曜）を収集のある週として、1週おきに計算します。</p>
+      </div>
+
+      <p class="error" id="rule-error" role="alert"></p>
+      <button type="submit" class="btn primary">追加する</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="h-breaks" class="panel">
+    <h2 id="h-breaks" tabindex="-1">お休み期間</h2>
+    <p class="hint">年末年始や、祝日で収集が休みになる日を入れると、その期間は表示しません。</p>
+    <ul class="rule-list" id="break-list"></ul>
+    <form id="break-form" class="form inline" novalidate>
+      <div class="field">
+        <label for="break-from">開始日</label>
+        <input id="break-from" type="date" required>
+      </div>
+      <div class="field">
+        <label for="break-to">終了日</label>
+        <input id="break-to" type="date" required>
+      </div>
+      <button type="submit" class="btn">追加する</button>
+      <p class="error" id="break-error" role="alert"></p>
+    </form>
+  </section>
+
+  <section aria-labelledby="h-share" class="panel">
+    <h2 id="h-share">共有と書き出し</h2>
+    <div class="share-block">
+      <h3>家族に共有する</h3>
+      <p class="hint">規則とお休み期間を入れたリンクを作ります。メッセージアプリで送ってください。</p>
+      <button type="button" id="share-copy" class="btn">共有リンクをコピー</button>
+      <div class="field" id="share-output-field" hidden>
+        <label for="share-output">共有リンク</label>
+        <input id="share-output" type="text" readonly>
+      </div>
+    </div>
+    <div class="share-block">
+      <h3>スマホのカレンダーに入れる</h3>
+      <p class="hint">今日から1年分の収集日を、カレンダー用ファイル（.ics）として保存します。開くとカレンダーアプリに取り込めます。</p>
+      <label class="choice"><input type="checkbox" id="ics-alarm" checked> 前の日の20時に通知する</label>
+      <p class="hint">通知の設定は、カレンダーアプリによっては取り込まれません。届かないときはアプリ側で通知を設定してください。</p>
+      <button type="button" id="ics-download" class="btn">カレンダー用ファイルを保存</button>
+    </div>
+    <div class="share-block">
+      <h3>すべて消す</h3>
+      <button type="button" id="clear-all" class="btn danger">この端末の規則とお休み期間を消す</button>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>収集日は、必ずお住まいの自治体の公式情報で確認してください。祝日に収集するかどうかは地域によって違うため、自動では判定しません。</p>
+    <p>入力した内容は、この端末のブラウザ内にだけ保存されます。外部には送信しません。</p>
+  </footer>
+</main>
+
+<p id="notice" class="toast" role="status" aria-live="polite" hidden></p>
+<script src="src/rules.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>
