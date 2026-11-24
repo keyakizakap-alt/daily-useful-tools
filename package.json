@@ -2,7 +2,7 @@
   "name": "daily-useful-tools",
   "private": true,
   "scripts": {
-    "test": "node --test tests/*.test.mjs",
+    "test": "node --test tests/*.test.mjs stockpile/tests/*.test.mjs",
     "lint:specs": "node scripts/harness/check-specs.mjs"
   }
 }

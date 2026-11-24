@@ -9,6 +9,7 @@
 | そらならべ | `weather/` | 日本の天気を、ならべて見る |
 | くもみち | `gcp-cert/` | Google Cloud 認定 全冠ナビ（非公式） |
 | おくるまえに | `mail-check/` | 送信前のメール点検 |
+| そなえ帳 | `stockpile/` | 家庭の防災備蓄ノート |
 
 ---
 
@@ -105,6 +106,33 @@ Google Cloud の現行認定資格 15 種（Foundational 2 / Associate 3 / Profe
 - セキュリティ: Content-Security-Policy で外部スクリプトと外部通信を禁止。保存データと読み込んだバックアップは、
   既知の項目と妥当な値だけを取り込む（不正な値で画面が止まらない）。
 - 整合性チェック: `node gcp-cert/tools/check-data.mjs`（ID 重複・正解インデックス・複数選択表記・配点合計・全ドメインの問題有無・ノートの形式・全資格×全カテゴリ・全ドメインのノートの有無など）
+
+## そなえ帳 — 家庭の防災備蓄ノート (`stockpile/`)
+
+> 備えは、量と期限で。
+
+家族構成（大人・子ども・乳児・高齢者・犬・猫）と備える日数から、品目別の備蓄の必要量を出し、
+在庫を期限つきで管理して、**足りない物**と**今月食べて買い足す物（ローリングストック）**を示す。
+`stockpile/index.html` をブラウザで開くだけ。ビルド・サーバー・依存パッケージは不要。
+
+### 機能
+
+- **必要量の計算** — 水（1人1日3L）、主食・おかず、カセットボンベ、簡易トイレ、乳児用ミルク・おむつ、常備薬（最低7日）、
+  ペットフード・水（最低5日）、備品。該当者がいない品目は出さない。基準はすべて目安として表示する。
+- **在庫と期限** — 数量と賞味・使用期限を登録。期限切れは充足量に数えず、期限切れ／30日以内／60日以内を近い順に表示。
+- **充足率** — 品目ごとのバーと、水・食料・生活用品の充足率、水の残り日数。
+- **買い物リスト** — 不足分をテキストでコピー。
+- **データ** — `localStorage` のみに保存。JSON の書き出し・読み込み（検証つき）、全消去。
+
+### 開発
+
+```bash
+npm test   # ルートで実行。stockpile/tests/engine.test.mjs を含む
+```
+
+設計と判断の記録は [`stockpile/docs/requirements.md`](stockpile/docs/requirements.md) /
+[`stockpile/docs/architecture.md`](stockpile/docs/architecture.md)、
+レビューと修正の記録は [`stockpile/feedback/review_report.md`](stockpile/feedback/review_report.md) にある。
 
 ## おくるまえに — 送信前のメール点検 (`mail-check/`)
 

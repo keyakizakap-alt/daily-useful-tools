@@ -9,6 +9,10 @@
 /mail-check/tests
 /mail-check/package.json
 /mail-check/package-lock.json
+/stockpile/docs
+/stockpile/feedback
+/stockpile/tests
+/stockpile/PR_DESCRIPTION.md
 
 # repo-harness（開発用。配信しない）
 /docs/specs
