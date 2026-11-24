@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'none'; font-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<title>としめくり — 履歴書の学歴年表・年号早見</title>
+<meta name="description" content="生年月日と最終学歴を入れるだけで、履歴書の学歴欄の入学・卒業年月を和暦と西暦で出します。早生まれ・浪人・改元の年も自動で計算。入力内容はどこにも送信されません。">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="brand">
+      <h1>としめくり</h1>
+      <p class="tagline">履歴書の学歴欄を、年号まちがいなしで。</p>
+    </div>
+    <div class="theme-switch" role="group" aria-label="表示テーマ">
+      <button type="button" data-theme-value="light">ライト</button>
+      <button type="button" data-theme-value="dark">ダーク</button>
+      <button type="button" data-theme-value="system">自動</button>
+    </div>
+  </div>
+</header>
+
+<main class="layout">
+  <p class="local-note">入力した生年月日や学校名は、この端末の中だけで計算します。入力内容は送信も保存もしません（保存するのは表示テーマだけです）。</p>
+
+  <section class="panel" aria-labelledby="input-heading">
+    <h2 id="input-heading">1. 入力</h2>
+    <div class="grid">
+      <div class="field">
+        <label for="birth">生年月日</label>
+        <input type="date" id="birth" min="1926-12-25" required aria-describedby="birth-help errors">
+        <p class="help" id="birth-help"><span id="birth-wareki">西暦で入力します（例: 2003-05-10）</span></p>
+      </div>
+      <div class="field">
+        <label for="path">最終学歴</label>
+        <select id="path"></select>
+      </div>
+      <div class="field">
+        <label for="ref-date">記入日（履歴書の日付）</label>
+        <input type="date" id="ref-date" min="1926-12-25" required aria-describedby="ref-help errors">
+        <p class="help" id="ref-help">この日より後の卒業は「卒業見込み」になります</p>
+      </div>
+    </div>
+
+    <details class="more">
+      <summary>詳しい条件（浪人・留年・学校名）</summary>
+      <div class="grid">
+        <div class="field">
+          <label for="ronin">浪人した年数</label>
+          <input type="number" id="ronin" min="0" max="5" step="1" value="0" inputmode="numeric">
+          <p class="help">高校卒業から進学までの空白の年数</p>
+        </div>
+        <div class="field" id="field-voc">
+          <label for="voc-years">専門学校の修業年数</label>
+          <select id="voc-years">
+            <option value="1">1年</option>
+            <option value="2" selected>2年</option>
+            <option value="3">3年</option>
+            <option value="4">4年</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="ext-high">高校・高専で延びた年数</label>
+          <input type="number" id="ext-high" min="0" max="5" step="1" value="0" inputmode="numeric">
+          <p class="help">留年・休学・留学など</p>
+        </div>
+        <div class="field" id="field-ext-post">
+          <label for="ext-post">大学・短大・専門で延びた年数</label>
+          <input type="number" id="ext-post" min="0" max="5" step="1" value="0" inputmode="numeric">
+        </div>
+        <div class="field" id="field-ext-grad">
+          <label for="ext-grad">大学院で延びた年数</label>
+          <input type="number" id="ext-grad" min="0" max="5" step="1" value="0" inputmode="numeric">
+        </div>
+      </div>
+
+      <fieldset class="schools">
+        <legend>学校名（任意・60文字まで）</legend>
+        <div class="grid">
+          <div class="field" id="field-school-elementary"><label for="school-elementary">小学校</label><input type="text" id="school-elementary" maxlength="60" autocomplete="off" placeholder="○○小学校"></div>
+          <div class="field"><label for="school-juniorHigh">中学校</label><input type="text" id="school-juniorHigh" maxlength="60" autocomplete="off" placeholder="○○中学校"></div>
+          <div class="field" id="field-school-high"><label for="school-high">高校・高専</label><input type="text" id="school-high" maxlength="60" autocomplete="off" placeholder="○○高等学校"></div>
+          <div class="field" id="field-school-post"><label for="school-post">大学・短大・専門</label><input type="text" id="school-post" maxlength="60" autocomplete="off" placeholder="○○大学 ○○学部 ○○学科"></div>
+          <div class="field" id="field-school-master"><label for="school-master">大学院（修士）</label><input type="text" id="school-master" maxlength="60" autocomplete="off" placeholder="○○大学大学院 ○○研究科 修士課程"></div>
+          <div class="field" id="field-school-doctor"><label for="school-doctor">大学院（博士）</label><input type="text" id="school-doctor" maxlength="60" autocomplete="off" placeholder="○○大学大学院 ○○研究科 博士課程"></div>
+        </div>
+      </fieldset>
+
+      <label class="check"><input type="checkbox" id="include-elementary"> 小学校の入学・卒業と中学校の入学も書く</label>
+    </details>
+
+    <div id="errors" class="errors" role="alert" aria-live="assertive" hidden></div>
+  </section>
+
+  <section class="panel" aria-labelledby="result-heading">
+    <div class="result-head">
+      <h2 id="result-heading">2. 学歴欄</h2>
+      <div class="mode-switch" role="group" aria-label="年の表記">
+        <button type="button" data-mode="wareki" aria-pressed="true">和暦</button>
+        <button type="button" data-mode="seireki" aria-pressed="false">西暦</button>
+      </div>
+    </div>
+    <p id="summary" class="summary" aria-live="polite">生年月日を入力すると、ここに学歴欄が出ます。</p>
+    <div id="warnings" class="warnings" role="status" hidden></div>
+    <div class="table-wrap">
+      <table id="timeline" hidden>
+        <caption class="sr-only">学歴の年表</caption>
+        <thead><tr><th scope="col">年</th><th scope="col">月</th><th scope="col">学歴</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="actions">
+      <button type="button" id="copy" class="primary" disabled>コピーする</button>
+      <span id="copy-status" class="copy-status" aria-live="polite"></span>
+    </div>
+    <p class="help">コピーした内容はタブ区切りなので、表計算ソフトや Word の表にそのまま貼れます。中学校の卒業から書くのが一般的です。</p>
+  </section>
+
+  <section class="panel" aria-labelledby="conv-heading">
+    <h2 id="conv-heading">3. 和暦・西暦の変換</h2>
+    <div class="conv">
+      <div class="conv-box">
+        <h3>西暦 → 和暦</h3>
+        <div class="row">
+          <label for="conv-seireki" class="sr-only">西暦の日付</label>
+          <input type="date" id="conv-seireki" min="1912-07-30">
+        </div>
+        <p id="conv-seireki-out" class="conv-out" aria-live="polite">—</p>
+      </div>
+      <div class="conv-box">
+        <h3>和暦 → 西暦</h3>
+        <div class="row">
+          <label for="conv-era" class="sr-only">元号</label>
+          <select id="conv-era"></select>
+          <label for="conv-year" class="sr-only">年（元年は1）</label>
+          <input type="number" id="conv-year" min="1" max="99" step="1" inputmode="numeric" placeholder="年">
+          <span aria-hidden="true">年</span>
+        </div>
+        <p id="conv-wareki-out" class="conv-out" aria-live="polite">—</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>早生まれ（1月1日〜4月1日生まれ）は、前の年に生まれた人と同じ学年として計算します。入学は4月、卒業は3月として計算します。9月入学・飛び級などは「延びた年数」で調整してください。</p>
+  <p><a href="../">daily-useful-tools トップへ</a></p>
+</footer>
+
+<script src="src/engine.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>
