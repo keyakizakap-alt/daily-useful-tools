@@ -33,5 +33,6 @@ Thumbs.db
 *.swp
 
 # Playwright
+**/tests/screenshots/
 playwright-report/
 test-results/
